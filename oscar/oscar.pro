@@ -311,6 +311,8 @@ SOURCES += \
     timealignmentwelcomedialog.cpp \
     driftanalysisdialog.cpp \
     driftplotwidget.cpp \
+    clocksyncanalyzer.cpp \
+    clocksyncdialog.cpp \
     backupdialog.cpp \
     restoredialog.cpp \
     sharedialog.cpp \
@@ -491,6 +493,8 @@ HEADERS  += \
     timealignmentwelcomedialog.h \
     driftanalysisdialog.h \
     driftplotwidget.h \
+    clocksyncanalyzer.h \
+    clocksyncdialog.h \
     backupdialog.h \
     restoredialog.h \
     sharedialog.h \
@@ -653,6 +657,7 @@ FORMS += \
     newprofile.ui \
     devicetimecorrectiondialog.ui \
     driftanalysisdialog.ui \
+    clocksyncdialog.ui \
     backupdialog.ui \
     restoredialog.ui \
     sharedialog.ui \

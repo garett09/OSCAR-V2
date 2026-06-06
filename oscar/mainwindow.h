@@ -252,6 +252,7 @@ class MainWindow : public QMainWindow
     //! \brief Opens the Time Corrections dialog for the current day
     void on_actionTime_Corrections_triggered();
     void on_actionDrift_Analysis_triggered();
+    void on_actionAutoDetectCPAPOffset_triggered();
     void on_actionPurgeAllTimeCorrections_triggered();
 
     //! \brief Opens and/or shows the Oximetry page
@@ -475,6 +476,7 @@ private:
     PreferencesDialog *prefdialog;
     class DeviceTimeCorrectionDialog *m_correctionDialog = nullptr;
     class DriftAnalysisDialog *m_driftDialog = nullptr;
+    class ClockSyncDialog *m_clockSyncDialog = nullptr;
     QTime logtime;
     QSystemTrayIcon *systray;
     QMenu *systraymenu;

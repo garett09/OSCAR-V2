@@ -2245,6 +2245,7 @@ p, li { white-space: pre-wrap; }
     <addaction name="separator"/>
     <addaction name="actionTime_Corrections"/>
     <addaction name="actionDrift_Analysis"/>
+    <addaction name="actionAutoDetectCPAPOffset"/>
     <addaction name="separator"/>
     <addaction name="action_Rebuild_Oximetry_Index"/>
     <addaction name="menu_Rebuild_CPAP_Data"/>
@@ -2270,6 +2271,14 @@ p, li { white-space: pre-wrap; }
    </property>
    <property name="toolTip">
     <string>Analyse and model clock drift over time</string>
+   </property>
+  </action>
+  <action name="actionAutoDetectCPAPOffset">
+   <property name="text">
+    <string>Auto-Detect CPAP Clock Offset...</string>
+   </property>
+   <property name="toolTip">
+    <string>Automatically measure CPAP clock offset by cross-correlating apnea events with SpO₂ drops from a reference oximeter</string>
    </property>
   </action>
   <action name="action_Import_Data">

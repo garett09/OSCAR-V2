@@ -81,6 +81,7 @@
 #include "devicetimecorrectiondialog.h"
 #include "timealignmentwelcomedialog.h"
 #include "driftanalysisdialog.h"
+#include "clocksyncdialog.h"
 #include "database/device_time_correction_repository.h"
 #include "aboutdialog.h"
 #include "newprofile.h"
@@ -1884,6 +1885,31 @@ void MainWindow::on_actionDrift_Analysis_triggered()
     m_driftDialog->show();
     m_driftDialog->raise();
     m_driftDialog->activateWindow();
+}
+
+void MainWindow::on_actionAutoDetectCPAPOffset_triggered()
+{
+    if (!p_profile) {
+        QMessageBox::warning(this, tr("Auto-Detect CPAP Clock Offset"),
+                             tr("Please open or create a profile first."));
+        return;
+    }
+    if (!m_clockSyncDialog) {
+        m_clockSyncDialog = new ClockSyncDialog(this);
+        m_clockSyncDialog->setAttribute(Qt::WA_DeleteOnClose);
+        connect(m_clockSyncDialog, &QObject::destroyed, this, [this]() {
+            m_clockSyncDialog = nullptr;
+        });
+        if (daily) {
+            connect(m_clockSyncDialog, &ClockSyncDialog::correctionsChanged,
+                    daily, &Daily::redrawWithZoom);
+        }
+    }
+    QDate date = daily ? daily->getDate() : QDate::currentDate();
+    m_clockSyncDialog->setDate(date);
+    m_clockSyncDialog->show();
+    m_clockSyncDialog->raise();
+    m_clockSyncDialog->activateWindow();
 }
 
 void MainWindow::on_actionPurgeAllTimeCorrections_triggered()
