@@ -25,7 +25,7 @@ lessThan(QT_MAJOR_VERSION,6) {
 # get rid of the help browser, at least for now
 DEFINES += helpless
 
-QT += core gui network xml printsupport serialport sql widgets help concurrent
+QT += core gui network xml printsupport serialport sql widgets help concurrent svg
 contains(DEFINES, helpless) {
     QT -= help
 }
