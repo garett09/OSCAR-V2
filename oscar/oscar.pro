@@ -454,8 +454,7 @@ SOURCES += \
     network/cloud_uploader.cpp \
     network/oauth2_handler.cpp \
     network/dropbox_uploader.cpp \
-    network/googledrive_uploader.cpp \
-    network/onedrive_uploader.cpp
+    network/googledrive_uploader.cpp
 !contains(DEFINES, helpless) {
     SOURCES += help.cpp
 }
@@ -638,8 +637,7 @@ HEADERS  += \
     network/cloud_uploader.h \
     network/oauth2_handler.h \
     network/dropbox_uploader.h \
-    network/googledrive_uploader.h \
-    network/onedrive_uploader.h
+    network/googledrive_uploader.h
 !contains(DEFINES, helpless) {
     HEADERS += help.h
 }
