@@ -28,6 +28,12 @@
 #include <QPrintDialog>
 #include <QPainter>
 #include <QProcess>
+#include "sleephqsyncdialog.h"
+#include <QInputDialog>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonValue>
+#include <QDirIterator>
 #include <QFontMetrics>
 #include <QTextDocument>
 #include <QTranslator>
@@ -4196,3 +4202,192 @@ void MainWindow::ensureCleanDatabaseState()
         }
     }
 }
+
+void MainWindow::on_actionImport_SleepHQ_Data_triggered()
+{
+    if (p_profile == nullptr) {
+        QMessageBox::warning(this, tr("Import"), tr("Please open or create a profile before importing data."));
+        return;
+    }
+
+    QString scriptPath = QDir::homePath() + "/ezscript/sleephq_download.py";
+    if (!QFile::exists(scriptPath)) {
+        QMessageBox::critical(this, tr("Error"), tr("SleepHQ sync script not found at:\n%1").arg(scriptPath));
+        return;
+    }
+
+    // Verify credentials in ~/.sleephq_config
+    QString configPath = QDir::homePath() + "/.sleephq_config";
+    QFile file(configPath);
+    bool hasCredentials = false;
+    if (file.open(QIODevice::ReadOnly)) {
+        QByteArray data = file.readAll();
+        QJsonDocument doc = QJsonDocument::fromJson(data);
+        if (!doc.isNull() && doc.isObject()) {
+            QJsonObject obj = doc.object();
+            if (obj.contains("client_id") && obj.contains("client_secret") &&
+                !obj.value("client_id").toString().trimmed().isEmpty() &&
+                !obj.value("client_secret").toString().trimmed().isEmpty()) {
+                hasCredentials = true;
+            }
+        }
+        file.close();
+    }
+
+    if (!hasCredentials) {
+        QMessageBox::information(this, tr("SleepHQ Credentials"), 
+                                 tr("SleepHQ credentials not found or incomplete. Let's set them up now."));
+
+        bool okId = false;
+        QString clientId = QInputDialog::getText(this, tr("SleepHQ Setup"),
+                                                 tr("Enter SleepHQ Client ID:"), QLineEdit::Normal,
+                                                 "", &okId);
+        if (!okId || clientId.trimmed().isEmpty()) {
+            return;
+        }
+
+        bool okSecret = false;
+        QString clientSecret = QInputDialog::getText(this, tr("SleepHQ Setup"),
+                                                     tr("Enter SleepHQ Client Secret:"), QLineEdit::Normal,
+                                                     "", &okSecret);
+        if (!okSecret || clientSecret.trimmed().isEmpty()) {
+            return;
+        }
+
+        if (file.open(QIODevice::WriteOnly)) {
+            QJsonObject obj;
+            obj["client_id"] = clientId.trimmed();
+            obj["client_secret"] = clientSecret.trimmed();
+            QJsonDocument newDoc(obj);
+            file.write(newDoc.toJson(QJsonDocument::Compact));
+            file.close();
+            QFile::setPermissions(configPath, QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+        } else {
+            QMessageBox::warning(this, tr("Error"), tr("Could not write credentials to %1").arg(configPath));
+            return;
+        }
+    }
+
+    QString cpapDir = QDir::homePath() + "/RESMED_DATA";
+    QString ringDir = QDir::homePath() + "/SLEEPHQ_O2_RING";
+
+    SleepHQSyncDialog dialog(this);
+    dialog.startSync(scriptPath, cpapDir, ringDir);
+    if (dialog.exec() == QDialog::Accepted) {
+        importSleepHQFolders();
+    }
+}
+
+void MainWindow::importSleepHQFolders()
+{
+    QString cpapPath = QDir::homePath() + "/RESMED_DATA";
+    QString ringPath = QDir::homePath() + "/SLEEPHQ_O2_RING";
+
+    bool newdata = false;
+
+    // 1. CPAP Import
+    QList<MachineLoader *> loaders = GetLoaders(MT_CPAP);
+    MachineLoader * cpapLoader = nullptr;
+    for (MachineLoader * loader : loaders) {
+        if (loader->Detect(cpapPath)) {
+            cpapLoader = loader;
+            break;
+        }
+    }
+
+    if (cpapLoader) {
+        qDebug() << "SleepHQ import: detected CPAP loader" << cpapLoader->loaderName();
+        ImportPath importPath(cpapPath, cpapLoader);
+        int sessionsImported = importCPAP(importPath, tr("Importing CPAP data from SleepHQ"));
+        if (sessionsImported >= 0) {
+            (*p_profile)[STR_PREF_LastCPAPPath] = cpapPath;
+        }
+        if (sessionsImported > 0) {
+            newdata = true;
+        }
+    } else {
+        qDebug() << "SleepHQ import: no CPAP loader detected for path" << cpapPath;
+    }
+
+    // 2. O2 Ring Import
+    int o2RingImportedCount = 0;
+    QDir ringDir(ringPath);
+    if (ringDir.exists()) {
+        QStringList o2Files;
+        QDirIterator it(ringPath, QDir::Files | QDir::NoSymLinks, QDirIterator::Subdirectories);
+        while (it.hasNext()) {
+            QString filePath = it.next();
+            QFileInfo fileInfo(filePath);
+            if (fileInfo.fileName().startsWith(".") || fileInfo.suffix() == "tmp" || fileInfo.suffix() == "lock") {
+                continue;
+            }
+            o2Files.append(filePath);
+        }
+
+        if (!o2Files.isEmpty()) {
+            qDebug() << "SleepHQ import: importing" << o2Files.size() << "O2 ring files from" << ringPath;
+            o2RingImportedCount = importSleepHQO2RingData(o2Files);
+            qDebug() << "SleepHQ import: imported" << o2RingImportedCount << "O2 ring sessions";
+            if (o2RingImportedCount > 0) {
+                newdata = true;
+            }
+        }
+    }
+
+    // 3. UI updates and calculations
+    if (newdata) {
+        p_profile->calculateDailySummaries();
+        finishCPAPImport();
+        PopulatePurgeMenu();
+    } else {
+        QMessageBox::information(this, tr("Import Complete"), tr("No new data found to import."));
+    }
+}
+
+int MainWindow::importSleepHQO2RingData(const QStringList & files)
+{
+    if (files.isEmpty()) return 0;
+
+    ViatomLoader loader;
+    ImportContext* ctx = new ProfileImportContext(p_profile);
+    loader.SetContext(ctx);
+
+    DatabaseManager& dbMgr = DatabaseManager::instance();
+    if (!dbMgr.transaction()) {
+        QString errText = dbMgr.lastError().text();
+        qWarning() << "MainWindow::importSleepHQO2RingData() - Failed to start database transaction:" << errText;
+        loader.SetContext(nullptr);
+        delete ctx;
+        return -1;
+    }
+
+    int res = loader.Open(files);
+    ctx->Commit();
+
+    if (res > 0) {
+        QDateTime now = QDateTime::currentDateTime();
+        MachineRepository repo;
+        for (Machine* m : p_profile->GetMachines()) {
+            if (m->loaderName() == loader.loaderName() && m->getDatabaseId() > 0) {
+                m->info.lastimported = now;
+                MachineData data = repo.findById(m->getDatabaseId());
+                if (data.id > 0) {
+                    data.lastImported = now.toString(Qt::ISODate);
+                    repo.update(data);
+                }
+            }
+        }
+    }
+
+    if (!dbMgr.commit()) {
+        qWarning() << "MainWindow::importSleepHQO2RingData() - Failed to commit database transaction:" << dbMgr.lastError().text();
+        dbMgr.rollback();
+        res = -1;
+    }
+
+    loader.SetContext(nullptr);
+    delete ctx;
+
+    return res;
+}
+

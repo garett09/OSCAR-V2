@@ -1562,6 +1562,7 @@ void ComplianceReport::exportReport(QWidget *parent)
     double HI = ahiHours > 0 ? p_profile->calcCount(CPAP_Hypopnea, MT_CPAP, start, end) / ahiHours : 0.0;
     double AHI = AI + HI;
     double ReraIndex = ahiHours > 0 ? p_profile->calcCount(CPAP_RERA, MT_CPAP, start, end) / ahiHours : 0.0;
+    double RDI = AHI + ReraIndex;
 
     // Leaks
     ChannelID leakChan = p_profile->hasChannel(CPAP_Leak) ? CPAP_Leak : (p_profile->hasChannel(CPAP_LeakTotal) ? CPAP_LeakTotal : NoChannel);
@@ -2027,6 +2028,10 @@ void ComplianceReport::exportReport(QWidget *parent)
     html += "<tr>"
             "<td colspan='3' " + tkL + ">" + tr("Respiratory Effort-Related Arousal Index (RERA)") + "</td>"
             "<td " + tkR + "><b style='color:#0f172a;'>" + QString::number(ReraIndex,'f',1) + "</b></td>"
+            "</tr>";
+    html += "<tr>"
+            "<td colspan='3' " + tkL + "><b style='color:#0f172a;'>" + tr("Respiratory Disturbance Index (RDI)") + "</b></td>"
+            "<td " + tkR + "><b style='color:#0f172a;'>" + QString::number(RDI,'f',2) + "</b></td>"
             "</tr>";
     html += "<tr>"
             "<td colspan='3' " + tkL + ">" + tr("95% Flow Limitation") + "</td>"

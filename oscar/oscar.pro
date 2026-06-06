@@ -323,6 +323,7 @@ SOURCES += \
     logger.cpp \
     main.cpp \
     mainwindow.cpp \
+    sleephqsyncdialog.cpp \
     newprofile.cpp \
     notifyMessageBox.cpp \
     overview.cpp \
@@ -500,6 +501,7 @@ HEADERS  += \
     importprofile.h \
     profileimporter.h \
     mainwindow.h \
+    sleephqsyncdialog.h \
     newprofile.h \
     preferencesdialog.h \
 #    psettings.h \
