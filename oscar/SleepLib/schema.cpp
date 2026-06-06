@@ -250,7 +250,7 @@ void init()
             QObject::tr("Minute Ventilation"), QObject::tr("Amount of air displaced per minute"), QObject::tr("Minute Vent."), STR_UNIT_LPM,    DEFAULT,    QColor("dark cyan")));
 
     schema::channel.add(GRP_CPAP, new Channel(CPAP_RespRate          = 0x1106, WAVEFORM,    MT_CPAP, SESSION, STR_GRAPH_RespRate,
-            QObject::tr("Respiratory Rate"), QObject::tr("Rate of breaths per minute"), QObject::tr("Resp. Rate"), STR_UNIT_BreathsPerMinute,      DEFAULT,    QColor("dark magenta")));
+            QObject::tr("Respiratory Rate"), QObject::tr("Rate of breaths per minute"), QObject::tr("Respiratory Rate"), STR_UNIT_BreathsPerMinute,      DEFAULT,    QColor("dark magenta")));
 
     schema::channel.add(GRP_CPAP, new Channel(CPAP_PTB               = 0x1107, WAVEFORM,    MT_CPAP, SESSION, STR_GRAPH_PTB,
             QObject::tr("Patient Triggered Breaths"), QObject::tr("Percentage of breaths triggered by patient"),   QObject::tr("Pat. Trig. Breaths"), STR_UNIT_Percentage,   DEFAULT,    QColor("dark grey")));
@@ -410,6 +410,8 @@ void init()
     schema::channel[CPAP_SteadyBreathingFlag].setShowInOverview(true);
     #endif
 
+    // Sleep Stage waveform shown in Overview when Apple Watch / Dreem data is present
+    schema::channel[ZEO_SleepStage].setShowInOverview(true);
 
     // Identify the channels that contribute to AHI calculation
     // When adding more AHI-contributing channels,

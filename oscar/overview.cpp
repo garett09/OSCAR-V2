@@ -419,18 +419,22 @@ gGraph *Overview::createGraph(QString code, QString name, QString units, YTicker
 
     gYAxis *yt;
 
-    switch (yttype) {
-    case YT_Time:
-        yt = new gYAxisTime(false); // Time scale false=24hourFormat
-        break;
+    if (code == schema::channel[ZEO_SleepStage].code()) {
+        yt = new gYAxisSleepStage();
+    } else {
+        switch (yttype) {
+        case YT_Time:
+            yt = new gYAxisTime(false); // Time scale false=24hourFormat
+            break;
 
-    case YT_Weight:
-        yt = new gYAxisWeight(p_profile->general->unitSystem());
-        break;
+        case YT_Weight:
+            yt = new gYAxisWeight(p_profile->general->unitSystem());
+            break;
 
-    default:
-        yt = new gYAxis(); // Plain numeric scale
-        break;
+        default:
+            yt = new gYAxis(); // Plain numeric scale
+            break;
+        }
     }
 
     g->AddLayer(yt, LayerLeft, gYAxis::Margin);

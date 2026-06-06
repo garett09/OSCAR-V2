@@ -26,6 +26,7 @@
 #include <QBuffer>
 #include <QSet>
 #include <QSvgGenerator>
+#include <QSvgRenderer>
 #include "mainwindow.h"
 #include "version.h"
 #include "SleepLib/profiles.h"
@@ -33,6 +34,7 @@
 #include "SleepLib/day.h"
 #include "SleepLib/session.h"
 #include "SleepLib/event.h"
+#include "SleepLib/schema.h"
 
 extern MainWindow *mainwin;
 extern ChannelID RMS9_EPR;
@@ -103,7 +105,7 @@ ComplianceReportDialog::ComplianceReportDialog(QWidget *parent)
     if (p_profile->hasChannel(CPAP_EPAP))
         candidateChannels.append({CPAP_EPAP, tr("EPAP"), MT_CPAP});  // shown for CPAP+EPR and BiPAP/ASV
     candidateChannels.append({CPAP_MinuteVent, tr("Minute Vent."), MT_CPAP});
-    candidateChannels.append({CPAP_RespRate,   tr("Resp. Rate"),  MT_CPAP});
+    candidateChannels.append({CPAP_RespRate,   tr("Respiratory Rate"),  MT_CPAP});
     candidateChannels.append({CPAP_FlowLimit,  tr("Flow Limit."), MT_CPAP});
     if (leakChan != NoChannel)
         candidateChannels.append({leakChan, tr("Leak Rate"), MT_CPAP});
@@ -253,6 +255,30 @@ QString imageToBase64DataUrl(const QImage& img)
     buffer.open(QIODevice::WriteOnly);
     img.save(&buffer, "PNG");
     return QString("data:image/png;base64,") + byteArray.toBase64();
+}
+
+// Convert a data:image/svg+xml;base64,… URL to a PNG at the SVG's natural size.
+// QTextDocument does not reliably scale SVG <img> tags to the requested width
+// attribute, so we rasterise at full resolution and let it scale the PNG instead
+// (PNG scaling is handled correctly). The <img width/height> attributes then
+// control the display size while preserving full sharpness.
+static QString svgDataUrlToPng(const QString& svgDataUrl)
+{
+    const QString prefix = QStringLiteral("data:image/svg+xml;base64,");
+    if (!svgDataUrl.startsWith(prefix))
+        return svgDataUrl; // already PNG or unknown — pass through
+    QByteArray svgBytes = QByteArray::fromBase64(svgDataUrl.mid(prefix.length()).toLatin1());
+    QSvgRenderer renderer(svgBytes);
+    if (!renderer.isValid())
+        return svgDataUrl;
+    QSize sz = renderer.defaultSize();
+    if (sz.isEmpty()) sz = QSize(1500, 410);
+    QImage img(sz, QImage::Format_ARGB32);
+    img.fill(Qt::white);
+    QPainter p(&img);
+    renderer.render(&p, QRectF(QPointF(0, 0), sz));
+    p.end();
+    return imageToBase64DataUrl(img);
 }
 
 static QString getSettingStr(Day* day, ChannelID cid) {
@@ -451,6 +477,21 @@ const int CHART_TITLE_H = 50; // pixels reserved at top of canvas for the title
 const int CHART_H = 360 + CHART_TITLE_H; // SVG canvas height (410px total)
 static const int CHART_DISPLAY_MIN_W = 200;
 
+// Dynamic right margin: keep the last x-axis label (centred on the last bar,
+// text extends 60px to the right) plus a 90px visual gap from the SVG canvas
+// right edge, regardless of day count.
+// Derivation: last_label_right = lm + (N-0.5)/N*(CHART_W-lm-rm) + 60
+// We want: last_label_right + 90 <= CHART_W → solve for rm.
+static int chartRightMargin(int totalDays)
+{
+    const int lm = 86;
+    if (totalDays <= 1) return lm;
+    const double W    = CHART_W - lm;     // canvas width right of y-axis
+    const double safe = 60.0 + 90.0;      // text half-width + visual gap
+    int rm = (int)std::ceil(W - (W - safe) * totalDays / (totalDays - 0.5));
+    return qMax(lm, rm);
+}
+
 static int labelIntervalForDays(int totalDays)
 {
     if (totalDays > 90) return 7;
@@ -513,6 +554,13 @@ static void drawXAxisLabels(QPainter& painter, const QRect& chartRect,
         }
     }
 
+    // Returns a label rect centred on cx, clamped so it never overflows the SVG canvas.
+    auto labelRect = [](int cx, int y) -> QRect {
+        const int w = 120, h = 38, margin = 4;
+        int left = qBound(margin, cx - w / 2, CHART_W - w - margin);
+        return QRect(left, y, w, h);
+    };
+
     // Date labels — show "MMM d" on the first tick of each month (not just day==1,
     // which misses months whose 1st falls before the chart's start date).
     int prevMonth = -1;
@@ -527,11 +575,11 @@ static void drawXAxisLabels(QPainter& painter, const QRect& chartRect,
         if (newMonth || curDate.day() == 1) {
             painter.setFont(QFont("SF Pro Display", 30, QFont::Bold));
             painter.setPen(QColor("#1e293b"));
-            painter.drawText(QRect(cx - 60, chartRect.bottom() + 8, 120, 38),
+            painter.drawText(labelRect(cx, chartRect.bottom() + 8),
                              Qt::AlignHCenter | Qt::AlignTop, curDate.toString("MMM d"));
             painter.setFont(QFont("SF Pro Display", 30));
         } else {
-            painter.drawText(QRect(cx - 60, chartRect.bottom() + 8, 120, 38),
+            painter.drawText(labelRect(cx, chartRect.bottom() + 8),
                              Qt::AlignHCenter | Qt::AlignTop, QString::number(curDate.day()));
         }
     }
@@ -551,13 +599,13 @@ static void drawXAxisLabels(QPainter& painter, const QRect& chartRect,
         if (newMonth || lastDate.day() == 1) {
             painter.setFont(QFont("SF Pro Display", 30, QFont::Bold));
             painter.setPen(QColor("#1e293b"));
-            painter.drawText(QRect(cx - 60, chartRect.bottom() + 8, 120, 38),
+            painter.drawText(labelRect(cx, chartRect.bottom() + 8),
                              Qt::AlignHCenter | Qt::AlignTop, lastDate.toString("MMM d"));
             painter.setFont(QFont("SF Pro Display", 30));
         } else {
             painter.setPen(QColor("#475569"));
             painter.setFont(QFont("SF Pro Display", 30));
-            painter.drawText(QRect(cx - 60, chartRect.bottom() + 8, 120, 38),
+            painter.drawText(labelRect(cx, chartRect.bottom() + 8),
                              Qt::AlignHCenter | Qt::AlignTop, QString::number(lastDate.day()));
         }
     }
@@ -749,8 +797,8 @@ static QString makeChannelStatsHtml(double median, double p95, double max, doubl
     return html;
 }
 
-// SpO2-specific sidebar: shows P5 (matches chart bars) as the highlighted stat,
-// median for context, and period-low in red when below 90%. Omits "Maximum (avg)"
+// SpO2-specific sidebar: median (matches chart bars) as primary stat, nightly low
+// (P5 avg) for context, and period-low in red when below 90%. Omits "Maximum (avg)"
 // since SpO2 ceiling is always ~99% and carries no clinical meaning.
 static QString makeSpO2StatsHtml(double p5avg, double median, double periodLow,
                                   const QString& accentHex)
@@ -770,14 +818,14 @@ static QString makeSpO2StatsHtml(double p5avg, double median, double periodLow,
         html += "</tr>";
     };
 
-    // 5th % (avg) — highlighted, matches chart bars
-    addRow(QCoreApplication::translate("ComplianceReport", "5th % (avg)"),
-           QString::number(p5avg, 'f', 1) + " %",
-           accentHex, accentHex, true, true);
-
-    // Median — typical nightly SpO2
+    // Median (avg) — primary stat, matches chart bars
     addRow(QCoreApplication::translate("ComplianceReport", "Median (avg)"),
            QString::number(median, 'f', 1) + " %",
+           accentHex, accentHex, true, true);
+
+    // Nightly Low (avg) — P5, artifact-resistant desaturation floor
+    addRow(QCoreApplication::translate("ComplianceReport", "Nightly Low (avg)"),
+           QString::number(p5avg, 'f', 1) + " %",
            "#0f172a", "#0f172a", true, true);
 
     // Period Low — red if below 90% (clinically concerning)
@@ -926,21 +974,26 @@ static QString makePressureStatsHtml(Day* lastDay, double avgPressure, double p9
 static QString makeChartBlockHtml(const QString& base64Url, const QString& statsHtml,
                                    int displayW, int displayH, int statsColW, int statsPadTop = -1)
 {
-    // Title is embedded in the SVG image — the right cell contains only one <img>,
+    // Rasterise SVG to PNG at full resolution so QTextDocument cannot mis-scale
+    // it. PNG scaling via <img width/height> works correctly; SVG does not.
+    QString pngUrl = svgDataUrlToPng(base64Url);
+    // Title is embedded in the image — the right cell contains only one <img>,
     // so QTextDocument cannot split the title from the chart across a page break.
     QString html;
-    html += "<table width='100%' cellpadding='0' cellspacing='0' style='border:none; page-break-inside:avoid; margin-bottom:8pt;'>";
+    html += "<div style='page-break-inside:avoid; margin-bottom:8pt;'>";
+    html += "<table width='100%' cellpadding='0' cellspacing='0' style='border:none;'>";
     html += "<tr>";
     // Offset stats top by the chart title area so text aligns with the bar area, not the embedded title.
     int titlePad = (statsPadTop >= 0) ? statsPadTop : (CHART_TITLE_H * displayH) / CHART_H;
     html += "<td width='" + QString::number(statsColW) + "' valign='top' style='padding-right:4px; padding-top:" + QString::number(titlePad) + "px;'>";
     html += statsHtml;
     html += "</td>";
-    html += "<td valign='top'>";
-    html += "<img src='" + base64Url + "' width='" + QString::number(displayW) + "' height='" + QString::number(displayH) + "' style='display:block;' />";
+    html += "<td width='" + QString::number(displayW) + "' valign='top'>";
+    html += "<img src='" + pngUrl + "' width='" + QString::number(displayW) + "' height='" + QString::number(displayH) + "' style='display:block;' />";
     html += "</td>";
     html += "</tr>";
     html += "</table>";
+    html += "</div>";
     return html;
 }
 
@@ -969,7 +1022,7 @@ QString renderUsageChart(const QMap<QDate, Day*>& daysMap, const QDate& start, c
 
     const int logicalW = CHART_W;
     const int logicalH = CHART_H;
-    const int lm = 86, rm = 100, tm = CHART_TITLE_H + 22, bm = 80;
+    const int lm = 86, rm = chartRightMargin(totalDays), tm = CHART_TITLE_H + 22, bm = 80;
     QRect chartRect(lm, tm, logicalW - lm - rm, logicalH - tm - bm);
 
     double maxH = thresholdHr;
@@ -1043,7 +1096,7 @@ QString renderAhiChart(const QMap<QDate, Day*>& daysMap, const QDate& start, con
 
     const int logicalW = CHART_W;
     const int logicalH = CHART_H;
-    const int lm = 86, rm = 100, tm = CHART_TITLE_H + 22, bm = 80;
+    const int lm = 86, rm = chartRightMargin(totalDays), tm = CHART_TITLE_H + 22, bm = 80;
     QRect chartRect(lm, tm, logicalW - lm - rm, logicalH - tm - bm);
 
     // Per-day AI, HI, and RERA for stacked bars
@@ -1160,7 +1213,7 @@ QString renderLeakChart(const QMap<QDate, Day*>& daysMap, const QDate& start, co
 
     const int logicalW = CHART_W;
     const int logicalH = CHART_H;
-    const int lm = 86, rm = 100, tm = CHART_TITLE_H + 22, bm = 80;
+    const int lm = 86, rm = chartRightMargin(totalDays), tm = CHART_TITLE_H + 22, bm = 80;
     QRect chartRect(lm, tm, logicalW - lm - rm, logicalH - tm - bm);
 
     double maxVal = qMax(redline > 0 ? redline : 10.0, 10.0);
@@ -1229,7 +1282,7 @@ QString renderPressureChart(const QMap<QDate, Day*>& daysMap, const QDate& start
 
     const int logicalW = CHART_W;
     const int logicalH = CHART_H;
-    const int lm = 86, rm = 100, tm = CHART_TITLE_H + 22, bm = 80;
+    const int lm = 86, rm = chartRightMargin(totalDays), tm = CHART_TITLE_H + 22, bm = 80;
     QRect chartRect(lm, tm, logicalW - lm - rm, logicalH - tm - bm);
 
     double maxVal = 12.0;
@@ -1303,15 +1356,14 @@ QString renderChannelBarChart(ChannelID chanId, const QColor& barColor,
 
     const int logicalW = CHART_W;
     const int logicalH = CHART_H;
-    const int lm = 86, rm = 100, tm = CHART_TITLE_H + 22, bm = 80;
+    const int lm = 86, rm = chartRightMargin(totalDays), tm = CHART_TITLE_H + 22, bm = 80;
     QRect chartRect(lm, tm, logicalW - lm - rm, logicalH - tm - bm);
 
-    // SpO2: use P5 (5th percentile) for bar height — shows the desaturation floor
-    // each night. P95 for SpO2 is always ~99% (near ceiling) and clinically useless.
-    // Median tick is suppressed for SpO2: P50 > P5, so it would render above the
-    // bar top and be misleading.
-    const double barPct  = (chanId == OXI_SPO2) ? 0.05 : 0.95;
-    const bool   showTick = (chanId != OXI_SPO2);
+    // SpO2: bars show nightly median (P50) — clinically expected, matches doctor's mental model.
+    // P5 tick marks the nightly desaturation low inside each bar (artifact-resistant near-worst).
+    // All other channels: bars = P95, tick = P50.
+    const double barPct  = (chanId == OXI_SPO2) ? 0.50 : 0.95;
+    const bool   showTick = true;
 
     double maxVal = 1.0;
     QList<double> vals;
@@ -1330,7 +1382,8 @@ QString renderChannelBarChart(ChannelID chanId, const QColor& barColor,
         }
         if (hasData) {
             v = daysMap[d]->percentile(chanId, barPct);
-            med = showTick ? daysMap[d]->percentile(chanId, 0.5) : 0.0;
+            med = (chanId == OXI_SPO2) ? daysMap[d]->percentile(chanId, 0.05)
+                                       : daysMap[d]->percentile(chanId, 0.5);
             maxVal = qMax(maxVal, v);
         }
         vals.append(v);
@@ -1366,9 +1419,9 @@ QString renderChannelBarChart(ChannelID chanId, const QColor& barColor,
         double dataFloor = yMax;
         double artifactFloor = (chanId == OXI_SPO2)  ? SPO2_ARTIFACT_FLOOR :
                                (chanId == OXI_Pulse) ? PULSE_ARTIFACT_FLOOR : 0.0;
-        // SpO2 bars are P5 (low-end values), not medians — use vals as floor reference.
-        // All other channels use medians (P50) which are more stable floor estimates.
-        const QList<double>& floorSrc = (chanId == OXI_SPO2) ? vals : medians;
+        // Use medians (tick array) as floor reference for all channels.
+        // For SpO2 medians holds P5 (nightly low), for others P50 — both are stable floor estimates.
+        const QList<double>& floorSrc = medians;
         for (double v : floorSrc) {
             if (v > artifactFloor) dataFloor = qMin(dataFloor, v);
         }
@@ -1499,6 +1552,17 @@ void ComplianceReport::exportReport(QWidget *parent)
 
     // Gather statistics
     QList<Day*> allDays = p_profile->getDays(MT_UNKNOWN, start, end);
+    // Determine the machine type that actually holds oximetry data for this profile.
+    MachineType oxiSourceType = MT_OXIMETER;
+    if (p_profile->countDays(MT_OXIMETER, start, end) == 0) {
+        ChannelID spo2id  = schema::channel["SPO2"].id();
+        ChannelID pulseid = schema::channel["Pulse"].id();
+        if ((spo2id  != NoChannel && p_profile->channelAvailable(spo2id))
+                || (pulseid != NoChannel && p_profile->channelAvailable(pulseid))) {
+            oxiSourceType = MT_CPAP;
+        }
+    }
+
     int usedDaysOxi = 0;
     for (Day* day : allDays) {
         if (!day) continue;
@@ -1509,7 +1573,7 @@ void ComplianceReport::exportReport(QWidget *parent)
     QList<SettingsChangeBlock> settingsBlocks = getSettingsChanges(start, end, daysList);
     if (usedDaysOxi > 0) {
         for (auto& block : settingsBlocks) {
-            double v = calcFilteredStats(OXI_SPO2, MT_OXIMETER, block.start, block.end, SPO2_ARTIFACT_FLOOR, 0.0).min;
+            double v = calcFilteredStats(OXI_SPO2, oxiSourceType, block.start, block.end, SPO2_ARTIFACT_FLOOR, 0.0).min;
             block.minSpo2 = (v > SPO2_ARTIFACT_FLOOR) ? v : -1.0;
         }
     }
@@ -1643,7 +1707,7 @@ void ComplianceReport::exportReport(QWidget *parent)
                 oxiDaysMapEarly[day->date()] = day;
             }
         }
-        FilteredStats spo2 = calcFilteredStats(OXI_SPO2, MT_OXIMETER, start, end, SPO2_ARTIFACT_FLOOR, 90.0);
+        FilteredStats spo2 = calcFilteredStats(OXI_SPO2, oxiSourceType, start, end, SPO2_ARTIFACT_FLOOR, 90.0);
         t90Secs       = spo2.timeBelowSecs;
         minSpO2       = spo2.min;
         avgSpO2Period = spo2.wavg;
@@ -1654,7 +1718,7 @@ void ComplianceReport::exportReport(QWidget *parent)
     // (period min/max + time-weighted average).
     double minPulsePeriod = 0.0, maxPulsePeriod = 0.0, avgPulsePeriod = 0.0;
     if (p_profile->hasChannel(OXI_Pulse)) {
-        FilteredStats pulse = calcFilteredStats(OXI_Pulse, MT_OXIMETER, start, end, PULSE_ARTIFACT_FLOOR, 0.0);
+        FilteredStats pulse = calcFilteredStats(OXI_Pulse, oxiSourceType, start, end, PULSE_ARTIFACT_FLOOR, 0.0);
         minPulsePeriod = pulse.min;
         maxPulsePeriod = pulse.max;
         avgPulsePeriod = pulse.wavg;
@@ -1789,13 +1853,16 @@ void ComplianceReport::exportReport(QWidget *parent)
     for (const auto& ch : selectedChans) {
         ChannelID cid = static_cast<ChannelID>(ch.id);
         MachineType mtype = static_cast<MachineType>(ch.type);
+        if (mtype == MT_OXIMETER) {
+            mtype = oxiSourceType;
+        }
         if (fixedChanIds.contains(cid)) continue;
         if (!p_profile->hasChannel(cid)) continue;
         // EPAP is only a clinically independent channel in BiLevel/ASV modes.
         // In CPAP and APAP, EPAP = set pressure - EPR level — derivative, not worth charting.
         if (cid == CPAP_EPAP && (p1Mode == MODE_CPAP || p1Mode == MODE_APAP)) continue;
 
-        const QMap<QDate, Day*>& useDaysMap = (mtype == MT_OXIMETER || mtype == MT_UNKNOWN) ? oxiDaysMap : daysMap;
+        const QMap<QDate, Day*>& useDaysMap = (mtype == oxiSourceType || mtype == MT_UNKNOWN || cid == OXI_SPO2 || cid == OXI_Pulse) ? oxiDaysMap : daysMap;
 
         bool hasData = false;
         for (Day* day : useDaysMap) {
@@ -2030,7 +2097,7 @@ void ComplianceReport::exportReport(QWidget *parent)
             "<td " + tkR + "><b style='color:#0f172a;'>" + QString::number(ReraIndex,'f',1) + "</b></td>"
             "</tr>";
     html += "<tr>"
-            "<td colspan='3' " + tkL + "><b style='color:#0f172a;'>" + tr("Respiratory Disturbance Index (RDI)") + "</b></td>"
+            "<td colspan='3' " + tkL + ">" + tr("Respiratory Disturbance Index (RDI)") + "</td>"
             "<td " + tkR + "><b style='color:#0f172a;'>" + QString::number(RDI,'f',2) + "</b></td>"
             "</tr>";
     html += "<tr>"
@@ -2142,112 +2209,119 @@ void ComplianceReport::exportReport(QWidget *parent)
             + "</div>";
  
     // ==========================================
-    // PAGE 3 (or 4): OXIMETRY & SETTINGS LOG (Only if oximeter data is present)
+    // PAGE 3: OXIMETRY & SLEEP STAGE LOG
     // ==========================================
-    if (usedDaysOxi > 0) {
-        html += "<div style='page-break-before: always;'></div>";
- 
-        // Branded Header Page 3
-        html += makePageHeaderHtml(tr("Oximetry &amp; Settings Log"), patientNameStr, pageSubInfo, logoBase64);
- 
-        // Oximeter Statistics Table
-        {
-            double oximeterHours = 0.0;
-            for (Day* day : oxiDaysMapEarly) {
-                oximeterHours += day->timeAboveThreshold(OXI_SPO2, 0.0) / 60.0;
-            }
-            double avgSpo2 = avgSpO2Period;  // computed once above
-            double minSpo2 = minSpO2;        // filtered period-low SpO2, computed once above
-            double spo2DropIndex = oximeterHours > 0 ? p_profile->calcCount(OXI_SPO2Drop, MT_OXIMETER, start, end) / oximeterHours : 0.0;
-            double pctTimeSpo2Drop = oximeterHours > 0 ? (100.0 / oximeterHours) * (p_profile->calcSum(OXI_SPO2Drop, MT_OXIMETER, start, end) / 3600.0) : 0.0;
+    int stageNights = 0;
+    double avgBedtimeHrs = 0.0, avgWakeupHrs = 0.0, avgWakeMin = 0.0, avgREMMin = 0.0, avgLightMin = 0.0, avgDeepMin = 0.0, avgLatencyMin = 0.0, avgTSTMin = 0.0;
+    QString bedtimeStr, wakeupStr;
+    auto minsToHM = [](double mins) -> QString {
+        int h = static_cast<int>(mins) / 60;
+        int m = static_cast<int>(mins) % 60;
+        return QString("%1h %2m").arg(h).arg(m, 2, 10, QChar('0'));
+    };
 
-            double avgPulse = avgPulsePeriod;  // computed once above
-            double minPulse = minPulsePeriod;
-            double maxPulse = maxPulsePeriod;
-            double pulseChangeIndex = oximeterHours > 0 ? p_profile->calcCount(OXI_PulseChange, MT_OXIMETER, start, end) / oximeterHours : 0.0;
- 
-            html += "<div style='font-size: 11pt; font-weight: 700; color: #0f172a; margin-bottom: 2px;'>" + tr("Oximeter Statistics").toUpper() + "</div>";
-            // Identify the recording device, pulled from the oximeter machine
-            // record. Home pulse-oximetry is screening-grade, so name the device
-            // and flag that abnormal findings need a formal study to confirm.
-            {
-                Machine* oxiMach = p_profile->GetMachine(MT_OXIMETER);
-                QString oxiDevice;
-                if (oxiMach) {
-                    oxiDevice = (oxiMach->brand() + " " + oxiMach->model()).trimmed();
-                    if (!oxiMach->serial().isEmpty())
-                        oxiDevice += " (" + oxiMach->serial() + ")";
-                }
-                if (oxiDevice.isEmpty()) oxiDevice = tr("Unknown oximeter");
-                html += "<div style='font-size: 8.5pt; color: #64748b; margin-bottom: 6px;'>"
-                        + tr("Device") + ": <b style='color:#0f172a;'>" + oxiDevice.toHtmlEscaped() + "</b>"
-                        + "</div>";
+    {
+        QList<Day*> stageDays = p_profile->getDays(MT_SLEEPSTAGE, start, end);
+        double sumWake = 0, sumREM = 0, sumLight = 0, sumDeep = 0, sumAwakenings = 0, sumLatency = 0, sumBedtimeHrs = 0, sumWakeupHrs = 0;
+
+        for (Day* sday : stageDays) {
+            if (!sday) continue;
+            QList<Session*> ssessions = sday->getSessions(MT_SLEEPSTAGE, false);
+            if (ssessions.isEmpty()) continue;
+
+            qint64 bedtimeMs = 0, wakeupMs = 0;
+            double dayWake = 0, dayREM = 0, dayLight = 0, dayDeep = 0, dayLatency = 0;
+            bool hasData = false;
+
+            for (Session* sess : ssessions) {
+                if (!sess->enabled()) continue;
+                qint64 sf = sess->realFirst();
+                if (sf > 0 && (bedtimeMs == 0 || sf < bedtimeMs)) bedtimeMs = sf;
+                qint64 sl = sess->realLast();
+                if (sl > 0 && (wakeupMs == 0 || sl > wakeupMs)) wakeupMs = sl;
+                auto addSetting = [&](ChannelID ch, double &out) {
+                    auto it = sess->settings.find(ch);
+                    if (it != sess->settings.end()) out += it.value().toDouble();
+                };
+                addSetting(ZEO_TimeInWake,  dayWake);
+                addSetting(ZEO_TimeInREM,   dayREM);
+                addSetting(ZEO_TimeInLight, dayLight);
+                addSetting(ZEO_TimeInDeep,  dayDeep);
+                addSetting(ZEO_TimeToZ,     dayLatency);
+                hasData = true;
             }
-            html += "<table width='100%' cellpadding='3' cellspacing='0' style='border: none; border-collapse: collapse; font-size: 9.5pt; line-height: 1.2; margin-bottom: 8pt; page-break-inside: avoid;'>";
-            html += "<tr style='background-color: #454545; color: #ffffff;'>";
-            html += "<th align='left' style='padding: 2.5px 8px; color: #ffffff; font-weight: bold; border-bottom: 1px solid #f1f5f9;'>Statistics Group</th>";
-            html += "<th align='left' style='padding: 2.5px 8px; color: #ffffff; font-weight: bold; border-bottom: 1px solid #f1f5f9;'>Metric Description</th>";
-            html += "<th align='right' style='padding: 2.5px 8px; color: #ffffff; font-weight: bold; border-bottom: 1px solid #f1f5f9;'>Selected Period Value</th>";
-            html += "</tr>";
-            
-            html += "<tr>";
-            html += "<td rowspan='3' valign='top' style='font-weight: bold; color: #454545; border-bottom: 1px solid #e8edf2; padding: 2.5px 8px; background-color: #f8fafc;'>Oximeter Usage</td>";
-            html += "<td style='color: #475569; border-bottom: 1px solid #e8edf2; padding: 2.5px 8px;'>Total Days / Used Days</td>";
-            html += "<td align='right' style='font-weight: bold; color: #0f172a; border-bottom: 1px solid #e8edf2; padding: 2.5px 8px;'>" + QString::number(totalDays) + tr(" days / %1 days").arg(usedDaysOxi) + "</td>";
-            html += "</tr>";
-            html += "<tr>";
-            html += "<td style='color: #475569; border-bottom: 1px solid #e8edf2; padding: 2.5px 8px;'>Days Not Used</td>";
-            html += "<td align='right' style='font-weight: bold; color: #0f172a; border-bottom: 1px solid #e8edf2; padding: 2.5px 8px;'>" + QString::number(totalDays - usedDaysOxi) + " days" + "</td>";
-            html += "</tr>";
-            html += "<tr>";
-            html += "<td style='color: #475569; border-bottom: 1px solid #e8edf2; padding: 2.5px 8px;'>Average Hours per Night</td>";
-            html += "<td align='right' style='font-weight: bold; color: #0f172a; border-bottom: 1px solid #e8edf2; padding: 2.5px 8px;'>" + formatHoursMinutesShort(oximeterHours / usedDaysOxi) + "</td>";
-            html += "</tr>";
-            
-            html += "<tr>";
-            html += "<td rowspan='4' valign='top' style='font-weight: bold; color: #454545; border-bottom: 1px solid #e8edf2; padding: 2.5px 8px; background-color: #f8fafc;'>Oxygen Saturation</td>";
-            html += "<td style='color: #475569; border-bottom: 1px solid #e8edf2; padding: 2.5px 8px;'>Average SpO2</td>";
-            html += "<td align='right' style='font-weight: bold; color: #0f172a; border-bottom: 1px solid #e8edf2; padding: 2.5px 8px;'>" + QString::number(avgSpo2, 'f', 2) + "%" + "</td>";
-            html += "</tr>";
-            html += "<tr>";
-            html += "<td style='color: #475569; border-bottom: 1px solid #e8edf2; padding: 2.5px 8px;'>Minimum SpO2</td>";
-            html += "<td align='right' style='font-weight: bold; color: #0f172a; border-bottom: 1px solid #e8edf2; padding: 2.5px 8px;'>"
-                    + (minSpo2 > 0.0 ? QString::number(minSpo2, 'f', 0) + "%" : tr("N/A")) + "</td>";
-            html += "</tr>";
-            html += "<tr>";
-            html += "<td style='color: #475569; border-bottom: 1px solid #e8edf2; padding: 2.5px 8px;'>SpO2 Desaturation Drop Index</td>";
-            html += "<td align='right' style='font-weight: bold; color: #0f172a; border-bottom: 1px solid #e8edf2; padding: 2.5px 8px;'>" + QString::number(spo2DropIndex, 'f', 2) + " / hr" + "</td>";
-            html += "</tr>";
-            html += "<tr>";
-            html += "<td style='color: #475569; border-bottom: 1px solid #e8edf2; padding: 2.5px 8px;'>% of Time in SpO2 Drop</td>";
-            html += "<td align='right' style='font-weight: bold; color: #0f172a; border-bottom: 1px solid #e8edf2; padding: 2.5px 8px;'>" + QString::number(pctTimeSpo2Drop, 'f', 2) + "%" + "</td>";
-            html += "</tr>";
-            
-            html += "<tr>";
-            html += "<td rowspan='3' valign='top' style='font-weight: bold; color: #454545; padding: 2.5px 8px; background-color: #f8fafc;'>Pulse Rate</td>";
-            html += "<td style='color: #475569; border-bottom: 1px solid #e8edf2; padding: 2.5px 8px;'>Average Pulse Rate</td>";
-            html += "<td align='right' style='font-weight: bold; color: #0f172a; border-bottom: 1px solid #e8edf2; padding: 2.5px 8px;'>" + QString::number(avgPulse, 'f', 2) + " bpm" + "</td>";
-            html += "</tr>";
-            html += "<tr>";
-            html += "<td style='color: #475569; border-bottom: 1px solid #e8edf2; padding: 2.5px 8px;'>Minimum / Maximum Pulse Rate</td>";
-            html += "<td align='right' style='font-weight: bold; color: #0f172a; border-bottom: 1px solid #e8edf2; padding: 2.5px 8px;'>" + QString("%1 / %2 bpm").arg(QString::number(minPulse, 'f', 1)).arg(QString::number(maxPulse, 'f', 1)) + "</td>";
-            html += "</tr>";
-            html += "<tr>";
-            html += "<td style='color: #475569; padding: 2.5px 8px;'>Pulse Change Index</td>";
-            html += "<td align='right' style='font-weight: bold; color: #0f172a; padding: 2.5px 8px;'>" + QString::number(pulseChangeIndex, 'f', 2) + " / hr" + "</td>";
-            html += "</tr>";
-            html += "</table>";
-            html += "<div style='line-height: 4pt;'>&nbsp;</div>";
+
+            if (!hasData || bedtimeMs == 0 || wakeupMs == 0) continue;
+
+            QDateTime bdtDT = QDateTime::fromMSecsSinceEpoch(bedtimeMs, QTimeZone::systemTimeZone());
+            double bedHr = bdtDT.time().hour() + bdtDT.time().minute() / 60.0 + bdtDT.time().second() / 3600.0;
+            if (bedHr < 12.0) bedHr += 24.0;
+            QDateTime wktDT = QDateTime::fromMSecsSinceEpoch(wakeupMs, QTimeZone::systemTimeZone());
+            double wakeHr = wktDT.time().hour() + wktDT.time().minute() / 60.0 + wktDT.time().second() / 3600.0;
+            if (wakeHr < 12.0) wakeHr += 24.0;
+
+            sumBedtimeHrs += bedHr; sumWakeupHrs += wakeHr; sumWake += dayWake; sumREM += dayREM; sumLight += dayLight; sumDeep += dayDeep; sumLatency += dayLatency;
+            stageNights++;
         }
 
-        // Page 3 Footer
-        html += "<div style='font-size: 8.5pt; color: #94a3b8; margin-top: 10pt; border-top: 1px solid #f1f5f9; padding-top: 4px;'>"
-                + tr("Printed on %1 - OSCAR Sleep Insights Report - OSCAR %2").arg(QDateTime::currentDateTime().toString("MMM d, yyyy")).arg(getVersion().minimalString())
-                + "</div>";
+        if (stageNights > 0) {
+            avgBedtimeHrs = sumBedtimeHrs / stageNights; avgWakeupHrs = sumWakeupHrs / stageNights; avgWakeMin = sumWake / stageNights; avgREMMin = sumREM / stageNights; avgLightMin = sumLight / stageNights; avgDeepMin = sumDeep / stageNights; avgLatencyMin = sumLatency / stageNights;
+            if (avgBedtimeHrs >= 24.0) avgBedtimeHrs -= 24.0;
+            int bedHour = static_cast<int>(avgBedtimeHrs) % 24, bedMin = static_cast<int>((avgBedtimeHrs - static_cast<int>(avgBedtimeHrs)) * 60.0);
+            bedtimeStr = QString("%1:%2 %3").arg(bedHour % 12 == 0 ? 12 : bedHour % 12).arg(bedMin, 2, 10, QChar('0')).arg(bedHour >= 12 ? tr("pm") : tr("am"));
+            if (avgWakeupHrs >= 24.0) avgWakeupHrs -= 24.0;
+            int wakeHour = static_cast<int>(avgWakeupHrs) % 24, wakeMin = static_cast<int>((avgWakeupHrs - static_cast<int>(avgWakeupHrs)) * 60.0);
+            wakeupStr = QString("%1:%2 %3").arg(wakeHour % 12 == 0 ? 12 : wakeHour % 12).arg(wakeMin, 2, 10, QChar('0')).arg(wakeHour >= 12 ? tr("pm") : tr("am"));
+            avgTSTMin = avgREMMin + avgLightMin + avgDeepMin;
+        }
     }
- 
+
+    if (usedDaysOxi > 0 || stageNights > 0) {
+        html += "<div style='page-break-before: always;'></div>";
+        QString title = (usedDaysOxi > 0 && stageNights > 0) ? tr("Oximetry &amp; Sleep Stage Statistics") : (usedDaysOxi > 0 ? tr("Oximeter Statistics") : tr("Sleep Stage Statistics"));
+        html += makePageHeaderHtml(title, patientNameStr, pageSubInfo, logoBase64);
+
+        if (usedDaysOxi > 0) {
+            double oximeterHours = p_profile->calcHours(oxiSourceType, start, end), spo2DropIndex = oximeterHours > 0 ? p_profile->calcCount(OXI_SPO2Drop, oxiSourceType, start, end) / oximeterHours : 0.0, pctTimeSpo2Drop = oximeterHours > 0 ? (100.0 / oximeterHours) * (p_profile->calcSum(OXI_SPO2Drop, oxiSourceType, start, end) / 3600.0) : 0.0, pulseChangeIndex = oximeterHours > 0 ? p_profile->calcCount(OXI_PulseChange, oxiSourceType, start, end) / oximeterHours : 0.0;
+            html += "<div style='font-size: 11pt; font-weight: 700; color: #0f172a; margin-bottom: 2px;'>" + tr("Oximeter Statistics").toUpper() + "</div>";
+            Machine* oxiMach = p_profile->GetMachine(MT_OXIMETER); if (!oxiMach && oxiSourceType != MT_OXIMETER) oxiMach = p_profile->GetMachine(oxiSourceType);
+            QString oxiDevice = oxiMach ? (oxiMach->brand() + " " + oxiMach->model() + (oxiMach->serial().isEmpty() ? "" : " (" + oxiMach->serial() + ")")).trimmed() : tr("Unknown oximeter");
+            html += "<div style='font-size: 8.5pt; color: #64748b; margin-bottom: 4px;'>" + tr("Device") + ": <b style='color:#0f172a;'>" + oxiDevice.toHtmlEscaped() + "</b></div>";
+            html += "<table width='100%' cellpadding='2' cellspacing='0' style='border: none; border-collapse: collapse; font-size: 8.5pt; line-height: 1.1; margin-bottom: 6px; page-break-inside: avoid;'>";
+            html += "<tr style='background-color: #454545; color: #ffffff;'><th align='left' style='padding: 1.5px 6px; color: #ffffff; font-weight: bold; border-bottom: 1px solid #f1f5f9;'>Statistics Group</th><th align='left' style='padding: 1.5px 6px; color: #ffffff; font-weight: bold; border-bottom: 1px solid #f1f5f9;'>Metric Description</th><th align='right' style='padding: 1.5px 6px; color: #ffffff; font-weight: bold; border-bottom: 1px solid #f1f5f9;'>Selected Period Value</th></tr>";
+            html += "<tr><td rowspan='3' valign='top' style='font-weight: bold; color: #454545; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px; background-color: #f8fafc;'>Oximeter Usage</td><td style='color: #475569; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>Total Days / Used Days</td><td align='right' style='font-weight: bold; color: #0f172a; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + QString::number(totalDays) + tr(" days / %1 days").arg(usedDaysOxi) + "</td></tr>";
+            html += "<tr><td style='color: #475569; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>Days Not Used</td><td align='right' style='font-weight: bold; color: #0f172a; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + QString::number(totalDays - usedDaysOxi) + " days" + "</td></tr>";
+            html += "<tr><td style='color: #475569; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>Average Hours per Night</td><td align='right' style='font-weight: bold; color: #0f172a; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + formatHoursMinutesShort(oximeterHours / usedDaysOxi) + "</td></tr>";
+            html += "<tr><td rowspan='4' valign='top' style='font-weight: bold; color: #454545; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px; background-color: #f8fafc;'>Oxygen Saturation</td><td style='color: #475569; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>Average SpO2</td><td align='right' style='font-weight: bold; color: #0f172a; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + QString::number(avgSpO2Period, 'f', 2) + "%" + "</td></tr>";
+            html += "<tr><td style='color: #475569; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>Minimum SpO2</td><td align='right' style='font-weight: bold; color: #0f172a; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + (minSpO2 > 0.0 ? QString::number(minSpO2, 'f', 0) + "%" : tr("N/A")) + "</td></tr>";
+            html += "<tr><td style='color: #475569; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>SpO2 Desaturation Drop Index</td><td align='right' style='font-weight: bold; color: #0f172a; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + QString::number(spo2DropIndex, 'f', 2) + " / hr" + "</td></tr>";
+            html += "<tr><td style='color: #475569; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>% of Time in SpO2 Drop</td><td align='right' style='font-weight: bold; color: #0f172a; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + QString::number(pctTimeSpo2Drop, 'f', 2) + "%" + "</td></tr>";
+            html += "<tr><td rowspan='3' valign='top' style='font-weight: bold; color: #454545; padding: 1.5px 6px; background-color: #f8fafc;'>Pulse Rate</td><td style='color: #475569; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>Average Pulse Rate</td><td align='right' style='font-weight: bold; color: #0f172a; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + QString::number(avgPulsePeriod, 'f', 2) + " bpm" + "</td></tr>";
+            html += "<tr><td style='color: #475569; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>Minimum / Maximum Pulse Rate</td><td align='right' style='font-weight: bold; color: #0f172a; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + QString("%1 / %2 bpm").arg(QString::number(minPulsePeriod, 'f', 1)).arg(QString::number(maxPulsePeriod, 'f', 1)) + "</td></tr>";
+            html += "<tr><td style='color: #475569; padding: 1.5px 6px;'>Pulse Change Index</td><td align='right' style='font-weight: bold; color: #0f172a; padding: 1.5px 6px;'>" + QString::number(pulseChangeIndex, 'f', 2) + " / hr" + "</td></tr></table>";
+        }
+        if (usedDaysOxi > 0 && stageNights > 0) html += "<div style='line-height: 2pt;'>&nbsp;</div>";
+        if (stageNights > 0) {
+            double totalMin = avgWakeMin + avgTSTMin;
+            auto pct = [&](double part) -> QString { return totalMin <= 0 ? tr("N/A") : QString::number(100.0 * part / totalMin, 'f', 1) + "%"; };
+            html += "<div style='font-size: 11pt; font-weight: 700; color: #0f172a; margin-bottom: 2px;'>" + tr("Sleep Stage Statistics").toUpper() + "</div>";
+            html += "<div style='font-size: 8.5pt; color: #64748b; margin-bottom: 4px;'>" + tr("Averaged per night across %1 night(s) of sleep stage data").arg(stageNights) + "</div>";
+            html += "<table width='100%' cellpadding='2' cellspacing='0' style='border: none; border-collapse: collapse; font-size: 8.5pt; line-height: 1.1; margin-bottom: 6px; page-break-inside: avoid;'>";
+            html += "<tr style='background-color: #454545; color: #ffffff;'><th align='left' style='padding: 1.5px 6px; color: #ffffff; font-weight: bold; border-bottom: 1px solid #f1f5f9;'>" + tr("Statistics Group") + "</th><th align='left' style='padding: 1.5px 6px; color: #ffffff; font-weight: bold; border-bottom: 1px solid #f1f5f9;'>" + tr("Metric Description") + "</th><th align='right' style='padding: 1.5px 6px; color: #ffffff; font-weight: bold; border-bottom: 1px solid #f1f5f9;'>" + tr("Avg per Night") + "</th></tr>";
+            html += "<tr><td rowspan='4' valign='top' style='font-weight: bold; color: #454545; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px; background-color: #f8fafc;'>" + tr("Sleep Timing") + "</td><td style='color: #475569; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + tr("Average Bedtime") + "</td><td align='right' style='font-weight: bold; color: #0f172a; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + bedtimeStr + "</td></tr>";
+            html += "<tr><td style='color: #475569; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + tr("Average Sleep Latency") + "</td><td align='right' style='font-weight: bold; color: #0f172a; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + minsToHM(avgLatencyMin) + "</td></tr>";
+            html += "<tr><td style='color: #475569; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + tr("Average Wake Time") + "</td><td align='right' style='font-weight: bold; color: #0f172a; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + wakeupStr + "</td></tr>";
+            html += "<tr><td style='color: #475569; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + tr("Average Total Sleep Time") + "</td><td align='right' style='font-weight: bold; color: #0f172a; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + minsToHM(avgTSTMin) + "</td></tr>";
+            html += "<tr><td rowspan='4' valign='top' style='font-weight: bold; color: #454545; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px; background-color: #f8fafc;'>" + tr("Stage % of Night") + "</td><td style='color: #475569; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + tr("Awake") + "</td><td align='right' style='font-weight: bold; color: #0f172a; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + pct(avgWakeMin) + " (" + minsToHM(avgWakeMin) + ")</td></tr>";
+            html += "<tr><td style='color: #475569; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + tr("REM Sleep") + "</td><td align='right' style='font-weight: bold; color: #0f172a; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + pct(avgREMMin) + " (" + minsToHM(avgREMMin) + ")</td></tr>";
+            html += "<tr><td style='color: #475569; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + tr("Light Sleep") + "</td><td align='right' style='font-weight: bold; color: #0f172a; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + pct(avgLightMin) + " (" + minsToHM(avgLightMin) + ")</td></tr>";
+            html += "<tr><td style='color: #475569; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + tr("Deep Sleep") + "</td><td align='right' style='font-weight: bold; color: #0f172a; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + pct(avgDeepMin) + " (" + minsToHM(avgDeepMin) + ")</td></tr></table>";
+        }
+        html += "<div style='font-size: 8.5pt; color: #94a3b8; margin-top: 8pt; border-top: 1px solid #f1f5f9; padding-top: 4px;'>" + tr("Printed on %1 - OSCAR Sleep Insights Report - OSCAR %2").arg(QDateTime::currentDateTime().toString("MMM d, yyyy")).arg(getVersion().minimalString()) + "</div>";
+    }
+
     // ==========================================
-    // PAGE 3 (or 4): DIAGNOSTICS & PROVIDER
+    // PAGE 4: DIAGNOSTICS & PROVIDER
     // ==========================================
     html += "<div style='page-break-before: always;'></div>";
  

@@ -364,3 +364,23 @@ const QString gYAxisWeight::Format(EventDataType v, int dp)
     UnitSystem us = (p_profile && p_profile->general) ? p_profile->general->unitSystem() : m_unitsystem;
     return weightString(v, us, true);
 }
+
+const QString gYAxisSleepStage::Format(EventDataType v, int dp)
+{
+    Q_UNUSED(dp)
+    int stage = 0;
+    if (v >= -4.5 && v <= -0.5) {
+        stage = qRound(-v);
+    } else if (v >= 0.5 && v <= 4.5) {
+        stage = 5 - qRound(v);
+    } else {
+        return QString();
+    }
+    switch (stage) {
+        case 1: return QObject::tr("Wake");
+        case 2: return QObject::tr("REM");
+        case 3: return QObject::tr("Light");
+        case 4: return QObject::tr("Deep");
+        default: return QString();
+    }
+}

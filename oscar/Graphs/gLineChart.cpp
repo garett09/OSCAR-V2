@@ -376,7 +376,20 @@ QString gLineChart::getMetaString(qint64 time)
     for (const auto code : m_codes) {
         if (m_day->channelHasData(code)) {
             val = m_day->lookupValue(code, time, m_square_plot);
-            lasttext += " "+QString("%1: %2").arg(schema::channel[code].label()).arg(val,0,'f',2); //.arg(schema::channel[code].units());
+            if (code == ZEO_SleepStage) {
+                QString stageName;
+                int stage = qRound(-val);
+                switch (stage) {
+                    case 1: stageName = QObject::tr("Wake"); break;
+                    case 2: stageName = QObject::tr("REM"); break;
+                    case 3: stageName = QObject::tr("Light"); break;
+                    case 4: stageName = QObject::tr("Deep"); break;
+                    default: stageName = QObject::tr("NA"); break;
+                }
+                lasttext += " " + QString("%1: %2").arg(schema::channel[code].label()).arg(stageName);
+            } else {
+                lasttext += " "+QString("%1: %2").arg(schema::channel[code].label()).arg(val,0,'f',2); //.arg(schema::channel[code].units());
+            }
 
             if (code == CPAP_IPAP || code == CPAP_IPAPSet) {
                 ipap = val;
@@ -633,6 +646,62 @@ void gLineChart::paint(QPainter &painter, gGraph &w, const QRegion &region)
 
             total_points += num_points;
             codepoints += num_points;
+
+            if (code == ZEO_SleepStage) {
+                // SleepHQ-style filled colored bars. Iterate all EventLists at once so we can
+                // extend each bar to the next EventList's start, filling stage-0 gaps.
+                static const QColor stageColors[5] = {
+                    QColor(),
+                    QColor(255, 200, 30),    // 1 = Wake  (yellow)
+                    QColor(173, 216, 230),   // 2 = REM   (light blue)
+                    QColor(100, 149, 237),   // 3 = Light (cornflower blue)
+                    QColor(100, 100, 200),   // 4 = Deep  (purple)
+                };
+                const QVector<EventList*> &elists = ci.value();
+                int numLists = elists.size();
+                double half_row = ymult * 0.45;
+                int xst2 = left + 1;
+                int yst2 = top + height + 1;
+                double prev_cy = -1.0;
+                double prev_x2 = -1.0;
+
+                for (int ei = 0; ei < numLists; ei++) {
+                    EventList &el = *elists[ei];
+                    int sz = el.count();
+                    if (sz < 1) continue;
+                    double elStart = el.first() + drift;
+                    quint32 *tp = el.rawTime();
+                    EventStoreType *dp = el.rawData();
+                    EventDataType elGain = el.gain();
+                    double listEndTime = (ei + 1 < numLists) ?
+                        (double)(elists[ei + 1]->first() + drift) :
+                        (double)(el.last() + drift);
+
+                    for (int i = 0; i < sz; i++) {
+                        double t1 = elStart + tp[i];
+                        double t2 = (i + 1 < sz) ? (elStart + tp[i + 1]) : listEndTime;
+                        EventDataType val = (dp[i] + el.offset()) * elGain;
+                        int stage = qRound(-val);
+                        if (stage < 1 || stage > 4) continue;
+                        if (t2 < minx) continue;
+                        if (t1 > maxx) break;
+                        double x1 = xst2 + (qMax(t1, minx) - minx) * xmult;
+                        double x2 = xst2 + (qMin(t2, maxx) - minx) * xmult;
+                        double cy = yst2 - ((val - miny) * ymult);
+
+                        // Vertical connector from previous bar to this one at transition point
+                        if (prev_cy >= 0.0 && qAbs(cy - prev_cy) > 1.0) {
+                            painter.setPen(QPen(QColor(180, 180, 200, 160), 1.0));
+                            painter.drawLine(QLineF(x1, prev_cy, x1, cy));
+                        }
+
+                        painter.fillRect(QRectF(x1, cy - half_row, x2 - x1, half_row * 2.0), stageColors[stage]);
+                        prev_cy = cy;
+                        prev_x2 = x2;
+                    }
+                }
+                continue; // skip normal EventList drawing for this session
+            }
 
             // Max number of samples taken from samples per pixel for better min/max values
             const int num_averages = 20;

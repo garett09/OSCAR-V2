@@ -238,8 +238,22 @@ void gSummaryChart::afterDraw(QPainter &painter, gGraph &graph, QRectF rect)
 
         if (calcitems.size() == 1) {
             float val = calc.min;
-            if (val < 99998)
-                strlist.append(QObject::tr("Min: %1").arg(val,0,'f',2));
+            if (val < 99998) {
+                if (calc.code == ZEO_SleepStage) {
+                    QString stageName;
+                    int stage = qRound(val);
+                    switch (stage) {
+                        case 1: stageName = QObject::tr("Deep"); break;
+                        case 2: stageName = QObject::tr("Light"); break;
+                        case 3: stageName = QObject::tr("REM"); break;
+                        case 4: stageName = QObject::tr("Wake"); break;
+                        default: stageName = QString::number(val, 'f', 2); break;
+                    }
+                    strlist.append(QObject::tr("Min: %1").arg(stageName));
+                } else {
+                    strlist.append(QObject::tr("Min: %1").arg(val,0,'f',2));
+                }
+            }
         }
 
         float mid = 0;
@@ -300,11 +314,38 @@ void gSummaryChart::afterDraw(QPainter &painter, gGraph &graph, QRectF rect)
             txt = QString("???: ");
             break;
         }
-        strlist.append(QString("%1%2").arg(txt).arg(val,0,'f',2));
+        if (calc.code == ZEO_SleepStage) {
+            QString stageName;
+            int stage = qRound(val);
+            switch (stage) {
+                case 1: stageName = QObject::tr("Deep"); break;
+                case 2: stageName = QObject::tr("Light"); break;
+                case 3: stageName = QObject::tr("REM"); break;
+                case 4: stageName = QObject::tr("Wake"); break;
+                default: stageName = QString::number(val, 'f', 2); break;
+            }
+            strlist.append(QString("%1%2").arg(txt).arg(stageName));
+        } else {
+            strlist.append(QString("%1%2").arg(txt).arg(val,0,'f',2));
+        }
         if (calcitems.size() == 1) {
             val = calc.max;
-            if (val > -99998)
-                strlist.append(QObject::tr("Max: %1").arg(val,0,'f',2));
+            if (val > -99998) {
+                if (calc.code == ZEO_SleepStage) {
+                    QString stageName;
+                    int stage = qRound(val);
+                    switch (stage) {
+                        case 1: stageName = QObject::tr("Deep"); break;
+                        case 2: stageName = QObject::tr("Light"); break;
+                        case 3: stageName = QObject::tr("REM"); break;
+                        case 4: stageName = QObject::tr("Wake"); break;
+                        default: stageName = QString::number(val, 'f', 2); break;
+                    }
+                    strlist.append(QObject::tr("Max: %1").arg(stageName));
+                } else {
+                    strlist.append(QObject::tr("Max: %1").arg(val,0,'f',2));
+                }
+            }
         }
     }
 
@@ -334,7 +375,20 @@ QString gSummaryChart::tooltipData(Day *, int idx)
     int i = slices.size();
     while (i > 0) {
         i--;
-        txt += QString("\n%1: %2").arg(slices[i].name).arg(float(slices[i].value), 0, 'f', 2);
+        if (slices[i].calc && slices[i].calc->code == ZEO_SleepStage) {
+            QString stageName;
+            int stage = qRound(slices[i].value);
+            switch (stage) {
+                case 1: stageName = QObject::tr("Deep"); break;
+                case 2: stageName = QObject::tr("Light"); break;
+                case 3: stageName = QObject::tr("REM"); break;
+                case 4: stageName = QObject::tr("Wake"); break;
+                default: stageName = QString::number(slices[i].value, 'f', 2); break;
+            }
+            txt += QString("\n%1: %2").arg(slices[i].name).arg(stageName);
+        } else {
+            txt += QString("\n%1: %2").arg(slices[i].name).arg(float(slices[i].value), 0, 'f', 2);
+        }
     }
     return txt;
 }
@@ -384,6 +438,7 @@ void gSummaryChart::populate(Day * day, int idx)
             break;
         case ST_MIN:
             value = day->Min(code);
+            if (code == ZEO_SleepStage && value < 0.0) value += 5.0;
             name = QObject::tr("Min %1").arg(chan.label());
             color = item.color;
             slices.append(SummaryChartSlice(&item, value, value - base, name, color));
@@ -391,6 +446,7 @@ void gSummaryChart::populate(Day * day, int idx)
             break;
         case ST_MID:
             value = day->calcMiddle(code);
+            if (code == ZEO_SleepStage && value < 0.0) value += 5.0;
             name = day->calcMiddleLabel(code);
             color = item.color;
             slices.append(SummaryChartSlice(&item, value, value - base, name, color));
@@ -398,6 +454,7 @@ void gSummaryChart::populate(Day * day, int idx)
             break;
         case ST_90P:
             value = day->calcPercentile(code);
+            if (code == ZEO_SleepStage && value < 0.0) value += 5.0;
             name = day->calcPercentileLabel(code);
             color = item.color;
             slices.append(SummaryChartSlice(&item, value, value - base, name, color));
@@ -405,6 +462,7 @@ void gSummaryChart::populate(Day * day, int idx)
             break;
         case ST_MAX:
             value = day->calcMax(code);
+            if (code == ZEO_SleepStage && value < 0.0) value += 5.0;
             name = day->calcMaxLabel(code);
             color = item.color;
             slices.append(SummaryChartSlice(&item, value, value - base, name, color));

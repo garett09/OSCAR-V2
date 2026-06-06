@@ -22,6 +22,8 @@ server= red 30+
 #include <QFile>
 #include <QDataStream>
 #include <QBuffer>
+#include <QDateTime>
+#include <QTimeZone>
 #include <cmath>
 #include <QSet>
 
@@ -871,6 +873,28 @@ Statistics::Statistics(QObject *parent) :
     rows.push_back(StatisticsRow("Pulse",      SC_MAX,     MT_OXIMETER));
     rows.push_back(StatisticsRow("PulseChange",   SC_CPH,     MT_OXIMETER));
 
+    // ---- Sleep Stage Statistics ----
+    rows.push_back(StatisticsRow("", SC_SPACE, MT_SLEEPSTAGE));
+    rows.push_back(StatisticsRow(tr("Sleep Stage Statistics"), SC_HEADING, MT_SLEEPSTAGE));
+    rows.push_back(StatisticsRow("",           SC_DAYS_HEADER,   MT_SLEEPSTAGE));
+    rows.push_back(StatisticsRow("",           SC_COLUMNHEADERS, MT_SLEEPSTAGE));
+
+    rows.push_back(StatisticsRow(tr("Sleep Timing"),     SC_SUBHEADING,  MT_SLEEPSTAGE));
+    rows.push_back(StatisticsRow(tr("Average Bedtime"),       SC_SS_BEDTIME,  MT_SLEEPSTAGE));
+    rows.push_back(StatisticsRow(tr("Average Sleep Latency"), SC_SS_LATENCY,  MT_SLEEPSTAGE));
+    rows.push_back(StatisticsRow(tr("Average Wake Time"),      SC_SS_WAKEUP,   MT_SLEEPSTAGE));
+    rows.push_back(StatisticsRow(tr("Average Total Sleep Time"), SC_SS_TST,   MT_SLEEPSTAGE));
+    rows.push_back(StatisticsRow(tr("Average Awake Time"),     SC_SS_WAKE_TIME, MT_SLEEPSTAGE));
+
+    rows.push_back(StatisticsRow(tr("Sleep Stage Distribution"), SC_SUBHEADING, MT_SLEEPSTAGE));
+    rows.push_back(StatisticsRow(tr("Awake %"),        SC_SS_WAKE_PCT,  MT_SLEEPSTAGE));
+    rows.push_back(StatisticsRow(tr("REM Sleep %"),    SC_SS_REM_PCT,   MT_SLEEPSTAGE));
+    rows.push_back(StatisticsRow(tr("Light Sleep %"),  SC_SS_LIGHT_PCT, MT_SLEEPSTAGE));
+    rows.push_back(StatisticsRow(tr("Deep Sleep %"),   SC_SS_DEEP_PCT,  MT_SLEEPSTAGE));
+
+    rows.push_back(StatisticsRow(tr("Disruptions"),       SC_SUBHEADING,     MT_SLEEPSTAGE));
+    rows.push_back(StatisticsRow(tr("Average Awakenings/Night"), SC_SS_AWAKENINGS, MT_SLEEPSTAGE));
+
     // These are for formatting the headers for the first column
     int percentile=trunc(p_profile->general->prefCalcPercentile());                    // Pholynyk, 10Mar2016
     char perCentStr[20];
@@ -1636,6 +1660,13 @@ QString Statistics::GenerateCPAPUsage()
             html+=QString("<tr bgcolor='%1'><th colspan=%2 align=center><font size='+2'>%3</font></th></tr>").
                         arg(heading_color).arg(periods.size()+1).arg(row.src);
             continue;
+        } else if (row.calc == SC_SS_BEDTIME  || row.calc == SC_SS_WAKEUP    ||
+                   row.calc == SC_SS_TST      || row.calc == SC_SS_WAKE_PCT  ||
+                   row.calc == SC_SS_REM_PCT  || row.calc == SC_SS_LIGHT_PCT ||
+                   row.calc == SC_SS_DEEP_PCT || row.calc == SC_SS_AWAKENINGS ||
+                   row.calc == SC_SS_WAKE_TIME || row.calc == SC_SS_LATENCY) {
+            // Sleep Stage rows store translated label text in src, not a channel name
+            name = row.src;
         } else {
             ChannelID id = schema::channel[row.src].id();
             if ((id == NoChannel) || (!p_profile->channelAvailable(id))) {
@@ -2106,6 +2137,112 @@ QString StatisticsRow::value(QDate start, QDate end, MachineType typeOverride)
     // Handle special data sources first
     if (calc == SC_AHI_RDI) {
         value = QString("%1").arg(calcAHI(start, end), 0, 'f', decimals);
+    } else if (calc == SC_SS_BEDTIME  || calc == SC_SS_WAKEUP     ||
+               calc == SC_SS_TST      || calc == SC_SS_WAKE_PCT  ||
+               calc == SC_SS_REM_PCT  || calc == SC_SS_LIGHT_PCT ||
+               calc == SC_SS_DEEP_PCT || calc == SC_SS_AWAKENINGS ||
+               calc == SC_SS_WAKE_TIME || calc == SC_SS_LATENCY) {
+        // ---- Sleep Stage per-night aggregation ----
+        QList<Day*> stageDays = p_profile->getDays(MT_SLEEPSTAGE, start, end);
+        int nights = 0;
+        double sumWake = 0, sumREM = 0, sumLight = 0, sumDeep = 0;
+        double sumAwakenings = 0, sumBedHrs = 0, sumWakeHrs = 0, sumLatency = 0;
+
+        for (Day* sday : stageDays) {
+            if (!sday) continue;
+            QList<Session*> ssess = sday->getSessions(MT_SLEEPSTAGE, false);
+            if (ssess.isEmpty()) continue;
+            qint64 bedMs = 0;
+            qint64 wakeMs = 0;
+            double dWake=0, dREM=0, dLight=0, dDeep=0, dAwk=0, dLat=0;
+            bool hasData = false;
+            for (Session* sess : ssess) {
+                if (!sess->enabled()) continue;
+                qint64 sf = sess->realFirst();
+                if (sf > 0 && (bedMs == 0 || sf < bedMs)) bedMs = sf;
+                qint64 sl = sess->realLast();
+                if (sl > 0 && (wakeMs == 0 || sl > wakeMs)) wakeMs = sl;
+                auto addS = [&](ChannelID ch, double &out) {
+                    auto it = sess->settings.find(ch);
+                    if (it != sess->settings.end()) out += it.value().toDouble();
+                };
+                addS(ZEO_TimeInWake,  dWake);
+                addS(ZEO_TimeInREM,   dREM);
+                addS(ZEO_TimeInLight, dLight);
+                addS(ZEO_TimeInDeep,  dDeep);
+                addS(ZEO_TimeToZ,     dLat);
+                addS(ZEO_Awakenings,  dAwk);
+                hasData = true;
+            }
+            if (!hasData || bedMs == 0 || wakeMs == 0) continue;
+            QDateTime bdt = QDateTime::fromMSecsSinceEpoch(bedMs, QTimeZone::systemTimeZone());
+            double bh = bdt.time().hour() + bdt.time().minute()/60.0 + bdt.time().second()/3600.0;
+            if (bh < 12.0) bh += 24.0;
+            sumBedHrs    += bh;
+
+            QDateTime wkt = QDateTime::fromMSecsSinceEpoch(wakeMs, QTimeZone::systemTimeZone());
+            double wh = wkt.time().hour() + wkt.time().minute()/60.0 + wkt.time().second()/3600.0;
+            if (wh < 12.0) wh += 24.0;
+            sumWakeHrs   += wh;
+
+            sumWake      += dWake;
+            sumREM       += dREM;
+            sumLight     += dLight;
+            sumDeep      += dDeep;
+            sumLatency   += dLat;
+            sumAwakenings += dAwk;
+            nights++;
+        }
+
+        if (nights == 0) {
+            value = QString("-");
+        } else {
+            auto minsToHM = [](double mins) -> QString {
+                int h = static_cast<int>(mins) / 60;
+                int m = static_cast<int>(mins) % 60;
+                return QString("%1h%2m").arg(h).arg(m, 2, 10, QChar('0'));
+            };
+            double avgWake  = sumWake      / nights;
+            double avgREM   = sumREM       / nights;
+            double avgLight = sumLight     / nights;
+            double avgDeep  = sumDeep      / nights;
+            double avgTST   = avgREM + avgLight + avgDeep;
+            double totalMin = avgWake + avgTST;
+
+            if (calc == SC_SS_BEDTIME) {
+                double avgBh = sumBedHrs / nights;
+                if (avgBh >= 24.0) avgBh -= 24.0;
+                int bHour = static_cast<int>(avgBh) % 24;
+                int bMin  = static_cast<int>((avgBh - static_cast<int>(avgBh)) * 60.0);
+                QString ap = bHour >= 12 ? QString("pm") : QString("am");
+                int bH12 = bHour % 12; if (bH12 == 0) bH12 = 12;
+                value = QString("%1:%2%3").arg(bH12).arg(bMin, 2, 10, QChar('0')).arg(ap);
+            } else if (calc == SC_SS_WAKEUP) {
+                double avgWh = sumWakeHrs / nights;
+                if (avgWh >= 24.0) avgWh -= 24.0;
+                int wHour = static_cast<int>(avgWh) % 24;
+                int wMin  = static_cast<int>((avgWh - static_cast<int>(avgWh)) * 60.0);
+                QString ap = wHour >= 12 ? QString("pm") : QString("am");
+                int wH12 = wHour % 12; if (wH12 == 0) wH12 = 12;
+                value = QString("%1:%2%3").arg(wH12).arg(wMin, 2, 10, QChar('0')).arg(ap);
+            } else if (calc == SC_SS_TST) {
+                value = minsToHM(avgTST);
+            } else if (calc == SC_SS_WAKE_PCT) {
+                value = totalMin > 0 ? QString::number(100.0 * avgWake  / totalMin, 'f', 1) + "%" : "-";
+            } else if (calc == SC_SS_REM_PCT) {
+                value = totalMin > 0 ? QString::number(100.0 * avgREM   / totalMin, 'f', 1) + "%" : "-";
+            } else if (calc == SC_SS_LIGHT_PCT) {
+                value = totalMin > 0 ? QString::number(100.0 * avgLight / totalMin, 'f', 1) + "%" : "-";
+            } else if (calc == SC_SS_DEEP_PCT) {
+                value = totalMin > 0 ? QString::number(100.0 * avgDeep  / totalMin, 'f', 1) + "%" : "-";
+            } else if (calc == SC_SS_AWAKENINGS) {
+                value = QString::number(sumAwakenings / nights, 'f', 1);
+            } else if (calc == SC_SS_WAKE_TIME) {
+                value = minsToHM(avgWake);
+            } else if (calc == SC_SS_LATENCY) {
+                value = minsToHM(sumLatency / nights);
+            }
+        }
     } else if (calc == SC_AHI_ONLY) {
         value = QString("%1").arg((calcAHIorRDI(start, end, RDI_MODE::RM_AHI)), 0, 'f', decimals);
     } else if (calc == SC_MEDIAN_HOURS) {

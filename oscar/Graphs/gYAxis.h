@@ -194,4 +194,30 @@ class gYAxisWeight: public gYAxis
 };
 
 
+/*! \class gYAxisSleepStage
+   \brief Draws the YAxis tick markers, and labels for sleep stages
+   */
+class gYAxisSleepStage: public gYAxis
+{
+  public:
+    //! \brief Construct a gYAxisSleepStage object, with QColor col for tickers & labels
+    gYAxisSleepStage(QColor col = Qt::black) : gYAxis(col) {}
+    virtual ~gYAxisSleepStage() {}
+  protected:
+    //! \brief Overrides gYAxis Format to display Sleep Stage names
+    virtual const QString Format(EventDataType v, int dp);
+
+    virtual Layer * Clone() {
+        gYAxisSleepStage * yaxis = new gYAxisSleepStage();
+        Layer::CloneInto(yaxis);
+        CloneInto(yaxis);
+        return yaxis;
+    }
+
+    void CloneInto(gYAxisSleepStage * layer) {
+        gYAxis::CloneInto(layer);
+    }
+};
+
+
 #endif // GYAXIS_H

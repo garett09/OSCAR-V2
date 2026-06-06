@@ -971,7 +971,7 @@ void initializeStrings()
     STR_TR_TargetVent = QObject::tr("Target Vent.");        // Target Ventilation
     STR_TR_MinuteVent = QObject::tr("Minute Vent."); // Minute Ventilation
     STR_TR_TidalVolume = QObject::tr("Tidal Volume");
-    STR_TR_RespRate = QObject::tr("Resp. Rate");  // Respiratory Rate
+    STR_TR_RespRate = QObject::tr("Respiratory Rate");
     STR_TR_Snore = QObject::tr("Snore");
     STR_TR_Leak = QObject::tr("Leak");
     STR_TR_Leaks = QObject::tr("Leaks");

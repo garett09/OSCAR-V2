@@ -514,7 +514,11 @@ Daily::Daily(QWidget *parent,gGraphView * shared)
     if (auto *g = graphlist.value(schema::channel[CPAP_Ti].code())) g->AddLayer(lc=new gLineChart(CPAP_Ti, false));
     //lc->addPlot(CPAP_Test2,COLOR:DarkYellow,square);
 
-    if (auto *g = graphlist.value(schema::channel[ZEO_SleepStage].code())) g->AddLayer(new gLineChart(ZEO_SleepStage, true));
+    if (auto *g = graphlist.value(schema::channel[ZEO_SleepStage].code())) {
+        g->AddLayer(new gLineChart(ZEO_SleepStage, true));
+        g->setForceMinY(-5);
+        g->setForceMaxY(0);
+    }
 
 //    gLineOverlaySummary *los1=new gLineOverlaySummary(STR_UNIT_EventsPerHour,5,-4);
 //    gLineOverlaySummary *los2=new gLineOverlaySummary(STR_UNIT_EventsPerHour,5,-4);
@@ -551,7 +555,11 @@ Daily::Daily(QWidget *parent,gGraphView * shared)
     for (it = graphlist.begin(); it != graphlist.end(); ++it) {
         if (skipgraph.contains(it.key())) continue;
 
-        it.value()->AddLayer(new gYAxis(),LayerLeft,gYAxis::Margin);
+        if (it.key() == schema::channel[ZEO_SleepStage].code()) {
+            it.value()->AddLayer(new gYAxisSleepStage(),LayerLeft,gYAxis::Margin);
+        } else {
+            it.value()->AddLayer(new gYAxis(),LayerLeft,gYAxis::Margin);
+        }
         it.value()->AddLayer(new gXAxis(),LayerBottom,0,gXAxis::Margin);
     }
 
