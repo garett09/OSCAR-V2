@@ -107,6 +107,7 @@
 #include "database/preferences_repository.h"
 #include "SleepLib/performance_timer.h"
 #include "reports.h"
+#include "compliancereport.h"
 #include "statistics.h"
 #include "zip.h"
 #include "speedcheck.h"
@@ -1608,6 +1609,11 @@ QMenu *MainWindow::CreateMenu(QString title)
     QMenu *menu = new QMenu(title, ui->menubar);
     ui->menubar->insertMenu(ui->menu_Help->menuAction(), menu);
     return menu;
+}
+
+void MainWindow::on_actionExport_Compliance_PDF_triggered()
+{
+    ComplianceReport::exportReport(this);
 }
 
 void MainWindow::on_action_Fullscreen_triggered()

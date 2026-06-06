@@ -203,6 +203,9 @@ class MainWindow : public QMainWindow
         */
     void on_action_Import_Data_triggered();
 
+    //! \brief Exports compliance data to an AirView-style PDF report
+    void on_actionExport_Compliance_PDF_triggered();
+
     /*! \fn void on_action_Import_OSCAR_Data_triggered();
         \brief Opens the Import Profile dialog for importing from file-based OSCAR
         */

@@ -301,6 +301,7 @@ macx {
 SOURCES += \
     aboutdialog.cpp \
     checkupdates.cpp \
+    compliancereport.cpp \
     common_gui.cpp \
     cprogressbar.cpp \
     csv.cpp \
@@ -475,6 +476,7 @@ QMAKE_EXTRA_COMPILERS += optimize
 HEADERS  += \
     SleepLib/performance_timer.h \
     checkupdates.h \
+    compliancereport.h \
     database/reports_initializer.h \
     notifyMessageBox.h \
     dailySearchTab.h \

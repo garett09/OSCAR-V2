@@ -2120,6 +2120,7 @@ p, li { white-space: pre-wrap; }
     <addaction name="action_Edit_Profile"/>
     <addaction name="separator"/>
     <addaction name="actionPrint_Report"/>
+    <addaction name="actionExport_Compliance_PDF"/>
     <addaction name="separator"/>
     <addaction name="menuExp_ort_CSV_Data"/>
     <addaction name="menuProfiles"/>
@@ -2410,6 +2411,11 @@ p, li { white-space: pre-wrap; }
   <action name="actionPrint_Report">
    <property name="text">
     <string>Print Report</string>
+   </property>
+  </action>
+  <action name="actionExport_Compliance_PDF">
+   <property name="text">
+    <string>Export Compliance Report (PDF)...</string>
    </property>
   </action>
   <action name="action_Edit_Profile">
