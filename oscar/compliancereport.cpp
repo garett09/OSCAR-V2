@@ -472,24 +472,23 @@ QList<SettingsChangeBlock> getSettingsChanges(const QDate& start, const QDate& e
 
 // ---- Shared QPainter chart helpers ----
 
-const int CHART_W = 1500;  // SVG canvas width
+const int CHART_MAX_W = 1500;  // widest SVG canvas (long ranges)
 const int CHART_TITLE_H = 50; // pixels reserved at top of canvas for the title
 const int CHART_H = 360 + CHART_TITLE_H; // SVG canvas height (410px total)
 static const int CHART_DISPLAY_MIN_W = 200;
+const int CHART_LM = 86;   // left margin: y-axis labels
+const int CHART_RM = 150;  // right margin: last x label half-width (60) + gap,
+                           // also fits threshold annotations ("AHI 5", redline)
+const int CHART_COL_MAX_PX = 48; // widest per-day column before canvas shrinks
 
-// Dynamic right margin: keep the last x-axis label (centred on the last bar,
-// text extends 60px to the right) plus a 90px visual gap from the SVG canvas
-// right edge, regardless of day count.
-// Derivation: last_label_right = lm + (N-0.5)/N*(CHART_W-lm-rm) + 60
-// We want: last_label_right + 90 <= CHART_W → solve for rm.
-static int chartRightMargin(int totalDays)
+// Canvas width follows the day count so bar width stays constant across report
+// ranges: short ranges get a proportionally narrower chart instead of a few
+// bars stretched across the full page. Ranges of ~26+ days fill the full width.
+static int chartCanvasWidth(int totalDays)
 {
-    const int lm = 86;
-    if (totalDays <= 1) return lm;
-    const double W    = CHART_W - lm;     // canvas width right of y-axis
-    const double safe = 60.0 + 90.0;      // text half-width + visual gap
-    int rm = (int)std::ceil(W - (W - safe) * totalDays / (totalDays - 0.5));
-    return qMax(lm, rm);
+    const int maxPlotW = CHART_MAX_W - CHART_LM - CHART_RM;
+    int plotW = qMin(maxPlotW, qMax(1, totalDays) * CHART_COL_MAX_PX);
+    return CHART_LM + plotW + CHART_RM;
 }
 
 static int labelIntervalForDays(int totalDays)
@@ -536,7 +535,8 @@ static void drawXGridLines(QPainter& painter, const QRect& chartRect, int totalD
 }
 
 static void drawXAxisLabels(QPainter& painter, const QRect& chartRect,
-                             int totalDays, double colWidth, const QDate& start)
+                             int totalDays, double colWidth, const QDate& start,
+                             int canvasW)
 {
     painter.setPen(QPen(QColor("#94a3b8"), 1.5));
     painter.drawLine(chartRect.bottomLeft(), chartRect.bottomRight());
@@ -555,9 +555,9 @@ static void drawXAxisLabels(QPainter& painter, const QRect& chartRect,
     }
 
     // Returns a label rect centred on cx, clamped so it never overflows the SVG canvas.
-    auto labelRect = [](int cx, int y) -> QRect {
+    auto labelRect = [canvasW](int cx, int y) -> QRect {
         const int w = 120, h = 38, margin = 4;
-        int left = qBound(margin, cx - w / 2, CHART_W - w - margin);
+        int left = qBound(margin, cx - w / 2, canvasW - w - margin);
         return QRect(left, y, w, h);
     };
 
@@ -710,6 +710,42 @@ static void drawChartTitle(QPainter& painter, const QString& title, const QStrin
         painter.drawText(x + titleW, yBaseline, unitStr);
     }
 }
+
+// One SVG chart canvas: buffer + generator + painter + plot rect, sized to the
+// day count via chartCanvasWidth(). Owns the boilerplate every render function
+// used to repeat (generator setup, render hints, background, title, margins).
+struct SvgChart {
+    QBuffer buffer;
+    QSvgGenerator generator;
+    QPainter painter;
+    QRect chartRect;
+    int canvasW;
+
+    SvgChart(int totalDays, const QString& svgTitle,
+             const QString& title, const QString& unit)
+    {
+        canvasW = chartCanvasWidth(totalDays);
+        buffer.open(QIODevice::WriteOnly);
+        generator.setOutputDevice(&buffer);
+        generator.setSize(QSize(canvasW, CHART_H));
+        generator.setViewBox(QRect(0, 0, canvasW, CHART_H));
+        generator.setTitle(svgTitle);
+        painter.begin(&generator);
+        painter.setRenderHint(QPainter::Antialiasing);
+        painter.setRenderHint(QPainter::TextAntialiasing);
+        painter.fillRect(QRect(0, 0, canvasW, CHART_H), Qt::white);
+        drawChartTitle(painter, title, unit);
+        const int tm = CHART_TITLE_H + 22, bm = 80;
+        chartRect = QRect(CHART_LM, tm, canvasW - CHART_LM - CHART_RM, CHART_H - tm - bm);
+    }
+
+    QString finish()
+    {
+        painter.end();
+        buffer.close();
+        return QString("data:image/svg+xml;base64,") + buffer.data().toBase64();
+    }
+};
 
 static QString makePageHeaderHtml(const QString& section,
                                    const QString& patientName,
@@ -894,8 +930,10 @@ static QString makeAhiStatsHtml(double AHI, double HI, double AI, double Central
            QString::number(UnknownAI, 'f', 2),
            "#64748b", "#0f172a");
 
+    // No swatch: RERA is reported as an index only, it is not stacked in the
+    // AHI chart (AHI excludes RERAs).
     addRow(QCoreApplication::translate("ComplianceReport", "RERA"),
-           "<span style='color:#94a3b8;'>&#9632;</span>",
+           "",
            QString::number(ReraIndex, 'f', 2),
            "#64748b", "#0f172a");
 
@@ -1001,29 +1039,9 @@ QString renderUsageChart(const QMap<QDate, Day*>& daysMap, const QDate& start, c
                          const QString& title, const QString& unit)
 {
     int totalDays = start.daysTo(end) + 1;
-    QSize imgSize(CHART_W, CHART_H);
-
-    QBuffer buffer;
-    buffer.open(QIODevice::WriteOnly);
-
-    QSvgGenerator generator;
-    generator.setOutputDevice(&buffer);
-    generator.setSize(imgSize);
-    generator.setViewBox(QRect(0, 0, imgSize.width(), imgSize.height()));
-    generator.setTitle("Usage Chart");
-
-    QPainter painter(&generator);
-    painter.setRenderHint(QPainter::Antialiasing);
-    painter.setRenderHint(QPainter::TextAntialiasing);
-
-    // Draw background
-    painter.fillRect(QRect(0, 0, CHART_W, CHART_H), Qt::white);
-    drawChartTitle(painter, title, unit);
-
-    const int logicalW = CHART_W;
-    const int logicalH = CHART_H;
-    const int lm = 86, rm = chartRightMargin(totalDays), tm = CHART_TITLE_H + 22, bm = 80;
-    QRect chartRect(lm, tm, logicalW - lm - rm, logicalH - tm - bm);
+    SvgChart c(totalDays, "Usage Chart", title, unit);
+    QPainter& painter = c.painter;
+    const QRect& chartRect = c.chartRect;
 
     double maxH = thresholdHr;
     for (int i = 0; i < totalDays; ++i) {
@@ -1039,7 +1057,7 @@ QString renderUsageChart(const QMap<QDate, Day*>& daysMap, const QDate& start, c
 
     double colWidth = static_cast<double>(chartRect.width()) / totalDays;
     drawXGridLines(painter, chartRect, totalDays, colWidth, start);
-    drawXAxisLabels(painter, chartRect, totalDays, colWidth, start);
+    drawXAxisLabels(painter, chartRect, totalDays, colWidth, start, c.canvasW);
 
     QList<double> vals;
     for (int i = 0; i < totalDays; ++i) {
@@ -1066,58 +1084,36 @@ QString renderUsageChart(const QMap<QDate, Day*>& daysMap, const QDate& start, c
         }
     }
 
-    painter.end();
-    buffer.close();
-    return QString("data:image/svg+xml;base64,") + buffer.data().toBase64();
+    return c.finish();
 }
 
 QString renderAhiChart(const QMap<QDate, Day*>& daysMap, const QDate& start, const QDate& end,
                        const QString& title, const QString& unit)
 {
     int totalDays = start.daysTo(end) + 1;
-    QSize imgSize(CHART_W, CHART_H);
+    SvgChart c(totalDays, "AHI Chart", title, unit);
+    QPainter& painter = c.painter;
+    const QRect& chartRect = c.chartRect;
 
-    QBuffer buffer;
-    buffer.open(QIODevice::WriteOnly);
-
-    QSvgGenerator generator;
-    generator.setOutputDevice(&buffer);
-    generator.setSize(imgSize);
-    generator.setViewBox(QRect(0, 0, imgSize.width(), imgSize.height()));
-    generator.setTitle("AHI Chart");
-
-    QPainter painter(&generator);
-    painter.setRenderHint(QPainter::Antialiasing);
-    painter.setRenderHint(QPainter::TextAntialiasing);
-
-    // Draw background
-    painter.fillRect(QRect(0, 0, CHART_W, CHART_H), Qt::white);
-    drawChartTitle(painter, title, unit);
-
-    const int logicalW = CHART_W;
-    const int logicalH = CHART_H;
-    const int lm = 86, rm = chartRightMargin(totalDays), tm = CHART_TITLE_H + 22, bm = 80;
-    QRect chartRect(lm, tm, logicalW - lm - rm, logicalH - tm - bm);
-
-    // Per-day AI, HI, and RERA for stacked bars
+    // Per-day AI and HI for stacked bars. RERA is intentionally NOT stacked:
+    // AHI excludes RERAs, and including them made bars cross the "AHI 5"
+    // threshold line on nights whose true AHI was below 5.
     double maxAhi = 0.5;
-    QList<double> aiVals, hiVals, reraVals;
+    QList<double> aiVals, hiVals;
     for (int i = 0; i < totalDays; ++i) {
         QDate d = start.addDays(i);
-        double ai = 0.0, hi = 0.0, rera = 0.0;
+        double ai = 0.0, hi = 0.0;
         if (daysMap.contains(d)) {
             Day* day = daysMap[d];
             double hrs = day->hours(MT_CPAP);
             if (hrs > 0.0) {
                 ai   = (day->count(CPAP_Obstructive) + day->count(CPAP_ClearAirway) + day->count(CPAP_Apnea)) / hrs;
                 hi   = day->count(CPAP_Hypopnea) / hrs;
-                rera = day->count(CPAP_RERA) / hrs;
-                maxAhi = qMax(maxAhi, ai + hi + rera);
+                maxAhi = qMax(maxAhi, ai + hi);
             }
         }
         aiVals.append(ai);
         hiVals.append(hi);
-        reraVals.append(rera);
     }
 
     double yMax;
@@ -1133,14 +1129,13 @@ QString renderAhiChart(const QMap<QDate, Day*>& daysMap, const QDate& start, con
 
     double colWidth = static_cast<double>(chartRect.width()) / totalDays;
     drawXGridLines(painter, chartRect, totalDays, colWidth, start);
-    drawXAxisLabels(painter, chartRect, totalDays, colWidth, start);
+    drawXAxisLabels(painter, chartRect, totalDays, colWidth, start, c.canvasW);
 
-    // Stacked bars (bottom→top): AI (dark indigo), HI (light indigo), RERA (slate)
-    // Three-pass overdraw: draw each layer top-down so upper colours overwrite lower.
+    // Stacked bars (bottom→top): AI (dark indigo), HI (light indigo)
+    // Two-pass overdraw: draw each layer top-down so upper colours overwrite lower.
     double barW = qMax(colWidth * 0.75, 1.5);
     const QColor aiColor("#6366f1");    // indigo   — Apnea Index
     const QColor hiColor("#a5b4fc");    // lavender — Hypopnea Index
-    const QColor reraColor("#94a3b8"); // slate    — RERA Index
 
     // Helper: draw a bar with a rounded top cap
     auto drawRoundedBar = [&](double x, double y, double w, double h, const QColor& col) {
@@ -1156,22 +1151,19 @@ QString renderAhiChart(const QMap<QDate, Day*>& daysMap, const QDate& start, con
 
     painter.setPen(Qt::NoPen);
     for (int i = 0; i < totalDays; ++i) {
-        double ai = aiVals[i], hi = hiVals[i], rera = reraVals[i];
-        double total = ai + hi + rera;
+        double ai = aiVals[i], hi = hiVals[i];
+        double total = ai + hi;
         if (total <= 0.0) continue;
         double x    = chartRect.left() + i * colWidth + (colWidth - barW) / 2.0;
-        double totalH    = (total / yMax) * chartRect.height();
-        double hiReraH   = ((hi + rera) / yMax) * chartRect.height();
-        double reraH     = (rera / yMax) * chartRect.height();
+        double totalH = (total / yMax) * chartRect.height();
+        double hiH    = (hi / yMax) * chartRect.height();
         if (totalH < 1.0) totalH = 1.0;
         double yTop = chartRect.bottom() - totalH;
 
         // Pass 1: full bar in AI color (rounded top — may be overdrawn)
         drawRoundedBar(x, yTop, barW, totalH, aiColor);
-        // Pass 2: overdraw HI+RERA portion in HI color
-        if (hiReraH > 0.0) drawRoundedBar(x, yTop, barW, hiReraH, hiColor);
-        // Pass 3: overdraw RERA portion in RERA color
-        if (reraH   > 0.0) drawRoundedBar(x, yTop, barW, reraH,   reraColor);
+        // Pass 2: overdraw HI portion in HI color
+        if (hiH > 0.0) drawRoundedBar(x, yTop, barW, hiH, hiColor);
     }
 
     drawThresholdLine(painter, chartRect, yMax, 5.0, QColor("#10b981"));
@@ -1183,38 +1175,16 @@ QString renderAhiChart(const QMap<QDate, Day*>& daysMap, const QDate& start, con
                          Qt::AlignLeft | Qt::AlignVCenter, "AHI 5");
     }
 
-    painter.end();
-    buffer.close();
-    return QString("data:image/svg+xml;base64,") + buffer.data().toBase64();
+    return c.finish();
 }
 
 QString renderLeakChart(const QMap<QDate, Day*>& daysMap, const QDate& start, const QDate& end, ChannelID leakChan, double redline,
                         const QString& title, const QString& unit)
 {
     int totalDays = start.daysTo(end) + 1;
-    QSize imgSize(CHART_W, CHART_H);
-
-    QBuffer buffer;
-    buffer.open(QIODevice::WriteOnly);
-
-    QSvgGenerator generator;
-    generator.setOutputDevice(&buffer);
-    generator.setSize(imgSize);
-    generator.setViewBox(QRect(0, 0, imgSize.width(), imgSize.height()));
-    generator.setTitle("Leak Rate Chart");
-
-    QPainter painter(&generator);
-    painter.setRenderHint(QPainter::Antialiasing);
-    painter.setRenderHint(QPainter::TextAntialiasing);
-
-    // Draw background
-    painter.fillRect(QRect(0, 0, CHART_W, CHART_H), Qt::white);
-    drawChartTitle(painter, title, unit);
-
-    const int logicalW = CHART_W;
-    const int logicalH = CHART_H;
-    const int lm = 86, rm = chartRightMargin(totalDays), tm = CHART_TITLE_H + 22, bm = 80;
-    QRect chartRect(lm, tm, logicalW - lm - rm, logicalH - tm - bm);
+    SvgChart c(totalDays, "Leak Rate Chart", title, unit);
+    QPainter& painter = c.painter;
+    const QRect& chartRect = c.chartRect;
 
     double maxVal = qMax(redline > 0 ? redline : 10.0, 10.0);
     for (int i = 0; i < totalDays; ++i) {
@@ -1229,7 +1199,7 @@ QString renderLeakChart(const QMap<QDate, Day*>& daysMap, const QDate& start, co
 
     double colWidth = static_cast<double>(chartRect.width()) / totalDays;
     drawXGridLines(painter, chartRect, totalDays, colWidth, start);
-    drawXAxisLabels(painter, chartRect, totalDays, colWidth, start);
+    drawXAxisLabels(painter, chartRect, totalDays, colWidth, start, c.canvasW);
 
     QList<double> vals;
     QList<double> medians;
@@ -1252,38 +1222,16 @@ QString renderLeakChart(const QMap<QDate, Day*>& daysMap, const QDate& start, co
                          Qt::AlignLeft | Qt::AlignVCenter, QString::number(redline, 'f', 0));
     }
 
-    painter.end();
-    buffer.close();
-    return QString("data:image/svg+xml;base64,") + buffer.data().toBase64();
+    return c.finish();
 }
 
 QString renderPressureChart(const QMap<QDate, Day*>& daysMap, const QDate& start, const QDate& end, ChannelID pressChan,
                             const QString& title, const QString& unit)
 {
     int totalDays = start.daysTo(end) + 1;
-    QSize imgSize(CHART_W, CHART_H);
-
-    QBuffer buffer;
-    buffer.open(QIODevice::WriteOnly);
-
-    QSvgGenerator generator;
-    generator.setOutputDevice(&buffer);
-    generator.setSize(imgSize);
-    generator.setViewBox(QRect(0, 0, imgSize.width(), imgSize.height()));
-    generator.setTitle("Therapy Pressure Chart");
-
-    QPainter painter(&generator);
-    painter.setRenderHint(QPainter::Antialiasing);
-    painter.setRenderHint(QPainter::TextAntialiasing);
-
-    // Draw background
-    painter.fillRect(QRect(0, 0, CHART_W, CHART_H), Qt::white);
-    drawChartTitle(painter, title, unit);
-
-    const int logicalW = CHART_W;
-    const int logicalH = CHART_H;
-    const int lm = 86, rm = chartRightMargin(totalDays), tm = CHART_TITLE_H + 22, bm = 80;
-    QRect chartRect(lm, tm, logicalW - lm - rm, logicalH - tm - bm);
+    SvgChart c(totalDays, "Therapy Pressure Chart", title, unit);
+    QPainter& painter = c.painter;
+    const QRect& chartRect = c.chartRect;
 
     double maxVal = 12.0;
     QList<double> vals;
@@ -1319,13 +1267,11 @@ QString renderPressureChart(const QMap<QDate, Day*>& daysMap, const QDate& start
 
     double colWidth = static_cast<double>(chartRect.width()) / totalDays;
     drawXGridLines(painter, chartRect, totalDays, colWidth, start);
-    drawXAxisLabels(painter, chartRect, totalDays, colWidth, start);
+    drawXAxisLabels(painter, chartRect, totalDays, colWidth, start, c.canvasW);
 
     drawBars(painter, chartRect, totalDays, vals, yMax, QColor("#3b82f6"), 0.0, QColor(), medians, yMin);
 
-    painter.end();
-    buffer.close();
-    return QString("data:image/svg+xml;base64,") + buffer.data().toBase64();
+    return c.finish();
 }
 
 QString renderChannelBarChart(ChannelID chanId, const QColor& barColor,
@@ -1335,29 +1281,9 @@ QString renderChannelBarChart(ChannelID chanId, const QColor& barColor,
                               MachineType mt = MT_CPAP)
 {
     int totalDays = start.daysTo(end) + 1;
-    QSize imgSize(CHART_W, CHART_H);
-
-    QBuffer buffer;
-    buffer.open(QIODevice::WriteOnly);
-
-    QSvgGenerator generator;
-    generator.setOutputDevice(&buffer);
-    generator.setSize(imgSize);
-    generator.setViewBox(QRect(0, 0, imgSize.width(), imgSize.height()));
-    generator.setTitle("Channel Bar Chart");
-
-    QPainter painter(&generator);
-    painter.setRenderHint(QPainter::Antialiasing);
-    painter.setRenderHint(QPainter::TextAntialiasing);
-
-    // Draw background
-    painter.fillRect(QRect(0, 0, CHART_W, CHART_H), Qt::white);
-    drawChartTitle(painter, title, unit);
-
-    const int logicalW = CHART_W;
-    const int logicalH = CHART_H;
-    const int lm = 86, rm = chartRightMargin(totalDays), tm = CHART_TITLE_H + 22, bm = 80;
-    QRect chartRect(lm, tm, logicalW - lm - rm, logicalH - tm - bm);
+    SvgChart c(totalDays, "Channel Bar Chart", title, unit);
+    QPainter& painter = c.painter;
+    const QRect& chartRect = c.chartRect;
 
     // SpO2: bars show nightly median (P50) — clinically expected, matches doctor's mental model.
     // P5 tick marks the nightly desaturation low inside each bar (artifact-resistant near-worst).
@@ -1374,7 +1300,9 @@ QString renderChannelBarChart(ChannelID chanId, const QColor& barColor,
         double med = 0.0;
         bool hasData = false;
         if (daysMap.contains(d)) {
-            if (mt == MT_OXIMETER || mt == MT_UNKNOWN) {
+            // Oximetry channels: presence keyed on recorded SpO2/pulse samples, not
+            // machine hours — the oximetry source may be the CPAP device itself.
+            if (chanId == OXI_SPO2 || chanId == OXI_Pulse) {
                 hasData = daysMap[d]->timeAboveThreshold(chanId, 0.0) > 0.0;
             } else {
                 hasData = daysMap[d]->hours(mt) > 0.0;
@@ -1438,7 +1366,7 @@ QString renderChannelBarChart(ChannelID chanId, const QColor& barColor,
 
     double colWidth = static_cast<double>(chartRect.width()) / totalDays;
     drawXGridLines(painter, chartRect, totalDays, colWidth, start);
-    drawXAxisLabels(painter, chartRect, totalDays, colWidth, start);
+    drawXAxisLabels(painter, chartRect, totalDays, colWidth, start, c.canvasW);
 
     drawBars(painter, chartRect, totalDays, vals, yMax, barColor, 0.0, QColor(), medians, yMin);
 
@@ -1446,9 +1374,7 @@ QString renderChannelBarChart(ChannelID chanId, const QColor& barColor,
     if (chanId == OXI_SPO2)
         drawThresholdLine(painter, chartRect, yMax, 90.0, QColor("#ef4444"), yMin);
 
-    painter.end();
-    buffer.close();
-    return QString("data:image/svg+xml;base64,") + buffer.data().toBase64();
+    return c.finish();
 }
 
 // Compute the average of per-night percentile values, matching AirView's
@@ -1480,6 +1406,14 @@ static double calcDayAvgPercentile(ChannelID chan, EventDataType pct,
     }
     return count > 0 ? sum / count : 0.0;
 }
+
+// "Maximum (avg)" is DELIBERATELY the 99.5th percentile, not Day::Max.
+// The raw nightly maximum is dominated by non-therapy artifacts: removing the
+// mask while the blower runs spikes leak to 60+ L/min, and the same transition
+// produces absurd tidal volume (>1000 ml) and respiratory rate (50+ br/min)
+// readings. ResMed's AirView avoids this by excluding mask-off spans before
+// taking the maximum — segmentation OSCAR cannot replicate from imported data —
+// so P99.5 is the artifact guard that keeps "Maximum (avg)" clinically sane.
 
 } // namespace
 
@@ -1636,7 +1570,7 @@ void ComplianceReport::exportReport(QWidget *parent)
     if (leakChan != NoChannel) {
         medianLeak = calcDayAvgPercentile(leakChan, 0.5,  daysMap);
         p95Leak    = calcDayAvgPercentile(leakChan, 0.95, daysMap);
-        maxLeak    = calcDayAvgPercentile(leakChan, 0.995, daysMap);
+        maxLeak    = calcDayAvgPercentile(leakChan, 0.995, daysMap);  // P99.5: see artifact-guard note above
     }
 
     // 95th percentile flow limitation
@@ -1829,8 +1763,14 @@ void ComplianceReport::exportReport(QWidget *parent)
     // Subtract the margin QTextDocument reserves inside contentW (both sides) so
     // the chart image fits the actually-usable width, plus cell padding slack.
     const int usableW = contentW - 2 * static_cast<int>(DOC_MARGIN);
-    int displayW = qMax(CHART_DISPLAY_MIN_W, usableW - STATS_COL_W - 16);
-    int displayH = (CHART_H * displayW) / CHART_W;
+    // Scale the on-page chart size with the canvas width so short ranges print
+    // as compact charts (constant bar width) instead of stretching to full page.
+    // The scale factor canvasW/CHART_MAX_W is the same for every chart in the
+    // report (all charts span the same date range), so fonts stay uniform.
+    const int chartCanvasW = chartCanvasWidth(totalDays);
+    const int fullDisplayW = qMax(CHART_DISPLAY_MIN_W, usableW - STATS_COL_W - 16);
+    int displayW = qMax(CHART_DISPLAY_MIN_W, (fullDisplayW * chartCanvasW) / CHART_MAX_W);
+    int displayH = (CHART_H * displayW) / chartCanvasW;
 
     // Reuse oximeter daysMap built earlier
     const QMap<QDate, Day*>& oxiDaysMap = oxiDaysMapEarly;
@@ -1862,7 +1802,12 @@ void ComplianceReport::exportReport(QWidget *parent)
         // In CPAP and APAP, EPAP = set pressure - EPR level — derivative, not worth charting.
         if (cid == CPAP_EPAP && (p1Mode == MODE_CPAP || p1Mode == MODE_APAP)) continue;
 
-        const QMap<QDate, Day*>& useDaysMap = (mtype == oxiSourceType || mtype == MT_UNKNOWN || cid == OXI_SPO2 || cid == OXI_Pulse) ? oxiDaysMap : daysMap;
+        // Only oximetry channels chart over the oximetry days map. Keying this on
+        // machine type broke when SpO2 came from the CPAP device itself
+        // (oxiSourceType == MT_CPAP): every CPAP channel then matched and charts
+        // like Minute Vent silently dropped nights without oximetry data.
+        const bool isOxiChan = (cid == OXI_SPO2 || cid == OXI_Pulse);
+        const QMap<QDate, Day*>& useDaysMap = isOxiChan ? oxiDaysMap : daysMap;
 
         bool hasData = false;
         for (Day* day : useDaysMap) {
@@ -1879,7 +1824,7 @@ void ComplianceReport::exportReport(QWidget *parent)
 
         double cMedian = calcDayAvgPercentile(cid, 0.5,  useDaysMap, mtype);
         double c95     = calcDayAvgPercentile(cid, 0.95, useDaysMap, mtype);
-        double cMax    = calcDayAvgPercentile(cid, 0.995, useDaysMap, mtype);
+        double cMax    = calcDayAvgPercentile(cid, 0.995, useDaysMap, mtype);  // P99.5 artifact guard
         // Oximetry channels: exclude sensor dropout artifacts from the minimum.
         // Reuse the period-low values computed once above instead of re-walking.
         double cMin;
@@ -2282,7 +2227,18 @@ void ComplianceReport::exportReport(QWidget *parent)
         html += makePageHeaderHtml(title, patientNameStr, pageSubInfo, logoBase64);
 
         if (usedDaysOxi > 0) {
-            double oximeterHours = p_profile->calcHours(oxiSourceType, start, end), spo2DropIndex = oximeterHours > 0 ? p_profile->calcCount(OXI_SPO2Drop, oxiSourceType, start, end) / oximeterHours : 0.0, pctTimeSpo2Drop = oximeterHours > 0 ? (100.0 / oximeterHours) * (p_profile->calcSum(OXI_SPO2Drop, oxiSourceType, start, end) / 3600.0) : 0.0, pulseChangeIndex = oximeterHours > 0 ? p_profile->calcCount(OXI_PulseChange, oxiSourceType, start, end) / oximeterHours : 0.0;
+            // Hours of actually-recorded SpO2, not machine therapy hours. When the
+            // oximetry source is the CPAP device (oxiSourceType == MT_CPAP),
+            // calcHours() returns CPAP hours for ALL nights — inflating "Average
+            // Hours per Night" and deflating every per-hour oximetry index on
+            // profiles where the oximeter was only attached some nights.
+            double oximeterHours = 0.0;
+            for (Day* day : oxiDaysMap) {
+                oximeterHours += day->timeAboveThreshold(OXI_SPO2, 0.0) / 60.0;  // minutes → hours
+            }
+            double spo2DropIndex = oximeterHours > 0 ? p_profile->calcCount(OXI_SPO2Drop, oxiSourceType, start, end) / oximeterHours : 0.0;
+            double pctTimeSpo2Drop = oximeterHours > 0 ? (100.0 / oximeterHours) * (p_profile->calcSum(OXI_SPO2Drop, oxiSourceType, start, end) / 3600.0) : 0.0;
+            double pulseChangeIndex = oximeterHours > 0 ? p_profile->calcCount(OXI_PulseChange, oxiSourceType, start, end) / oximeterHours : 0.0;
             html += "<div style='font-size: 11pt; font-weight: 700; color: #0f172a; margin-bottom: 2px;'>" + tr("Oximeter Statistics").toUpper() + "</div>";
             Machine* oxiMach = p_profile->GetMachine(MT_OXIMETER); if (!oxiMach && oxiSourceType != MT_OXIMETER) oxiMach = p_profile->GetMachine(oxiSourceType);
             QString oxiDevice = oxiMach ? (oxiMach->brand() + " " + oxiMach->model() + (oxiMach->serial().isEmpty() ? "" : " (" + oxiMach->serial() + ")")).trimmed() : tr("Unknown oximeter");
@@ -2359,7 +2315,7 @@ void ComplianceReport::exportReport(QWidget *parent)
             const QMap<QDate, Day*>& chMap = (chMt == MT_OXIMETER || chMt == MT_UNKNOWN) ? oxiDaysMap : daysMap;
             double cMed = calcDayAvgPercentile(ch.id, 0.5,  chMap, chMt);
             double c95  = calcDayAvgPercentile(ch.id, 0.95, chMap, chMt);
-            double cMax = calcDayAvgPercentile(ch.id, 0.995, chMap, chMt);
+            double cMax = calcDayAvgPercentile(ch.id, 0.995, chMap, chMt);  // P99.5 artifact guard
             QString rowBg = (chRowIdx++ % 2 == 0) ? "#ffffff" : "#f8fafc";
  
             QString chUnit = unitForChannel(static_cast<ChannelID>(ch.id));
