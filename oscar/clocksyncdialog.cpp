@@ -115,18 +115,29 @@ void ClockSyncDialog::onAnalyze()
     ui->btnAnalyze->setEnabled(false);
     qApp->processEvents();
 
-    m_results = ClockSyncAnalyzer::analyze(cpap, oxi, start, end);
+    m_results = ClockSyncAnalyzer::analyze(cpap, oxi, start, end, &m_fit);
 
     ui->btnAnalyze->setEnabled(true);
     populateTable();
 
-    int accepted = 0;
-    for (const auto& r : m_results) if (r.accepted) accepted++;
-    ui->statusLabel->setText(tr("%1 nights analyzed, %2 accepted (confidence ≥ %3). "
-                                "Uncheck any you want to skip, then click Save.")
-                                 .arg(m_results.size())
-                                 .arg(accepted)
-                                 .arg(ClockSyncAnalyzer::MIN_CONFIDENCE, 0, 'f', 2));
+    int accepted = 0, outliers = 0;
+    for (const auto& r : m_results) {
+        if (r.accepted) accepted++;
+        if (r.driftOutlier) outliers++;
+    }
+    QString msg = tr("%1 nights analyzed, %2 accepted (z ≥ %3).")
+                      .arg(m_results.size())
+                      .arg(accepted)
+                      .arg(ClockSyncAnalyzer::MIN_ZSCORE, 0, 'f', 1);
+    if (m_fit.valid) {
+        msg += " " + tr("Drift fit: %1 s/day over %2 nights.")
+                         .arg(m_fit.slopeMsPerDay / 1000.0, 0, 'f', 2)
+                         .arg(m_fit.nUsed);
+        if (outliers > 0)
+            msg += " " + tr("%1 outlier night(s) auto-unchecked.").arg(outliers);
+    }
+    msg += " " + tr("Uncheck any you want to skip, then click Save.");
+    ui->statusLabel->setText(msg);
     ui->btnApply->setEnabled(accepted > 0);
 }
 
@@ -142,7 +153,7 @@ void ClockSyncDialog::populateTable()
         // Checkbox column
         QWidget* checkWidget = new QWidget();
         QCheckBox* cb = new QCheckBox();
-        cb->setChecked(r.accepted);
+        cb->setChecked(r.accepted && !r.driftOutlier);
         cb->setEnabled(r.accepted);
         QHBoxLayout* lay = new QHBoxLayout(checkWidget);
         lay->addWidget(cb);
@@ -159,8 +170,8 @@ void ClockSyncDialog::populateTable()
 
         t->setItem(row, 1, item(r.date.toString("yyyy-MM-dd")));
         t->setItem(row, 2, item(r.accepted ? QString::number(r.offsetMs) : QString("-")));
-        t->setItem(row, 3, item(r.accepted || r.confidence > 0
-                                ? QString::number(r.confidence, 'f', 3) : QString("-")));
+        t->setItem(row, 3, item(r.accepted || r.zscore > 0
+                                ? tr("z=%1").arg(r.zscore, 0, 'f', 1) : QString("-")));
         t->setItem(row, 4, item(QString::number(r.cpapEvents)));
         t->setItem(row, 5, item(QString::number(r.oxiDrops)));
         t->setItem(row, 6, item(r.note));

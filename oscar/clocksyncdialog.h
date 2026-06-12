@@ -36,6 +36,7 @@ private slots:
 private:
     Ui::ClockSyncDialog *ui;
     QList<NightSyncResult> m_results;
+    DriftFit m_fit;
 
     void populateCpapCombo();
     void populateOxiCombo();
