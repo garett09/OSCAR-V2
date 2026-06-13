@@ -334,6 +334,140 @@ DriftFit ClockSyncAnalyzer::fitDrift(QList<NightSyncResult>& results)
     return fit;
 }
 
+namespace {
+// Median of a copy (sorted in place). Returns 0 for empty.
+qint64 medianI64(QVector<qint64> v)
+{
+    if (v.isEmpty()) return 0;
+    std::sort(v.begin(), v.end());
+    int m = v.size();
+    return (m & 1) ? v[m / 2] : (v[m / 2 - 1] + v[m / 2]) / 2;
+}
+} // namespace
+
+QVector<NightStartDiff> ClockSyncAnalyzer::collectStartDiffs(Machine* cpap, Machine* ref,
+                                                             const QDate& start, const QDate& end)
+{
+    QVector<NightStartDiff> out;
+    if (!p_profile || !cpap || !ref) return out;
+
+    for (QDate d = start; d <= end; d = d.addDays(1)) {
+        auto it = p_profile->daylist.find(d);
+        if (it == p_profile->daylist.end()) continue;
+        Day* day = it.value();
+        if (!day) continue;
+
+        qint64 cFirst = 0, cLast = 0, rFirst = 0, rLast = 0;
+        bool haveC = false, haveR = false;
+        for (auto it2 = day->begin(); it2 != day->end(); ++it2) {
+            Session* s = *it2;
+            if (!s || s->isEmpty()) continue;
+            // realFirst()/realLast() = RAW stored timestamps. Session::first()/last()
+            // add the device's active time correction; using those would subtract the
+            // very offset we are trying to measure (e.g. a stale legacy row) and bias
+            // the result toward zero.
+            if (s->machine() == cpap) {
+                if (!haveC) { cFirst = s->realFirst(); cLast = s->realLast(); haveC = true; }
+                else { cFirst = qMin(cFirst, s->realFirst()); cLast = qMax(cLast, s->realLast()); }
+            } else if (s->machine() == ref) {
+                if (!haveR) { rFirst = s->realFirst(); rLast = s->realLast(); haveR = true; }
+                else { rFirst = qMin(rFirst, s->realFirst()); rLast = qMax(rLast, s->realLast()); }
+            }
+        }
+        if (!haveC || !haveR) continue;
+
+        NightStartDiff n;
+        n.date        = d;
+        n.startDiffMs = rFirst - cFirst;
+        n.endDiffMs   = rLast - cLast;
+        n.midMs       = (n.startDiffMs + n.endDiffMs) / 2;
+        out.append(n);
+    }
+    return out;
+}
+
+ConstantOffsetFit ClockSyncAnalyzer::fitConstantOffset(QVector<NightStartDiff>& nights)
+{
+    ConstantOffsetFit fit;
+    QVector<qint64> mids;
+    for (NightStartDiff& n : nights) {
+        n.midMs = (n.startDiffMs + n.endDiffMs) / 2;
+        n.used  = true;
+        mids.append(n.midMs);
+    }
+    if (mids.size() < MIN_OFFSET_NIGHTS) return fit;
+
+    // Robust centre, then reject nights whose midpoint is far from it (pairing artifacts).
+    qint64 med = medianI64(mids);
+    QVector<qint64> absdev;
+    for (qint64 x : mids) absdev.append(qAbs(x - med));
+    qint64 mad = medianI64(absdev);
+    qint64 thr = qMax(qint64(3.5 * 1.4826 * double(mad)), OFFSET_OUTLIER_FLOOR_MS);
+
+    QVector<qint64> keptMid, keptStart, keptEnd;
+    int nOut = 0;
+    for (NightStartDiff& n : nights) {
+        if (qAbs(n.midMs - med) > thr) { n.used = false; ++nOut; }
+        else { keptMid.append(n.midMs); keptStart.append(n.startDiffMs); keptEnd.append(n.endDiffMs); }
+    }
+    if (keptMid.size() < MIN_OFFSET_NIGHTS) return fit;
+
+    qint64 finalMed = medianI64(keptMid);
+    QVector<qint64> finalAbs;
+    for (qint64 x : keptMid) finalAbs.append(qAbs(x - finalMed));
+
+    fit.offsetMs         = finalMed;
+    fit.madMs            = medianI64(finalAbs);
+    fit.startEndSpreadMs = medianI64(keptEnd) - medianI64(keptStart);
+    fit.nUsed            = keptMid.size();
+    fit.nOutliers        = nOut;
+    fit.valid            = true;
+    return fit;
+}
+
+void ClockSyncAnalyzer::validateNight(Machine* cpap, Machine* ref, NightStartDiff& night)
+{
+    night.validated = false;
+    if (!p_profile || !cpap || !ref) return;
+    auto it = p_profile->daylist.find(night.date);
+    if (it == p_profile->daylist.end() || !it.value()) return;
+    Day* day = it.value();
+
+    QList<Session*> cpapSessions, refSessions;
+    for (auto it2 = day->begin(); it2 != day->end(); ++it2) {
+        Session* s = *it2;
+        if (!s || s->isEmpty()) continue;
+        if (s->machine() == cpap) cpapSessions.append(s);
+        else if (s->machine() == ref) refSessions.append(s);
+    }
+    if (cpapSessions.isEmpty() || refSessions.isEmpty()) return;
+    for (Session* s : cpapSessions) if (!s->eventsLoaded()) s->LoadEventsFromDatabase();
+    for (Session* s : refSessions)  if (!s->eventsLoaded()) s->LoadEventsFromDatabase();
+
+    QList<qint64> cpapTimes, dropTimes, surgeTimes;
+    for (Session* s : cpapSessions) cpapTimes.append(collectCpapEventTimes(s));
+    for (Session* s : refSessions) {
+        dropTimes.append(collectRefEvents(s, OXI_SPO2, true));
+        surgeTimes.append(collectRefEvents(s, OXI_Pulse, false));
+    }
+    night.cpapEvents = cpapTimes.size();
+    night.refEvents  = dropTimes.size() + surgeTimes.size();
+    if (cpapTimes.size() < MIN_EVENTS) return;
+
+    StreamCorrelation spo2C, pulseC;
+    if (dropTimes.size()  >= MIN_REF_EVENTS) spo2C  = correlateStreams(cpapTimes, dropTimes);
+    if (surgeTimes.size() >= MIN_REF_EVENTS) pulseC = correlateStreams(cpapTimes, surgeTimes);
+    NightEstimate est = combineStreams(spo2C, pulseC);
+    if (!est.accepted) return;
+
+    // est.offsetMs uses "negative = CPAP behind reference"; the additive-to-CPAP
+    // correction is its negation, matching NightStartDiff::midMs orientation.
+    night.validated        = true;
+    night.validatorOffsetMs = -est.offsetMs;
+    night.validatorZ       = est.zscore;
+    night.validatorAgrees  = qAbs(night.validatorOffsetMs - night.midMs) <= VALIDATOR_TOL_MS;
+}
+
 QList<NightSyncResult> ClockSyncAnalyzer::analyze(Machine* cpap, Machine* oxi,
                                                    const QDate& start, const QDate& end,
                                                    DriftFit* fitOut)

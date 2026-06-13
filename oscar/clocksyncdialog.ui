@@ -60,10 +60,28 @@
    </item>
 
    <item>
-    <widget class="QPushButton" name="btnAnalyze">
-     <property name="text"><string>Analyze Nights</string></property>
-     <property name="maximumWidth"><number>160</number></property>
-    </widget>
+    <layout class="QHBoxLayout">
+     <item>
+      <widget class="QPushButton" name="btnAnalyze">
+       <property name="text"><string>Analyze Nights</string></property>
+       <property name="maximumWidth"><number>160</number></property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QCheckBox" name="chkValidate">
+       <property name="text"><string>Cross-check with event correlation (high-AHI nights only)</string></property>
+       <property name="toolTip"><string>Optional: run the apnea/SpO₂ event cross-correlation as a sanity check against the recording-window offset. Slower, and only works on nights with enough CPAP events. Never changes the saved value.</string></property>
+       <property name="checked"><bool>false</bool></property>
+      </widget>
+     </item>
+     <item>
+      <spacer>
+       <property name="orientation"><enum>Qt::Horizontal</enum></property>
+       <property name="sizeType"><enum>QSizePolicy::Expanding</enum></property>
+       <property name="sizeHint" stdset="0"><size><width>40</width><height>20</height></size></property>
+      </spacer>
+     </item>
+    </layout>
    </item>
 
    <item>
@@ -82,10 +100,10 @@
      <property name="alternatingRowColors"><bool>true</bool></property>
      <column><property name="text"><string>Use</string></property></column>
      <column><property name="text"><string>Date</string></property></column>
-     <column><property name="text"><string>Offset (ms)</string></property></column>
-     <column><property name="text"><string>Confidence</string></property></column>
-     <column><property name="text"><string>CPAP events</string></property></column>
-     <column><property name="text"><string>SpO₂ drops</string></property></column>
+     <column><property name="text"><string>Start Δ (s)</string></property></column>
+     <column><property name="text"><string>End Δ (s)</string></property></column>
+     <column><property name="text"><string>Offset (s)</string></property></column>
+     <column><property name="text"><string>Cross-check</string></property></column>
      <column><property name="text"><string>Note</string></property></column>
     </widget>
    </item>
@@ -101,7 +119,7 @@
     <layout class="QHBoxLayout">
      <item>
       <widget class="QPushButton" name="btnApply">
-       <property name="text"><string>Save Checked Offsets to Reference Device</string></property>
+       <property name="text"><string>Save Constant Offset to CPAP Device</string></property>
        <property name="enabled"><bool>false</bool></property>
       </widget>
      </item>

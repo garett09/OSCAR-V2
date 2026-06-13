@@ -26,5 +26,9 @@ private slots:
     void testCombineDisagreement();
     void testFitDriftRecoversSlope();
     void testFitDriftFlagsOutliers();
+    void testFitConstantOffsetClean();
+    void testFitConstantOffsetRejectsArtifacts();
+    void testFitConstantOffsetTooFew();
+    void testFitConstantOffsetStartEndSpread();
 };
 DECLARE_TEST(ClockSyncTests)

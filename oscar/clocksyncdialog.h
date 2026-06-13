@@ -11,6 +11,7 @@
 
 #include <QDialog>
 #include <QDate>
+#include <QVector>
 #include "clocksyncanalyzer.h"
 
 namespace Ui {
@@ -35,8 +36,8 @@ private slots:
 
 private:
     Ui::ClockSyncDialog *ui;
-    QList<NightSyncResult> m_results;
-    DriftFit m_fit;
+    QVector<NightStartDiff> m_nights;   // primary: per-night window offsets
+    ConstantOffsetFit       m_fit;      // robust constant fitted across nights
 
     void populateCpapCombo();
     void populateOxiCombo();

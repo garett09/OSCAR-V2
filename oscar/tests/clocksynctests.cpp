@@ -257,3 +257,76 @@ void ClockSyncTests::testFitDriftFlagsOutliers()
     QVERIFY(results[14].driftOutlier);
     QVERIFY(!results[6].driftOutlier);
 }
+
+// Helper: a night with a given start/end diff plus small noise.
+static NightStartDiff night(qint64 startMs, qint64 endMs, qint64 noiseMs, quint32 seed)
+{
+    QRandomGenerator rng(seed);
+    NightStartDiff n;
+    auto jit = [&](qint64 base) {
+        return base + (noiseMs ? qint64(rng.bounded(quint32(2 * noiseMs + 1))) - noiseMs : 0);
+    };
+    n.startDiffMs = jit(startMs);
+    n.endDiffMs   = jit(endMs);
+    return n;
+}
+
+void ClockSyncTests::testFitConstantOffsetClean()
+{
+    // 28 nights around +23.4 min (1,404,000 ms) on both edges, ±20 s noise.
+    QVector<NightStartDiff> nights;
+    for (int i = 0; i < 28; ++i)
+        nights.append(night(1404000, 1404000, 20000, 100 + i));
+
+    ConstantOffsetFit fit = ClockSyncAnalyzer::fitConstantOffset(nights);
+    QVERIFY(fit.valid);
+    QCOMPARE(fit.nUsed, 28);
+    QCOMPARE(fit.nOutliers, 0);
+    QVERIFY(qAbs(fit.offsetMs - 1404000) < 30000);  // within 30 s of truth
+}
+
+void ClockSyncTests::testFitConstantOffsetRejectsArtifacts()
+{
+    // 25 clean nights + 3 session-pairing artifacts (tens of minutes off).
+    QVector<NightStartDiff> nights;
+    for (int i = 0; i < 25; ++i)
+        nights.append(night(1404000, 1404000, 20000, 200 + i));
+    nights.append(night(42000000, 42000000, 0, 900));   // +700 min
+    nights.append(night(59000000, 59000000, 0, 901));   // +983 min
+    nights.append(night(-34000000, -34000000, 0, 902)); // -567 min
+
+    ConstantOffsetFit fit = ClockSyncAnalyzer::fitConstantOffset(nights);
+    QVERIFY(fit.valid);
+    QCOMPARE(fit.nOutliers, 3);
+    QCOMPARE(fit.nUsed, 25);
+    QVERIFY(qAbs(fit.offsetMs - 1404000) < 30000);  // artifacts didn't move the median
+    // The three artifact nights are flagged unused; the clean ones kept.
+    QVERIFY(!nights[25].used);
+    QVERIFY(!nights[26].used);
+    QVERIFY(!nights[27].used);
+    QVERIFY(nights[0].used);
+}
+
+void ClockSyncTests::testFitConstantOffsetTooFew()
+{
+    QVector<NightStartDiff> nights;
+    for (int i = 0; i < 4; ++i)
+        nights.append(night(1404000, 1404000, 20000, 300 + i));
+
+    ConstantOffsetFit fit = ClockSyncAnalyzer::fitConstantOffset(nights);
+    QVERIFY(!fit.valid);  // below MIN_OFFSET_NIGHTS
+}
+
+void ClockSyncTests::testFitConstantOffsetStartEndSpread()
+{
+    // Start diff ~22 min, end diff ~24 min: midpoint ~23 min, spread ~+2 min.
+    // A consistent start/end gap flags a behavioural component to surface to the user.
+    QVector<NightStartDiff> nights;
+    for (int i = 0; i < 20; ++i)
+        nights.append(night(1320000, 1440000, 5000, 400 + i));  // 22 min / 24 min
+
+    ConstantOffsetFit fit = ClockSyncAnalyzer::fitConstantOffset(nights);
+    QVERIFY(fit.valid);
+    QVERIFY(qAbs(fit.offsetMs - 1380000) < 15000);        // midpoint ≈ 23 min
+    QVERIFY(qAbs(fit.startEndSpreadMs - 120000) < 15000); // end − start ≈ +2 min
+}

@@ -56,6 +56,36 @@ struct DriftFit {
     QList<QDate> outliers;
 };
 
+//! \brief One night's recording-window offset between reference and CPAP (raw clocks).
+//! This is the PRIMARY estimator: for a constant clock offset it is far more robust
+//! than apnea/SpO₂ cross-correlation and is available on every paired night.
+struct NightStartDiff {
+    QDate  date;
+    qint64 startDiffMs = 0;   // refFirst - cpapFirst (raw timestamps)
+    qint64 endDiffMs   = 0;   // refLast  - cpapLast  (raw timestamps)
+    qint64 midMs       = 0;   // (start+end)/2 — best per-night clock-offset estimate
+    bool   used        = true;// false = rejected as a pairing/outlier night
+    // Optional cross-correlation validator (only filled when validation is enabled):
+    bool   validated       = false; // cross-correlation actually ran for this night
+    bool   validatorAgrees = false; // |validatorOffsetMs - midMs| within tolerance
+    qint64 validatorOffsetMs = 0;   // additive-to-CPAP offset from event cross-corr
+    double validatorZ      = 0;
+    int    cpapEvents      = 0;
+    int    refEvents       = 0;
+};
+
+//! \brief Robust constant offset fitted across nights (median of per-night midpoints).
+//! offsetMs is the signed amount to ADD to the CPAP's raw timestamps to put it on the
+//! reference clock (positive = CPAP is behind the reference).
+struct ConstantOffsetFit {
+    bool   valid = false;
+    qint64 offsetMs = 0;
+    qint64 madMs = 0;             // median absolute deviation of kept nights (spread)
+    qint64 startEndSpreadMs = 0;  // medianEnd - medianStart (behavioural-asymmetry check)
+    int    nUsed = 0;
+    int    nOutliers = 0;
+};
+
 class ClockSyncAnalyzer
 {
 public:
@@ -72,7 +102,25 @@ public:
     static constexpr qint64 SPO2_DELAY_MS   = 25000LL;    // nominal circulatory + averaging delay
     static constexpr qint64 PULSE_DELAY_MS  = 15000LL;    // nominal arousal-tachycardia delay
     static constexpr qint64 STREAM_DISAGREE_MS = 60000LL;
+    static constexpr int    MIN_OFFSET_NIGHTS  = 5;       // min paired nights for a constant fit
+    static constexpr qint64 OFFSET_OUTLIER_FLOOR_MS = 300000LL; // never flag within ±5 min of median
+    static constexpr qint64 VALIDATOR_TOL_MS   = 120000LL; // cross-corr agrees within ±2 min
 
+    // --- PRIMARY estimator: constant offset from recording-window differences ---
+
+    //! \brief Per-night reference-vs-CPAP recording-window differences over the range.
+    static QVector<NightStartDiff> collectStartDiffs(Machine* cpap, Machine* ref,
+                                                     const QDate& start, const QDate& end);
+
+    //! \brief Robust constant offset (median midpoint + MAD outlier rejection).
+    //! Sets NightStartDiff::used in place. Pure — unit-testable.
+    static ConstantOffsetFit fitConstantOffset(QVector<NightStartDiff>& nights);
+
+    //! \brief Optional high-AHI cross-correlation cross-check for one night; fills the
+    //! validator fields and compares against the night's window midpoint.
+    static void validateNight(Machine* cpap, Machine* ref, NightStartDiff& night);
+
+    // --- Secondary: event cross-correlation (kept as an optional validator only) ---
     static QList<NightSyncResult> analyze(Machine* cpap, Machine* oxi,
                                           const QDate& start, const QDate& end,
                                           DriftFit* fitOut = nullptr);

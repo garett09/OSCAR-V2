@@ -70,3 +70,30 @@
 - [x] Build test target: `cd build-test && qmake ../oscar/oscar.pro CONFIG+=test && make -j10 && ./test` → all ClockSyncTests PASS. (Pre-existing unrelated suites may skip on missing data.)
 - [x] Build app target: `cd build-clocksync && make -j10` → links clean.
 - [x] Commit (only clocksync files + plan, not unrelated working-tree changes).
+
+---
+
+## Revision 2 (2026-06-13): simplify to constant offset
+
+Empirical finding from the user's oscar.db: the Viatom is the trusted clock; the
+ResMed is ~23.4 min behind it; the offset is a **constant** (28/31 nights at 22–25 min,
+<1 min stdev over a month), not a drift. Three independent estimates converge —
+legacy migrated correction (+24 min on ResMed), session-start-difference median
+(~23.4 min), and the apnea↔SpO₂ cross-correlation (−22.4 min on the one high-AHI night
+it fired). The cross-correlation only produced a result on 3/31 nights (low-AHI), and
+when it did it merely re-derived the start-difference; per adversarial review its
+`buildDensity` is never mean-subtracted, so its NCC peak is driven by recording-window
+overlap (≈ the start-diff) rather than independent physiological coupling.
+
+**Decision (user chose option #1): SIMPLIFY + FIX.**
+
+- New PRIMARY estimator: `collectStartDiffs` + `fitConstantOffset` — median of per-night
+  midpoints of (refStart−cpapStart, refEnd−cpapEnd), MAD outlier rejection. One constant.
+- Apply-direction BUG FIX: write the offset to the **CPAP** (ResMed), positive sign
+  (matches legacy +24 min row), and supersede prior offset/drift rows (incl. the legacy
+  migrated row) to avoid double-correction. Old code wrote to the Viatom (correct clock).
+- Cross-correlation demoted to an optional `chkValidate` toggle (default off) that only
+  *flags* nights disagreeing with the window offset — it never drives the saved value.
+- Tests: 4 new `fitConstantOffset` cases (clean / artifact-rejection / too-few / start-end
+  spread). All 20 ClockSyncTests pass; app + test targets build clean.
+
