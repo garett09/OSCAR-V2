@@ -12,6 +12,7 @@
 *.qm
 
 build/*
+build-*/
 build-qt6/
 oscar/build/*
 git_info.h

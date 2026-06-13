@@ -103,7 +103,7 @@ public:
         \brief Selects a new day object, unloading the previous one, and loads the graph data for the supplied date.
         \param QDate date
         */
-    void LoadDate(QDate date);
+    void LoadDate(QDate date, bool forceCalendarUpdate = false);
 
     /*! \fn getDate()
         \brief Returns the most recently loaded Date
