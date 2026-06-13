@@ -30,5 +30,7 @@ private slots:
     void testFitConstantOffsetRejectsArtifacts();
     void testFitConstantOffsetTooFew();
     void testFitConstantOffsetStartEndSpread();
+    void testFitConstantOffsetStableNoJump();
+    void testFitConstantOffsetDetectsMidRangeStep();
 };
 DECLARE_TEST(ClockSyncTests)

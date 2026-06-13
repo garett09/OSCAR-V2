@@ -84,6 +84,8 @@ struct ConstantOffsetFit {
     qint64 startEndSpreadMs = 0;  // medianEnd - medianStart (behavioural-asymmetry check)
     int    nUsed = 0;
     int    nOutliers = 0;
+    bool   unstable = false;      // offset stepped mid-range (reference clock likely re-synced)
+    qint64 shiftMs = 0;           // late-half median − early-half median (signed step size)
 };
 
 class ClockSyncAnalyzer
@@ -105,6 +107,7 @@ public:
     static constexpr int    MIN_OFFSET_NIGHTS  = 5;       // min paired nights for a constant fit
     static constexpr qint64 OFFSET_OUTLIER_FLOOR_MS = 300000LL; // never flag within ±5 min of median
     static constexpr qint64 VALIDATOR_TOL_MS   = 120000LL; // cross-corr agrees within ±2 min
+    static constexpr qint64 OFFSET_JUMP_MS     = 300000LL; // ≥5 min change = suspicious clock jump
 
     // --- PRIMARY estimator: constant offset from recording-window differences ---
 

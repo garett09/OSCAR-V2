@@ -422,6 +422,17 @@ ConstantOffsetFit ClockSyncAnalyzer::fitConstantOffset(QVector<NightStartDiff>& 
     fit.nUsed            = keptMid.size();
     fit.nOutliers        = nOut;
     fit.valid            = true;
+
+    // Stability guard: keptMid is in chronological order (collectStartDiffs walks the
+    // range start→end). Compare the early-half and late-half medians; a large step
+    // means the offset is NOT a single constant over this range — the most likely
+    // cause is the reference clock re-syncing/drifting partway through, in which case
+    // the single median is misleading and the caller should warn rather than apply.
+    if (keptMid.size() >= 6) {
+        int h = keptMid.size() / 2;
+        fit.shiftMs  = medianI64(keptMid.mid(keptMid.size() - h, h)) - medianI64(keptMid.mid(0, h));
+        fit.unstable = qAbs(fit.shiftMs) > OFFSET_JUMP_MS;
+    }
     return fit;
 }
 

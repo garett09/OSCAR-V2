@@ -15,6 +15,7 @@
 #include <QCheckBox>
 #include <QHeaderView>
 #include <QMessageBox>
+#include <QStringList>
 #include <QTableWidgetItem>
 
 ClockSyncDialog::ClockSyncDialog(QWidget *parent)
@@ -146,6 +147,10 @@ void ClockSyncDialog::onAnalyze()
                       .arg(m_fit.madMs / 1000.0, 0, 'f', 1);
     if (m_fit.nOutliers > 0)
         msg += " " + tr("%1 outlier night(s) excluded.").arg(m_fit.nOutliers);
+    if (m_fit.unstable)
+        msg += " ⚠ " + tr("WARNING: offset steps by ~%1 s mid-range — the reference clock "
+                          "likely drifted or re-synced. Narrow the date range to one stable "
+                          "period before saving.").arg(m_fit.shiftMs / 1000.0, 0, 'f', 0);
     if (qAbs(m_fit.startEndSpreadMs) > 90000)
         msg += " " + tr("Note: start/end differ by %1 s — some of this gap may be when you "
                         "start/stop each device, not clock offset.")
@@ -235,13 +240,46 @@ void ClockSyncDialog::onApply()
     // The offset is applied to the CPAP (the drifting device) to move it onto the
     // reference clock — NOT to the reference, which the user trusts as correct.
     DeviceTimeCorrectionRepository repo;
+    const QList<DeviceTimeCorrectionData> active = repo.findActive(cpap->getDatabaseId());
+
+    // Previously-applied constant (sum of active non-drift rows) for a cross-run check.
+    qint64 prevApplied = 0;
+    bool   hasPrev     = false;
+    for (const auto& r : active)
+        if (r.type != "drift") { prevApplied += r.offsetMs; hasPrev = true; }
+
+    // Guard: warn (and require confirmation) before overwriting on a suspicious change.
+    // We do NOT trust the reference clock blindly — if the new offset jumps versus what
+    // was saved, or is not constant across the range, the reference may have moved.
+    QStringList warnings;
+    if (fit.unstable)
+        warnings << tr("The offset is not constant over this range — it steps by about %1 s "
+                       "partway through. The reference clock may have drifted or re-synced, "
+                       "so the single value below may be wrong.")
+                       .arg(fit.shiftMs / 1000.0, 0, 'f', 0);
+    if (hasPrev && qAbs(fit.offsetMs - prevApplied) > ClockSyncAnalyzer::OFFSET_JUMP_MS)
+        warnings << tr("This offset (%1 s) differs from the previously saved %2 s by %3 s. "
+                       "If you expected the two clocks to stay in sync, the reference clock "
+                       "may have changed — verify before overwriting.")
+                       .arg(fit.offsetMs / 1000.0,  0, 'f', 1)
+                       .arg(prevApplied / 1000.0,   0, 'f', 1)
+                       .arg((fit.offsetMs - prevApplied) / 1000.0, 0, 'f', 1);
+    if (!warnings.isEmpty()) {
+        auto btn = QMessageBox::warning(this, tr("Clock offset changed"),
+            warnings.join("\n\n") + "\n\n" + tr("Save this offset anyway?"),
+            QMessageBox::Save | QMessageBox::Cancel, QMessageBox::Cancel);
+        if (btn != QMessageBox::Save) {
+            ui->statusLabel->setText(tr("Save cancelled — offset not changed."));
+            return;
+        }
+    }
 
     // Supersede ALL existing active corrections on the CPAP (every type feeds
     // Machine::correctionMs — non-drift rows add offset_ms, drift rows add a model),
     // including the legacy migrated clockDrift row. The measured constant is the full
     // offset, so any surviving row would double-correct.
     int superseded = 0;
-    for (const auto& r : repo.findActive(cpap->getDatabaseId())) {
+    for (const auto& r : active) {
         if (repo.markUndone(r.id)) ++superseded;
     }
 

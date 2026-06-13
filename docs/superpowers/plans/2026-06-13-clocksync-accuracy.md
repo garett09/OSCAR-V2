@@ -97,3 +97,20 @@ overlap (≈ the start-diff) rather than independent physiological coupling.
 - Tests: 4 new `fitConstantOffset` cases (clean / artifact-rejection / too-few / start-end
   spread). All 20 ClockSyncTests pass; app + test targets build clean.
 
+## Revision 3 (2026-06-13): don't trust the reference blindly — jump guard
+
+We never independently verified the Viatom is the absolute truth; we assume it (the user's
+statement + the fact the ring re-syncs from a phone while the ResMed free-runs). The Viatom
+is only correct as of its last phone sync, so it can drift too. Added a guard so a shifted
+reference clock surfaces instead of being silently propagated into the CPAP:
+
+- `ConstantOffsetFit` gains `unstable` + `shiftMs`. `fitConstantOffset` compares the
+  early-half vs late-half median of the chronologically-ordered kept nights; a step
+  > `OFFSET_JUMP_MS` (5 min) sets `unstable` (catches a mid-range re-sync that the single
+  median would smear into a meaningless in-between value).
+- Dialog: `onAnalyze` shows a ⚠ warning when `unstable`. `onApply` also compares the new
+  offset against the previously-saved correction (sum of active non-drift rows); if either
+  the intra-range step or the cross-run change exceeds 5 min, it pops a confirm dialog
+  (Save / Cancel, default Cancel) before overwriting.
+- Tests: `testFitConstantOffsetStableNoJump`, `testFitConstantOffsetDetectsMidRangeStep`.
+

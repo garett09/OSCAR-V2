@@ -330,3 +330,32 @@ void ClockSyncTests::testFitConstantOffsetStartEndSpread()
     QVERIFY(qAbs(fit.offsetMs - 1380000) < 15000);        // midpoint ≈ 23 min
     QVERIFY(qAbs(fit.startEndSpreadMs - 120000) < 15000); // end − start ≈ +2 min
 }
+
+void ClockSyncTests::testFitConstantOffsetStableNoJump()
+{
+    // A flat ~23.4 min offset across the whole range: no mid-range step.
+    QVector<NightStartDiff> nights;
+    for (int i = 0; i < 24; ++i)
+        nights.append(night(1404000, 1404000, 20000, 500 + i));
+
+    ConstantOffsetFit fit = ClockSyncAnalyzer::fitConstantOffset(nights);
+    QVERIFY(fit.valid);
+    QVERIFY(!fit.unstable);
+    QVERIFY(qAbs(fit.shiftMs) < ClockSyncAnalyzer::OFFSET_JUMP_MS);  // negligible step
+}
+
+void ClockSyncTests::testFitConstantOffsetDetectsMidRangeStep()
+{
+    // First 12 nights ~23 min, then a +10 min jump (reference clock re-synced).
+    // The single median (~28 min) would be meaningless, so unstable must trip.
+    QVector<NightStartDiff> nights;
+    for (int i = 0; i < 12; ++i)
+        nights.append(night(1380000, 1380000, 15000, 600 + i));  // 23 min
+    for (int i = 0; i < 12; ++i)
+        nights.append(night(1980000, 1980000, 15000, 700 + i));  // 33 min
+
+    ConstantOffsetFit fit = ClockSyncAnalyzer::fitConstantOffset(nights);
+    QVERIFY(fit.valid);
+    QVERIFY(fit.unstable);                              // guard tripped
+    QVERIFY(qAbs(fit.shiftMs - 600000) < 60000);        // ≈ +10 min step recovered
+}
