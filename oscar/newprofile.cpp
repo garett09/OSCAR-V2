@@ -90,6 +90,7 @@ NewProfile::NewProfile(QWidget *parent, const QString *user) :
 
     ui->stackedWidget->setCurrentIndex(0);
     on_cpapModeCombo_activated(0);
+    populateMaskCombo();
     ui->heightEdit2->setVisible(false);
     ui->heightEdit->setDecimals(0);
     ui->heightEdit->setSuffix(QString(" %1").arg(STR_UNIT_CM));
@@ -194,6 +195,72 @@ QString NewProfile::getIntroHTML()
            "</html>";
 }
 
+// Helper: populate the mask model combo with current 2024-2025 masks grouped by brand
+void NewProfile::populateMaskCombo()
+{
+    QComboBox *combo = ui->maskModelCombo;
+    combo->clear();
+    combo->addItem(tr("-- None / Not Set --"), QString(""));
+
+    // ResMed - Full Face
+    combo->addItem(tr("─── ResMed ─── Full Face ───"), QString("__sep__"));
+    combo->addItem(tr("ResMed AirFit F20"),         QString("ResMed AirFit F20"));
+    combo->addItem(tr("ResMed AirTouch F20"),       QString("ResMed AirTouch F20"));
+    combo->addItem(tr("ResMed AirFit F30"),         QString("ResMed AirFit F30"));
+    combo->addItem(tr("ResMed AirFit F30i"),        QString("ResMed AirFit F30i"));
+    combo->addItem(tr("ResMed AirFit F40"),         QString("ResMed AirFit F40"));
+    // ResMed - Nasal
+    combo->addItem(tr("─── ResMed ─── Nasal ───"), QString("__sep__"));
+    combo->addItem(tr("ResMed AirFit N20"),         QString("ResMed AirFit N20"));
+    combo->addItem(tr("ResMed AirFit N30"),         QString("ResMed AirFit N30"));
+    combo->addItem(tr("ResMed AirFit N30i"),        QString("ResMed AirFit N30i"));
+    // ResMed - Nasal Pillow
+    combo->addItem(tr("─── ResMed ─── Nasal Pillow ───"), QString("__sep__"));
+    combo->addItem(tr("ResMed AirFit P10"),         QString("ResMed AirFit P10"));
+    combo->addItem(tr("ResMed AirFit P10 For Her"), QString("ResMed AirFit P10 For Her"));
+    combo->addItem(tr("ResMed AirFit P30i"),        QString("ResMed AirFit P30i"));
+
+    // Fisher & Paykel - Full Face
+    combo->addItem(tr("─── Fisher & Paykel ─── Full Face ───"), QString("__sep__"));
+    combo->addItem(tr("Fisher & Paykel Vitera"),         QString("Fisher & Paykel Vitera"));
+    combo->addItem(tr("Fisher & Paykel Evora Full Face"), QString("Fisher & Paykel Evora Full Face"));
+    // Fisher & Paykel - Nasal
+    combo->addItem(tr("─── Fisher & Paykel ─── Nasal ───"), QString("__sep__"));
+    combo->addItem(tr("Fisher & Paykel Solo"),   QString("Fisher & Paykel Solo"));
+    combo->addItem(tr("Fisher & Paykel Eson 2"), QString("Fisher & Paykel Eson 2"));
+    // Fisher & Paykel - Nasal Pillow
+    combo->addItem(tr("─── Fisher & Paykel ─── Nasal Pillow ───"), QString("__sep__"));
+    combo->addItem(tr("Fisher & Paykel Brevida"),   QString("Fisher & Paykel Brevida"));
+    combo->addItem(tr("Fisher & Paykel Nova Micro"), QString("Fisher & Paykel Nova Micro"));
+    combo->addItem(tr("Fisher & Paykel Evora"),      QString("Fisher & Paykel Evora"));
+
+    // Philips Respironics - Full Face
+    combo->addItem(tr("─── Philips Respironics ─── Full Face ───"), QString("__sep__"));
+    combo->addItem(tr("Philips DreamWear Full Face"), QString("Philips DreamWear Full Face"));
+    combo->addItem(tr("Philips Amara View"),          QString("Philips Amara View"));
+    // Philips Respironics - Nasal
+    combo->addItem(tr("─── Philips Respironics ─── Nasal ───"), QString("__sep__"));
+    combo->addItem(tr("Philips DreamWear Nasal"), QString("Philips DreamWear Nasal"));
+    // Philips Respironics - Nasal Pillow
+    combo->addItem(tr("─── Philips Respironics ─── Nasal Pillow ───"), QString("__sep__"));
+    combo->addItem(tr("Philips DreamWear Nasal Pillow"), QString("Philips DreamWear Nasal Pillow"));
+    combo->addItem(tr("Philips DreamWisp"),              QString("Philips DreamWisp"));
+
+    // Disable / bold separator items
+    auto *model = qobject_cast<QStandardItemModel*>(combo->model());
+    if (model) {
+        for (int i = 0; i < combo->count(); ++i) {
+            if (combo->itemData(i).toString() == "__sep__") {
+                QStandardItem *si = model->item(i);
+                if (si) {
+                    si->setFlags(si->flags() & ~Qt::ItemIsEnabled);
+                    QFont f = si->font(); f.setBold(true); si->setFont(f);
+                }
+            }
+        }
+    }
+}
+
 #include <cmath>
 int cmToFeetInch( double cm, double& inches ) {
     int tenthInches = std::round(cm * inches_per_cm * 10);
@@ -286,6 +353,44 @@ void NewProfile::on_nextButton_clicked()
             profile->cpap->setMinPressure(ui->minPressureEdit->value());
             profile->cpap->setMaxPressure(ui->maxPressureEdit->value());
             profile->cpap->setNotes(ui->cpapNotes->toPlainText());
+            // Save mask model
+            {
+                QString sel = ui->maskModelCombo->currentData().toString();
+                if (sel == "__sep__") sel = QString();
+                profile->cpap->setMaskDescription(sel);
+
+                MaskType mtype = Mask_Unknown;
+                if (!sel.isEmpty()) {
+                    if (sel == "ResMed AirFit F20" ||
+                        sel == "ResMed AirTouch F20" ||
+                        sel == "ResMed AirFit F30" ||
+                        sel == "ResMed AirFit F30i" ||
+                        sel == "ResMed AirFit F40" ||
+                        sel == "Fisher & Paykel Vitera" ||
+                        sel == "Fisher & Paykel Evora Full Face" ||
+                        sel == "Philips DreamWear Full Face" ||
+                        sel == "Philips Amara View") {
+                        mtype = Mask_FullFace;
+                    } else if (sel == "ResMed AirFit N20" ||
+                               sel == "ResMed AirFit N30" ||
+                               sel == "ResMed AirFit N30i" ||
+                               sel == "Fisher & Paykel Solo" ||
+                               sel == "Fisher & Paykel Eson 2" ||
+                               sel == "Philips DreamWear Nasal" ||
+                               sel == "Philips DreamWisp") {
+                        mtype = Mask_StandardNasal;
+                    } else if (sel == "ResMed AirFit P10" ||
+                               sel == "ResMed AirFit P10 For Her" ||
+                               sel == "ResMed AirFit P30i" ||
+                               sel == "Fisher & Paykel Brevida" ||
+                               sel == "Fisher & Paykel Nova Micro" ||
+                               sel == "Fisher & Paykel Evora" ||
+                               sel == "Philips DreamWear Nasal Pillow") {
+                        mtype = Mask_NasalPillows;
+                    }
+                }
+                profile->cpap->setMaskType(mtype);
+            }
             profile->doctor->setName(ui->doctorNameEdit->text());
             profile->doctor->setPracticeName(ui->doctorPracticeEdit->text());
             profile->doctor->setAddress(ui->doctorAddressEdit->toPlainText());
@@ -471,7 +576,17 @@ void NewProfile::edit(const QString name)
     ui->maxPressureEdit->setValue(profile->cpap->maxPressure());
     ui->untreatedAHIEdit->setValue(profile->cpap->untreatedAHI());
     ui->cpapModeCombo->setCurrentIndex((int)profile->cpap->mode());
-
+    // Load mask model
+    {
+        QString saved = profile->cpap->maskDescription();
+        int idx = 0;
+        if (!saved.isEmpty()) {
+            for (int i = 0; i < ui->maskModelCombo->count(); ++i) {
+                if (ui->maskModelCombo->itemData(i).toString() == saved) { idx = i; break; }
+            }
+        }
+        ui->maskModelCombo->setCurrentIndex(idx);
+    }
     on_cpapModeCombo_activated(profile->cpap->mode());
 
     ui->doctorNameEdit->setText(profile->doctor->name());

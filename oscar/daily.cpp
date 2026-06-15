@@ -1136,7 +1136,7 @@ void Daily::UpdateCalendarDay(QDate date)
 ***/
     ui->calendar->setHorizontalHeaderFormat(QCalendarWidget::ShortDayNames);
 }
-void Daily::LoadDate(QDate date)
+void Daily::LoadDate(QDate date, bool forceCalendarUpdate)
 {
     DEBUGXD O("Daily::LoadDate") O(date);
     if (!date.isValid()) {
@@ -1144,7 +1144,7 @@ void Daily::LoadDate(QDate date)
         return;
     }
     ui->calendar->blockSignals(true);
-    if (date.month()!=previous_date.month()) {
+    if (forceCalendarUpdate || date.month()!=previous_date.month()) {
         on_calendar_currentPageChanged(date.year(),date.month());
     }
     ui->calendar->setSelectedDate(date);

@@ -1103,7 +1103,7 @@ void OximeterImport::on_saveButton_clicked()
 
     mainwin->EnableTabs(true);  // somebody has to do it...
 
-    mainwin->getDaily()->LoadDate(mainwin->getDaily()->getDate());
+    mainwin->getDaily()->LoadDate(mainwin->getDaily()->getDate(), true);
     mainwin->getOverview()->ReloadGraphs();
 
     ELplethy = nullptr;

@@ -326,6 +326,7 @@ SOURCES += \
     main.cpp \
     mainwindow.cpp \
     sleephqsyncdialog.cpp \
+    applewatchsyncdialog.cpp \
     newprofile.cpp \
     notifyMessageBox.cpp \
     overview.cpp \
@@ -506,6 +507,7 @@ HEADERS  += \
     profileimporter.h \
     mainwindow.h \
     sleephqsyncdialog.h \
+    applewatchsyncdialog.h \
     newprofile.h \
     preferencesdialog.h \
 #    psettings.h \

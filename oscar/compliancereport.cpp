@@ -754,7 +754,7 @@ static QString makePageHeaderHtml(const QString& section,
                                    const QString& subtitle = QString())
 {
     QString html;
-    html += "<table width='100%' cellpadding='0' cellspacing='0' style='border:none; margin-bottom:8pt;'><tr>";
+    html += "<table width='100%' cellpadding='0' cellspacing='0' style='border:none; margin-bottom:4pt;'><tr>";
     // Left: logo + section label + optional subtitle + OSCAR description
     html += "<td valign='top' style='border:none; padding:0;'>";
     if (!logoBase64.isEmpty())
@@ -1750,7 +1750,7 @@ void ComplianceReport::exportReport(QWidget *parent)
     printer.setOutputFileName(savePath);
     printer.setPageSize(QPageSize(QPageSize::A4));
     printer.setPageOrientation(QPageLayout::Portrait);
-    printer.setPageMargins(QMarginsF(8, 8, 8, 8), QPageLayout::Millimeter);
+    printer.setPageMargins(QMarginsF(8, 4, 8, 4), QPageLayout::Millimeter);
 
     // Stats column is wide enough for the longest label/value pair.
     const int STATS_COL_W = 135;
@@ -1878,7 +1878,7 @@ void ComplianceReport::exportReport(QWidget *parent)
 
     // Generate HTML report (highly compatible styling for QTextDocument)
     QString html = "<html><head><style>";
-    html += "body { font-family: \"SF Pro Display\", \"SF Pro Text\", -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif; color: #0f172a; margin: 0pt; line-height: 1.4; background-color: #ffffff; }";
+    html += "body { font-family: \"SF Pro Display\", \"SF Pro Text\", -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif; color: #0f172a; margin: 0pt; line-height: 1.25; background-color: #ffffff; }";
     html += "</style></head><body>";
 
     // ==========================================
@@ -1905,12 +1905,12 @@ void ComplianceReport::exportReport(QWidget *parent)
     int nonCompliantUsedDays = daysUsed - compliantDays;
     double pctNonCompliant = totalDays > 0 ? (double)nonCompliantUsedDays / totalDays * 100.0 : 0.0;
 
-    const QString cellL      = "style='padding:2px 8px; color:#475569; font-size:9.5pt; border-bottom:1px solid #e2e8f0;'";
-    const QString cellR      = "style='padding:2px 8px; color:#0f172a; font-size:9.5pt; border-bottom:1px solid #e2e8f0;'";
-    const QString cellRB     = "style='padding:2px 8px; font-weight:700; color:#0f172a; font-size:10.5pt; border-bottom:1px solid #e2e8f0;'";
-    const QString cellLThick = "style='padding:2px 8px; color:#475569; font-size:9.5pt; border-bottom:2px solid #94a3b8;'";
-    const QString cellRBThick= "style='padding:2px 8px; font-weight:700; color:#0f172a; font-size:10.5pt; border-bottom:2px solid #94a3b8;'";
-    const QString tblStyle   = "border-collapse:collapse; border:none; margin-bottom:5pt; width:100%; page-break-inside:avoid;";
+    const QString cellL      = "style='padding:1.5px 6px; color:#475569; font-size:9.5pt; border-bottom:1px solid #e2e8f0;'";
+    const QString cellR      = "style='padding:1.5px 6px; color:#0f172a; font-size:9.5pt; border-bottom:1px solid #e2e8f0;'";
+    const QString cellRB     = "style='padding:1.5px 6px; font-weight:700; color:#0f172a; font-size:10.5pt; border-bottom:1px solid #e2e8f0;'";
+    const QString cellLThick = "style='padding:1.5px 6px; color:#475569; font-size:9.5pt; border-bottom:2px solid #94a3b8;'";
+    const QString cellRBThick= "style='padding:1.5px 6px; font-weight:700; color:#0f172a; font-size:10.5pt; border-bottom:2px solid #94a3b8;'";
+    const QString tblStyle   = "border-collapse:collapse; border:none; margin-bottom:3pt; width:100%; page-break-inside:avoid;";
 
     const QString cellHoursVal   = "style='padding:3px 2px; color:#0f172a; font-size:9.5pt; border-bottom:1px solid #e2e8f0; text-align:right; width:35px;'";
     const QString cellHoursLbl   = "style='padding:3px 2px; color:#0f172a; font-size:9.5pt; border-bottom:1px solid #e2e8f0; text-align:left; width:50px;'";
@@ -1999,12 +1999,58 @@ void ComplianceReport::exportReport(QWidget *parent)
     } else {
         html += "<tr><td " + cellL + ">" + tr("Ramp") + "</td><td align='right' " + cellR + ">" + tr("Off") + "</td></tr>";
     }
+
+    // Mask: show if configured in Preferences
+    {
+        QString maskDesc = p_profile->cpap ? p_profile->cpap->maskDescription() : QString();
+        if (!maskDesc.isEmpty()) {
+            MaskType mtype = p_profile->cpap ? p_profile->cpap->maskType() : Mask_Unknown;
+            if (mtype == Mask_Unknown) {
+                if (maskDesc == "ResMed AirFit F20" ||
+                    maskDesc == "ResMed AirTouch F20" ||
+                    maskDesc == "ResMed AirFit F30" ||
+                    maskDesc == "ResMed AirFit F30i" ||
+                    maskDesc == "ResMed AirFit F40" ||
+                    maskDesc == "Fisher & Paykel Vitera" ||
+                    maskDesc == "Fisher & Paykel Evora Full Face" ||
+                    maskDesc == "Philips DreamWear Full Face" ||
+                    maskDesc == "Philips Amara View") {
+                    mtype = Mask_FullFace;
+                } else if (maskDesc == "ResMed AirFit N20" ||
+                           maskDesc == "ResMed AirFit N30" ||
+                           maskDesc == "ResMed AirFit N30i" ||
+                           maskDesc == "Fisher & Paykel Solo" ||
+                           maskDesc == "Fisher & Paykel Eson 2" ||
+                           maskDesc == "Philips DreamWear Nasal" ||
+                           maskDesc == "Philips DreamWisp") {
+                    mtype = Mask_StandardNasal;
+                } else if (maskDesc == "ResMed AirFit P10" ||
+                           maskDesc == "ResMed AirFit P10 For Her" ||
+                           maskDesc == "ResMed AirFit P30i" ||
+                           maskDesc == "Fisher & Paykel Brevida" ||
+                           maskDesc == "Fisher & Paykel Nova Micro" ||
+                           maskDesc == "Fisher & Paykel Evora" ||
+                           maskDesc == "Philips DreamWear Nasal Pillow") {
+                    mtype = Mask_NasalPillows;
+                }
+            }
+            
+            QString typeSuffix;
+            if (mtype == Mask_FullFace) typeSuffix = " (" + tr("Full Face") + ")";
+            else if (mtype == Mask_StandardNasal) typeSuffix = " (" + tr("Nasal") + ")";
+            else if (mtype == Mask_NasalPillows) typeSuffix = " (" + tr("Nasal Pillow") + ")";
+            else if (mtype == Mask_Hybrid) typeSuffix = " (" + tr("Hybrid") + ")";
+
+            html += "<tr><td " + cellL + ">" + tr("Mask") + "</td><td align='right' " + cellR + ">" + (maskDesc + typeSuffix).toHtmlEscaped() + "</td></tr>";
+        }
+    }
+
     html += "</table>";
 
     // === THERAPY ===
-    const QString tkL = "style='padding:2px 8px; color:#475569; font-size:9.5pt; width:31%; border-bottom:1px solid #e2e8f0;'";
-    const QString tkM = "style='padding:2px 8px; color:#64748b; font-size:9.5pt; width:23%; border-bottom:1px solid #e2e8f0;'";
-    const QString tkR = "style='padding:2px 8px; color:#64748b; font-size:9.5pt; width:23%; border-bottom:1px solid #e2e8f0; text-align:right;'";
+    const QString tkL = "style='padding:1.5px 6px; color:#475569; font-size:9.5pt; width:31%; border-bottom:1px solid #e2e8f0;'";
+    const QString tkM = "style='padding:1.5px 6px; color:#64748b; font-size:9.5pt; width:23%; border-bottom:1px solid #e2e8f0;'";
+    const QString tkR = "style='padding:1.5px 6px; color:#64748b; font-size:9.5pt; width:23%; border-bottom:1px solid #e2e8f0; text-align:right;'";
 
     html += "<table width='100%' cellpadding='0' cellspacing='0' style='" + tblStyle + "'>";
     html += "<tr style='background-color:#454545;'><td colspan='4' style='padding:6px 8px; font-size:11pt; font-weight:700; color:#ffffff;'>" + tr("Therapy") + "</td></tr>";

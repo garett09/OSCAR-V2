@@ -348,6 +348,8 @@ class MainWindow : public QMainWindow
 
     void on_actionImport_SleepHQ_Data_triggered();
 
+    void on_actionImport_AppleWatch_Data_triggered();
+
     //! \brief Populates the statistics with information.
     void on_statisticsButton_clicked();
 
@@ -452,6 +454,7 @@ private:
     void importNonCPAP(MachineLoader &loader, const QString &folderPrefKey = STR_PREF_LastOximetryPath);
     int importSleepHQO2RingData(const QStringList & files);
     void importSleepHQFolders();
+    void importAppleWatchCSVs(const QString & outputDir);
 
     /*! \brief Destroy sessions for \a date matching \a type. Returns true if any data
      *         was purged. Does not update the UI; caller handles reload.

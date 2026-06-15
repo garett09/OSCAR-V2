@@ -430,9 +430,6 @@ PreferencesDialog::PreferencesDialog(QWidget *parent, Profile *_profile) :
     else
         ui->baseSpO2Option->setCurrentIndex(100-baseoption_data);
 
-
-
-
 }
 
 #include <QItemDelegate>
@@ -1050,7 +1047,7 @@ bool PreferencesDialog::Save()
 
     profile->cpap->setEventPostcontext(double(ui->eventPostcontext->value()));
     profile->cpap->setConsolidateEvents(ui->consolidateEvents->isChecked());
-    
+
     AppSetting->setAutoLaunchImport(ui->autoLaunchImporter->isChecked());
 
 #ifndef NO_CHECKUPDATES
@@ -1133,7 +1130,7 @@ bool PreferencesDialog::Save()
             mainwin->RestartApplication();
             return false; // Prevent accept() so post-dialog UI code doesn't run with null p_profile
         } else {
-            mainwin->getDaily()->LoadDate(mainwin->getDaily()->getDate());
+            mainwin->getDaily()->LoadDate(mainwin->getDaily()->getDate(), true);
             // Save early.. just in case..
             mainwin->getDaily()->graphView()->SaveSettings("Daily");
             mainwin->getOverview()->graphView()->SaveSettings("Overview");

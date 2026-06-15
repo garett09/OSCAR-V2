@@ -2241,6 +2241,7 @@ p, li { white-space: pre-wrap; }
     <addaction name="actionImport_Somnopose_Data"/>
     <addaction name="actionImport_Viatom_Data"/>
     <addaction name="actionImport_SleepHQ_Data"/>
+    <addaction name="actionImport_AppleWatch_Data"/>
     <addaction name="actionImport_RemStar_MSeries_Data"/>
     <addaction name="separator"/>
     <addaction name="actionTime_Corrections"/>
@@ -2546,6 +2547,11 @@ p, li { white-space: pre-wrap; }
   <action name="actionImport_SleepHQ_Data">
    <property name="text">
     <string>Import from SleepHQ...</string>
+   </property>
+  </action>
+  <action name="actionImport_AppleWatch_Data">
+   <property name="text">
+    <string>Import Apple Watch Sleep Stages...</string>
    </property>
   </action>
   <action name="actionPurgeCurrentDaysOximetry">

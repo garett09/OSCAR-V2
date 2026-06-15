@@ -54,6 +54,7 @@ class NewProfile : public QDialog
 
   private:
     QString getIntroHTML();
+    void populateMaskCombo();   //!< Populate mask model combo with 2024-2025 mask list
 
     Ui::NewProfile *ui;
     bool m_editMode;

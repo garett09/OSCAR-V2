@@ -29,6 +29,7 @@
 #include <QPainter>
 #include <QProcess>
 #include "sleephqsyncdialog.h"
+#include "applewatchsyncdialog.h"
 #include <QInputDialog>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -2196,7 +2197,7 @@ void MainWindow::on_action_Rebuild_Oximetry_Index_triggered()
         m->SaveSummaryCache();
     }
 
-    daily->LoadDate(daily->getDate());
+    daily->LoadDate(daily->getDate(), true);
     overview->ReloadGraphs();
 }
 void MainWindow::reloadProfile()
@@ -2401,7 +2402,7 @@ void MainWindow::purgeDay(MachineType type)
         daily->clearJournalNotesEditor();
 
     daily->clearLastDay();
-    daily->LoadDate(date);
+    daily->LoadDate(date, true);
     if (overview)
         overview->ReloadGraphs();
     if (welcome)
@@ -2501,7 +2502,7 @@ void MainWindow::on_actionPurgeRangeOfDays_triggered()
         daily->clearJournalNotesEditor();
 
     daily->clearLastDay();
-    daily->LoadDate(viewDate);
+    daily->LoadDate(viewDate, true);
     if (overview)
         overview->ReloadGraphs();
     if (welcome)
@@ -2924,7 +2925,7 @@ void MainWindow::on_actionImport_RemStar_MSeries_Data_triggered()
         }
 
         Notify(tr("MSeries Import complete"));
-        daily->LoadDate(daily->getDate());
+        daily->LoadDate(daily->getDate(), true);
     }
 
 #endif
@@ -3276,7 +3277,7 @@ void MainWindow::importNonCPAP(MachineLoader &loader, const QString &folderPrefK
         PopulatePurgeMenu();
         if (overview) overview->ReloadGraphs();
         if (welcome) welcome->refreshPage();
-        daily->LoadDate(daily->getDate());
+        daily->LoadDate(daily->getDate(), true);
     }
 }
 
@@ -4304,6 +4305,19 @@ void MainWindow::on_actionImport_SleepHQ_Data_triggered()
     }
 }
 
+void MainWindow::on_actionImport_AppleWatch_Data_triggered()
+{
+    if (p_profile == nullptr) {
+        QMessageBox::warning(this, tr("Import"), tr("Please open or create a profile before importing data."));
+        return;
+    }
+
+    AppleWatchSyncDialog dialog(this);
+    if (dialog.exec() == QDialog::Accepted) {
+        importAppleWatchCSVs(dialog.outputDir());
+    }
+}
+
 void MainWindow::importSleepHQFolders()
 {
     QString cpapPath = QDir::homePath() + "/RESMED_DATA";
@@ -4367,6 +4381,82 @@ void MainWindow::importSleepHQFolders()
         PopulatePurgeMenu();
     } else {
         QMessageBox::information(this, tr("Import Complete"), tr("No new data found to import."));
+    }
+}
+
+void MainWindow::importAppleWatchCSVs(const QString & outputDir)
+{
+    QStringList csvFiles;
+    QDir dir(outputDir);
+    if (dir.exists()) {
+        QDirIterator it(outputDir, QDir::Files | QDir::NoSymLinks);
+        while (it.hasNext()) {
+            QString filePath = it.next();
+            QFileInfo fileInfo(filePath);
+            if (fileInfo.fileName().startsWith("Apple2Dreem_") && fileInfo.suffix() == "csv") {
+                csvFiles.append(filePath);
+            }
+        }
+    }
+
+    if (!csvFiles.isEmpty()) {
+        DreemLoader dreem;
+        ImportUI importui(p_profile);
+        ImportContext* ctx = new ProfileImportContext(p_profile);
+        dreem.SetContext(ctx);
+        connect(ctx, &ImportContext::importEncounteredUnexpectedData, &importui, &ImportUI::onUnexpectedData);
+        connect(&dreem, &MachineLoader::deviceReportsUsageOnly, &importui, &ImportUI::onDeviceReportsUsageOnly);
+        connect(&dreem, &MachineLoader::deviceIsUntested, &importui, &ImportUI::onDeviceIsUntested);
+        connect(&dreem, &MachineLoader::deviceIsUnsupported, &importui, &ImportUI::onDeviceIsUnsupported);
+
+        DatabaseManager& dbMgr = DatabaseManager::instance();
+        if (!dbMgr.transaction()) {
+            QString errText = dbMgr.lastError().text();
+            qWarning() << "importAppleWatchCSVs() - Failed to start database transaction:" << errText;
+            dreem.SetContext(nullptr);
+            delete ctx;
+            return;
+        }
+
+        int res = dreem.MachineLoader::Open(csvFiles);
+        ctx->Commit();
+
+        bool newdata = false;
+        if (res > 0) {
+            QDateTime now = QDateTime::currentDateTime();
+            MachineRepository repo;
+            for (Machine* m : p_profile->GetMachines()) {
+                if (m->loaderName() == dreem.loaderName() && m->getDatabaseId() > 0) {
+                    m->info.lastimported = now;
+                    MachineData data = repo.findById(m->getDatabaseId());
+                    if (data.id > 0) {
+                        data.lastImported = now.toString(Qt::ISODate);
+                        repo.update(data);
+                    }
+                }
+            }
+            newdata = true;
+        }
+
+        if (!dbMgr.commit()) {
+            qWarning() << "importAppleWatchCSVs() - Failed to commit database transaction:" << dbMgr.lastError().text();
+            dbMgr.rollback();
+            res = -1;
+            newdata = false;
+        }
+
+        dreem.SetContext(nullptr);
+        delete ctx;
+
+        if (newdata) {
+            p_profile->calculateDailySummaries();
+            finishCPAPImport();
+            PopulatePurgeMenu();
+        } else {
+            QMessageBox::information(this, tr("Import Complete"), tr("No new Apple Watch sleep data found to import."));
+        }
+    } else {
+        QMessageBox::information(this, tr("Import Complete"), tr("No Apple Watch CSV files found in the output directory."));
     }
 }
 
