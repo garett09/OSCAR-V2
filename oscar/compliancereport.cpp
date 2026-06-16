@@ -2273,14 +2273,18 @@ void ComplianceReport::exportReport(QWidget *parent)
         html += makePageHeaderHtml(title, patientNameStr, pageSubInfo, logoBase64);
 
         if (usedDaysOxi > 0) {
-            // Hours of actually-recorded SpO2, not machine therapy hours. When the
-            // oximetry source is the CPAP device (oxiSourceType == MT_CPAP),
-            // calcHours() returns CPAP hours for ALL nights — inflating "Average
-            // Hours per Night" and deflating every per-hour oximetry index on
-            // profiles where the oximeter was only attached some nights.
+            // Sum actual session durations from the oximetry source, filtered to days
+            // in oxiDaysMap (which only contains days with recorded SpO2 data).
+            // Using session->hours() rather than timeAboveThreshold(OXI_SPO2, 0.0)
+            // avoids a unit bug in the timesummary fast path: waveform channels
+            // (e.g. Viatom stores OXI_SPO2 as EVL_Waveform with 1000 ms rate)
+            // accumulated count*rate_ms in timesummary, but the fast path divided
+            // by 60 treating the values as seconds, giving a result 1000x too large.
             double oximeterHours = 0.0;
             for (Day* day : oxiDaysMap) {
-                oximeterHours += day->timeAboveThreshold(OXI_SPO2, 0.0) / 60.0;  // minutes → hours
+                for (Session* sess : day->getSessions(oxiSourceType)) {
+                    oximeterHours += sess->hours();
+                }
             }
             double spo2DropIndex = oximeterHours > 0 ? p_profile->calcCount(OXI_SPO2Drop, oxiSourceType, start, end) / oximeterHours : 0.0;
             double pctTimeSpo2Drop = oximeterHours > 0 ? (100.0 / oximeterHours) * (p_profile->calcSum(OXI_SPO2Drop, oxiSourceType, start, end) / 3600.0) : 0.0;

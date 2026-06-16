@@ -1298,10 +1298,12 @@ void Session::updateCountSummary(ChannelID code)
                 valsum[raw]++;
             }
 
-            // Time weight is (count * rate_ms) for waveform data
+            // Time weight is (count * rate_ms / 1000) = seconds, matching EVL_Event path.
+            // rate is in ms; dividing by 1000 converts to seconds so timeAboveThreshold
+            // fast path (which divides by 60 to get minutes) gives correct results.
             rate = e.rate();
             for (auto it = localValsum.cbegin(); it != localValsum.cend(); ++it) {
-                timesum[it.key()] += EventDataType(it.value()) * rate;
+                timesum[it.key()] += (quint32)(EventDataType(it.value()) * rate / 1000.0 + 0.5);
             }
         }
     }
