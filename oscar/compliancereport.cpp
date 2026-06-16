@@ -27,6 +27,10 @@
 #include <QSet>
 #include <QSvgGenerator>
 #include <QSvgRenderer>
+#include <QAbstractTextDocumentLayout>
+#include <QTextBlock>
+#include <QTextFragment>
+#include <QTextCursor>
 #include "mainwindow.h"
 #include "version.h"
 #include "SleepLib/profiles.h"
@@ -102,7 +106,7 @@ ComplianceReportDialog::ComplianceReportDialog(QWidget *parent)
     QList<TempChannelInfo> candidateChannels = {
         {CPAP_Pressure,   tr("Pressure"),    MT_CPAP},
     };
-    if (p_profile->hasChannel(CPAP_EPAP))
+    if (p_profile && p_profile->hasChannel(CPAP_EPAP))
         candidateChannels.append({CPAP_EPAP, tr("EPAP"), MT_CPAP});  // shown for CPAP+EPR and BiPAP/ASV
     candidateChannels.append({CPAP_MinuteVent, tr("Minute Vent."), MT_CPAP});
     candidateChannels.append({CPAP_RespRate,   tr("Respiratory Rate"),  MT_CPAP});
@@ -257,30 +261,6 @@ QString imageToBase64DataUrl(const QImage& img)
     return QString("data:image/png;base64,") + byteArray.toBase64();
 }
 
-// Convert a data:image/svg+xml;base64,… URL to a PNG at the SVG's natural size.
-// QTextDocument does not reliably scale SVG <img> tags to the requested width
-// attribute, so we rasterise at full resolution and let it scale the PNG instead
-// (PNG scaling is handled correctly). The <img width/height> attributes then
-// control the display size while preserving full sharpness.
-static QString svgDataUrlToPng(const QString& svgDataUrl)
-{
-    const QString prefix = QStringLiteral("data:image/svg+xml;base64,");
-    if (!svgDataUrl.startsWith(prefix))
-        return svgDataUrl; // already PNG or unknown — pass through
-    QByteArray svgBytes = QByteArray::fromBase64(svgDataUrl.mid(prefix.length()).toLatin1());
-    QSvgRenderer renderer(svgBytes);
-    if (!renderer.isValid())
-        return svgDataUrl;
-    QSize sz = renderer.defaultSize();
-    if (sz.isEmpty()) sz = QSize(1500, 410);
-    QImage img(sz, QImage::Format_ARGB32);
-    img.fill(Qt::white);
-    QPainter p(&img);
-    renderer.render(&p, QRectF(QPointF(0, 0), sz));
-    p.end();
-    return imageToBase64DataUrl(img);
-}
-
 static QString getSettingStr(Day* day, ChannelID cid) {
     if (!day || !day->settingExists(cid)) return QString();
     double val = day->settings_wavg(cid);
@@ -300,9 +280,15 @@ static QString getSettingStr(Day* day, ChannelID cid) {
 // which includes the physiologically impossible zeros an oximeter emits when the
 // probe loses contact (SpO2 -> 0%, pulse -> 0 bpm). Once a dropout zeroes the
 // day summary it cannot be recovered, so we re-walk the raw event samples and
-// ignore any value at or below floorVal before taking the minimum. Standard
-// clinical reports treat SpO2 <= 50% and pulse <= 30 bpm as sensor-off artifacts.
-static const double SPO2_ARTIFACT_FLOOR  = 50.0;  // %
+// ignore any value at or below floorVal before taking the minimum.
+//
+// Floors are set low enough to reject probe-loss (which reads ~0%) without
+// clipping genuine pathology: severe OSA / obesity-hypoventilation desaturations
+// can briefly reach the low 40s%, and a 50% floor would silently discard them and
+// over-report the period low as safer than it was — the worst direction to err for
+// the single most clinically scrutinised number on the report. Pulse oximeters are
+// unreliable below ~70% anyway, so 40% is a conservative artifact boundary.
+static const double SPO2_ARTIFACT_FLOOR  = 40.0;  // % (probe-loss reads ~0)
 static const double PULSE_ARTIFACT_FLOOR = 30.0;  // bpm
 
 // Single-pass collector for the dropout-filtered oximetry statistics. The four
@@ -472,23 +458,34 @@ QList<SettingsChangeBlock> getSettingsChanges(const QDate& start, const QDate& e
 
 // ---- Shared QPainter chart helpers ----
 
-const int CHART_MAX_W = 1500;  // widest SVG canvas (long ranges)
+const int CHART_MAX_W = 1500;  // SVG canvas width — fixed; charts always span the full page width
 const int CHART_TITLE_H = 50; // pixels reserved at top of canvas for the title
 const int CHART_H = 360 + CHART_TITLE_H; // SVG canvas height (410px total)
 static const int CHART_DISPLAY_MIN_W = 200;
 const int CHART_LM = 86;   // left margin: y-axis labels
 const int CHART_RM = 150;  // right margin: last x label half-width (60) + gap,
                            // also fits threshold annotations ("AHI 5", redline)
-const int CHART_COL_MAX_PX = 48; // widest per-day column before canvas shrinks
+// Cap on bar width. Short ranges have wide columns; without a cap their bars
+// would render as a few very fat bars. Capping spreads the bars across the
+// full-width plot area instead (AirView style). Long ranges fall below this
+// naturally and are unaffected.
+const double CHART_BAR_MAX_W = 70.0;
 
-// Canvas width follows the day count so bar width stays constant across report
-// ranges: short ranges get a proportionally narrower chart instead of a few
-// bars stretched across the full page. Ranges of ~26+ days fill the full width.
-static int chartCanvasWidth(int totalDays)
+// Canvas always spans the full page width (no day-count shrink) so the chart
+// never leaves trailing whitespace on short ranges — matching AirView, which
+// widens the plot area to fill the page and spreads the bars out. Bar width is
+// capped (CHART_BAR_MAX_W) so short ranges spread rather than fatten.
+static int chartCanvasWidth(int /*totalDays*/)
 {
-    const int maxPlotW = CHART_MAX_W - CHART_LM - CHART_RM;
-    int plotW = qMin(maxPlotW, qMax(1, totalDays) * CHART_COL_MAX_PX);
-    return CHART_LM + plotW + CHART_RM;
+    return CHART_MAX_W;
+}
+
+// Bar width for a given column: fills 75% of the column but never exceeds
+// CHART_BAR_MAX_W, so short (wide-column) ranges spread their bars out instead
+// of stretching them fat.
+static double chartBarWidth(double colWidth)
+{
+    return qMin(qMax(colWidth * 0.75, 1.5), CHART_BAR_MAX_W);
 }
 
 static int labelIntervalForDays(int totalDays)
@@ -505,6 +502,11 @@ static void drawYGridAndLabels(QPainter& painter, const QRect& chartRect, double
 {
     painter.setFont(QFont("SF Pro Display", 30));
     double range = yMax - yMin;
+    const int majorTick = 7;   // length of the labelled tick dash at the axis
+    const int minorTick = 5;   // length of the unlabelled tick between labels
+    const int labelGap  = 3;   // gap between the number and its tick dash
+    // label area = chartRect.left() - majorTick - labelGap; widest label ("1000",
+    // ~71px) must fit — keep these small enough that it never clips.
     for (int i = 0; i <= gridCount; ++i) {
         double val = yMin + (range / gridCount) * i;
         int y = chartRect.bottom() - static_cast<int>(((val - yMin) / range) * chartRect.height());
@@ -512,10 +514,20 @@ static void drawYGridAndLabels(QPainter& painter, const QRect& chartRect, double
             painter.setPen(QPen(QColor("#e2e8f0"), 1, Qt::DotLine));
             painter.drawLine(chartRect.left(), y, chartRect.right(), y);
         }
-        painter.setPen(QColor("#64748b"));
+        // Minor tick at the midpoint above this label (AirView-style axis detail).
+        // Skipped above the top label so it never overruns the plot.
+        if (i < gridCount) {
+            int my = chartRect.bottom() - static_cast<int>(((val + range / gridCount / 2.0 - yMin) / range) * chartRect.height());
+            painter.setPen(QPen(QColor("#64748b"), 1.8));
+            painter.drawLine(chartRect.left() - minorTick, my, chartRect.left(), my);
+        }
+        // Labelled tick dash — the "32 -" mark sitting between the number and the axis.
+        painter.setPen(QPen(QColor("#334155"), 2.4));
+        painter.drawLine(chartRect.left() - majorTick, y, chartRect.left(), y);
+        painter.setPen(QColor("#475569"));
         QString label = (val >= 10.0) ? QString::number(val, 'f', 0)
                                       : QString::number(val, 'f', 1);
-        painter.drawText(QRect(0, y - 18, chartRect.left() - 6, 38),
+        painter.drawText(QRect(0, y - 18, chartRect.left() - majorTick - labelGap, 38),
                          Qt::AlignRight | Qt::AlignVCenter, label);
     }
 }
@@ -631,7 +643,7 @@ static void drawBars(QPainter& painter, const QRect& chartRect, int totalDays,
 {
     double range = yMax - yMin;
     double colWidth = static_cast<double>(chartRect.width()) / totalDays;
-    double barW = qMax(colWidth * 0.75, 1.5);
+    double barW = chartBarWidth(colWidth);
     painter.setPen(Qt::NoPen);
     for (int i = 0; i < totalDays; ++i) {
         double val = (i < dailyValues.size()) ? dailyValues[i] : 0.0;
@@ -1010,13 +1022,20 @@ static QString makePressureStatsHtml(Day* lastDay, double avgPressure, double p9
 
 // statsPadTop: pixels to push stats down from top of the TD. -1 = auto (aligns with bar area).
 static QString makeChartBlockHtml(const QString& base64Url, const QString& statsHtml,
-                                   int displayW, int displayH, int statsColW, int statsPadTop = -1)
+                                   int displayW, int displayH, int statsColW,
+                                   QVector<QByteArray>& chartReg, int statsPadTop = -1)
 {
-    // Rasterise SVG to PNG at full resolution so QTextDocument cannot mis-scale
-    // it. PNG scaling via <img width/height> works correctly; SVG does not.
-    QString pngUrl = svgDataUrlToPng(base64Url);
-    // Title is embedded in the image — the right cell contains only one <img>,
-    // so QTextDocument cannot split the title from the chart across a page break.
+    // Register the chart's SVG for true-vector replay at print time and reference
+    // it from a placeholder <img src="oscarchart:N">. embedVectorCharts() swaps
+    // every placeholder for a ChartObjectType text object before printing, so the
+    // chart lands in the PDF as vector paths/text instead of a rasterised PNG.
+    const QString svgPrefix = QStringLiteral("data:image/svg+xml;base64,");
+    int chartIdx = chartReg.size();
+    chartReg.append(base64Url.startsWith(svgPrefix)
+                        ? QByteArray::fromBase64(base64Url.mid(svgPrefix.length()).toLatin1())
+                        : QByteArray());  // unknown format → object renders nothing
+    // Title is embedded in the chart — the right cell holds a single object, so
+    // QTextDocument cannot split the title from the chart across a page break.
     QString html;
     html += "<div style='page-break-inside:avoid; margin-bottom:8pt;'>";
     html += "<table width='100%' cellpadding='0' cellspacing='0' style='border:none;'>";
@@ -1027,7 +1046,7 @@ static QString makeChartBlockHtml(const QString& base64Url, const QString& stats
     html += statsHtml;
     html += "</td>";
     html += "<td width='" + QString::number(displayW) + "' valign='top'>";
-    html += "<img src='" + pngUrl + "' width='" + QString::number(displayW) + "' height='" + QString::number(displayH) + "' style='display:block;' />";
+    html += "<img src='oscarchart:" + QString::number(chartIdx) + "' width='" + QString::number(displayW) + "' height='" + QString::number(displayH) + "' style='display:block;' />";
     html += "</td>";
     html += "</tr>";
     html += "</table>";
@@ -1072,7 +1091,7 @@ QString renderUsageChart(const QMap<QDate, Day*>& daysMap, const QDate& start, c
     // but 0 therapy hours — distinguishes "worn, no therapy" from "no data at all".
     {
         double cw = static_cast<double>(chartRect.width()) / totalDays;
-        double bw = qMax(cw * 0.75, 1.5);
+        double bw = chartBarWidth(cw);
         painter.setPen(Qt::NoPen);
         painter.setBrush(QColor("#fbbf24"));
         for (int i = 0; i < totalDays; ++i) {
@@ -1133,7 +1152,7 @@ QString renderAhiChart(const QMap<QDate, Day*>& daysMap, const QDate& start, con
 
     // Stacked bars (bottom→top): AI (dark indigo), HI (light indigo)
     // Two-pass overdraw: draw each layer top-down so upper colours overwrite lower.
-    double barW = qMax(colWidth * 0.75, 1.5);
+    double barW = chartBarWidth(colWidth);
     const QColor aiColor("#6366f1");    // indigo   — Apnea Index
     const QColor hiColor("#a5b4fc");    // lavender — Hypopnea Index
 
@@ -1417,6 +1436,75 @@ static double calcDayAvgPercentile(ChannelID chan, EventDataType pct,
 
 } // namespace
 
+// ---- True-vector chart embedding (see ChartObjectHandler in the header) ----
+
+QSizeF ChartObjectHandler::intrinsicSize(QTextDocument* /*doc*/, int /*posInDocument*/,
+                                         const QTextFormat& format)
+{
+    // The on-page size was fixed when the placeholder <img> was laid out; reuse it
+    // so swapping in the vector object never reflows the page.
+    return format.property(ChartSizeProperty).toSizeF();
+}
+
+void ChartObjectHandler::drawObject(QPainter* painter, const QRectF& rect,
+                                    QTextDocument* /*doc*/, int /*posInDocument*/,
+                                    const QTextFormat& format)
+{
+    int idx = format.property(ChartIndexProperty).toInt();
+    if (idx < 0 || idx >= m_svg.size() || m_svg[idx].isEmpty()) return;
+    QSvgRenderer renderer(m_svg[idx]);
+    if (!renderer.isValid()) return;
+    // `painter` is the printer's painter during QTextDocument::print(), so this
+    // renders the SVG as native PDF vector content (the viewBox is scaled to fit
+    // rect; rect already preserves the chart's aspect ratio, so no distortion).
+    painter->save();
+    painter->setRenderHint(QPainter::Antialiasing, true);
+    painter->setRenderHint(QPainter::TextAntialiasing, true);
+    renderer.render(painter, rect);
+    painter->restore();
+}
+
+// Swap every "oscarchart:N" placeholder <img> the report HTML emitted for a real
+// ChartObjectType text object so it prints as vector. Must run after setHtml() and
+// before print(); the handler is registered first so the layout can size the
+// objects as they are inserted.
+static void embedVectorCharts(QTextDocument& doc, ChartObjectHandler* handler)
+{
+    doc.documentLayout()->registerHandler(ChartObjectHandler::ChartObjectType, handler);
+
+    struct Hit { int pos; int index; qreal w; qreal h; };
+    QVector<Hit> hits;
+    const QString prefix = QStringLiteral("oscarchart:");
+    for (QTextBlock block = doc.begin(); block.isValid(); block = block.next()) {
+        for (QTextBlock::iterator it = block.begin(); !it.atEnd(); ++it) {
+            QTextFragment frag = it.fragment();
+            if (!frag.isValid()) continue;
+            QTextCharFormat cf = frag.charFormat();
+            if (!cf.isImageFormat()) continue;
+            QTextImageFormat img = cf.toImageFormat();
+            if (!img.name().startsWith(prefix)) continue;
+            bool ok = false;
+            int idx = img.name().mid(prefix.length()).toInt(&ok);
+            if (!ok) continue;
+            hits.append({ frag.position(), idx, img.width(), img.height() });
+        }
+    }
+
+    // Replace from last to first so the earlier recorded positions stay valid as
+    // each one-character placeholder is overwritten in place.
+    for (int i = hits.size() - 1; i >= 0; --i) {
+        const Hit& h = hits[i];
+        QTextCursor cur(&doc);
+        cur.setPosition(h.pos);
+        cur.setPosition(h.pos + 1, QTextCursor::KeepAnchor);
+        QTextCharFormat ofmt;
+        ofmt.setObjectType(ChartObjectHandler::ChartObjectType);
+        ofmt.setProperty(ChartObjectHandler::ChartIndexProperty, h.index);
+        ofmt.setProperty(ChartObjectHandler::ChartSizeProperty, QSizeF(h.w, h.h));
+        cur.insertText(QString(QChar::ObjectReplacementCharacter), ofmt);
+    }
+}
+
 void ComplianceReport::exportReport(QWidget *parent)
 {
     if (!p_profile) {
@@ -1527,6 +1615,7 @@ void ComplianceReport::exportReport(QWidget *parent)
     // Median usage calculation
     QVector<double> activeDaysHours;
     double totalCsrMinutes = 0.0;
+    double sumCsrPctPerNight = 0.0;   // Σ nightly CSR% — for AirView-style per-night average
     for (Day* day : daysList) {
         if (!day) continue;
         double hrs = day->hours(MT_CPAP);
@@ -1535,6 +1624,7 @@ void ComplianceReport::exportReport(QWidget *parent)
             if (p_profile->hasChannel(CPAP_CSR)) {
                 double csrPct = day->calcPON(CPAP_CSR);
                 totalCsrMinutes += hrs * (csrPct / 100.0) * 60.0;
+                sumCsrPctPerNight += csrPct;
             }
         }
     }
@@ -1549,7 +1639,11 @@ void ComplianceReport::exportReport(QWidget *parent)
         }
     }
     double avgCsrMinutesPerNight = daysUsed > 0 ? totalCsrMinutes / daysUsed : 0.0;
-    double avgCsrPctPerNight = totalHours > 0.0 ? (totalCsrMinutes / 60.0) / totalHours * 100.0 : 0.0;
+    // AirView reports "CSR% (avg)" as the mean of each night's CSR%, weighting every
+    // night equally — consistent with the per-night averaging used for every other
+    // "(avg)" statistic. The previous period-weighted form (CSR hours / total hours)
+    // let long nights dominate and diverged from AirView when night lengths varied.
+    double avgCsrPctPerNight = daysUsed > 0 ? sumCsrPctPerNight / daysUsed : 0.0;
 
     // AHI
     double ahiHours = p_profile->calcHours(MT_CPAP, start, end);
@@ -1631,20 +1725,29 @@ void ComplianceReport::exportReport(QWidget *parent)
     // never shows two different "minimum SpO2" numbers and never re-reads the same
     // samples for each statistic.
     double t90Secs = 0.0;
+    double spo2RecordingSecs = 0.0;  // total SpO2 sample time, for T90-as-% of recording
     double minSpO2 = 0.0, avgSpO2Period = 0.0;
+    // Key the oximetry day map on either oximetry channel: a profile may record
+    // Pulse without SpO2 (or vice-versa). Keying on SpO2 alone left Pulse-only
+    // profiles with an empty map, blanking every Pulse stat/chart downstream.
     QMap<QDate, Day*> oxiDaysMapEarly;
-    if (p_profile->hasChannel(OXI_SPO2)) {
+    bool hasSpO2  = p_profile->hasChannel(OXI_SPO2);
+    bool hasPulse = p_profile->hasChannel(OXI_Pulse);
+    if (hasSpO2 || hasPulse) {
         for (Day* day : allDays) {
             if (!day) continue;
-            double totalSecs = day->timeAboveThreshold(OXI_SPO2, 0.0) * 60.0;
-            if (totalSecs > 0.0) {
-                oxiDaysMapEarly[day->date()] = day;
-            }
+            bool hasOxi = (hasSpO2  && day->timeAboveThreshold(OXI_SPO2,  0.0) > 0.0) ||
+                          (hasPulse && day->timeAboveThreshold(OXI_Pulse, 0.0) > 0.0);
+            if (hasOxi) oxiDaysMapEarly[day->date()] = day;
         }
+    }
+    if (hasSpO2) {
         FilteredStats spo2 = calcFilteredStats(OXI_SPO2, oxiSourceType, start, end, SPO2_ARTIFACT_FLOOR, 90.0);
         t90Secs       = spo2.timeBelowSecs;
         minSpO2       = spo2.min;
         avgSpO2Period = spo2.wavg;
+        for (Day* day : oxiDaysMapEarly)
+            spo2RecordingSecs += day->timeAboveThreshold(OXI_SPO2, 0.0) * 60.0;
     }
     bool minSpO2Set = (minSpO2 > 0.0);
 
@@ -1771,6 +1874,10 @@ void ComplianceReport::exportReport(QWidget *parent)
     const int fullDisplayW = qMax(CHART_DISPLAY_MIN_W, usableW - STATS_COL_W - 16);
     int displayW = qMax(CHART_DISPLAY_MIN_W, (fullDisplayW * chartCanvasW) / CHART_MAX_W);
     int displayH = (CHART_H * displayW) / chartCanvasW;
+
+    // SVG bytes of every chart, in placeholder order. Populated by makeChartBlockHtml
+    // and replayed as vector by embedVectorCharts() at print time.
+    QVector<QByteArray> chartRegistry;
 
     // Reuse oximeter daysMap built earlier
     const QMap<QDate, Day*>& oxiDaysMap = oxiDaysMapEarly;
@@ -2098,7 +2205,7 @@ void ComplianceReport::exportReport(QWidget *parent)
     if (p_profile->hasChannel(CPAP_CSR)) {
         int csrAvgMins = qRound(avgCsrMinutesPerNight);
         html += "<tr>"
-                "<td colspan='3' " + tkL + ">" + tr("Cheyne-Stokes respiration (% of therapy time)") + "</td>"
+                "<td colspan='3' " + tkL + ">" + tr("Cheyne-Stokes respiration (average duration per night)") + "</td>"
                 "<td " + tkR + "><b style='color:#0f172a;'>" + QString::number(csrAvgMins) + tr(" min (%1%)").arg(QString::number(avgCsrPctPerNight,'f',0)) + "</b></td>"
                 "</tr>";
     }
@@ -2144,13 +2251,13 @@ void ComplianceReport::exportReport(QWidget *parent)
               QString("%1 hrs.").arg(avgHoursUsed, 0, 'f', 1),
               "", false, true },
         });
-        html += makeChartBlockHtml(usageChartUrl, usageStats, displayW, displayH, STATS_COL_W);
+        html += makeChartBlockHtml(usageChartUrl, usageStats, displayW, displayH, STATS_COL_W, chartRegistry);
     }
 
     // AHI chart
     {
         QString ahiStats = makeAhiStatsHtml(AHI, HI, AI, CentralAI, ObstructiveAI, UnknownAI, ReraIndex, avgCsrPctPerNight);
-        html += makeChartBlockHtml(ahiChartUrl, ahiStats, displayW, displayH, STATS_COL_W, 0);
+        html += makeChartBlockHtml(ahiChartUrl, ahiStats, displayW, displayH, STATS_COL_W, chartRegistry, 0);
     }
 
     // Leak chart
@@ -2163,7 +2270,7 @@ void ComplianceReport::exportReport(QWidget *parent)
         leakRows.append({ tr("Median (avg)"), QString::number(medianLeak, 'f', 1) + tr(" L/min"), "#f97316", true,  true });
         leakRows.append({ tr("Max (avg)"),    QString::number(maxLeak,    'f', 1) + tr(" L/min"), "",        false, true });
         QString leakStats = makeStatsRows(leakRows);
-        html += makeChartBlockHtml(leakChartUrl, leakStats, displayW, displayH, STATS_COL_W);
+        html += makeChartBlockHtml(leakChartUrl, leakStats, displayW, displayH, STATS_COL_W, chartRegistry);
         if (isTotalLeak) {
             html += "<div style='font-size:8pt; color:#64748b; margin-top:-4pt; margin-bottom:8pt;'>"
                     + tr("Total Leak includes intentional mask exhaust flow; values of 30-50 L/min are typically normal. "
@@ -2175,7 +2282,7 @@ void ComplianceReport::exportReport(QWidget *parent)
     // Pressure chart
     if (p_profile->hasChannel(CPAP_Pressure)) {
         QString pressStats = makePressureStatsHtml(lastDay, avgPressure, p95Pressure, maxPressure);
-        html += makeChartBlockHtml(pressChartUrl, pressStats, displayW, displayH, STATS_COL_W);
+        html += makeChartBlockHtml(pressChartUrl, pressStats, displayW, displayH, STATS_COL_W, chartRegistry);
     }
 
     // Channel trend charts (Minute Vent, Resp Rate, Tidal Volume, etc.) — own page(s)
@@ -2190,7 +2297,7 @@ void ComplianceReport::exportReport(QWidget *parent)
                 html += "<div style='font-size:11pt; font-weight:700; color:#1e1b4b; border-bottom:2px solid #e2e8f0; padding-bottom:3px; margin-top:4pt; margin-bottom:6pt;'>" + tr("Channel Trend Charts").toUpper() + "</div>";
             }
             const auto& cc = chanCharts[i];
-            html += makeChartBlockHtml(cc.base64Url, cc.statsHtml, displayW, displayH, STATS_COL_W);
+            html += makeChartBlockHtml(cc.base64Url, cc.statsHtml, displayW, displayH, STATS_COL_W, chartRegistry);
         }
     }
  
@@ -2431,7 +2538,12 @@ void ComplianceReport::exportReport(QWidget *parent)
             html += "</tr>";
             html += "<tr>";
             html += "<td style='font-weight: 600; font-size: 9.5pt; padding: 2.5px 8px;'>Time with SpO2 &lt; 90%:</td>";
-            QColor t90Color = (t90Secs > 60.0) ? QColor("#ef4444") : QColor("#1e293b");
+            // Flag red when T90 exceeds 2% of recorded oximetry time — the clinical
+            // CT90 cutoff that warrants evaluation. An absolute seconds threshold
+            // misjudged short vs long recordings (60s means more on a 4h night than
+            // an 8h one). Falls back to the absolute guard if recording time is unknown.
+            double t90Pct = spo2RecordingSecs > 0.0 ? (t90Secs / spo2RecordingSecs) * 100.0 : 0.0;
+            QColor t90Color = (t90Pct > 2.0) ? QColor("#ef4444") : QColor("#1e293b");
             html += "<td align='right' style='font-weight: 700; color:" + t90Color.name() + "; padding: 2.5px 8px; font-size: 9.5pt;'>"
                     + t90Str + "</td>";
             html += "</tr>";
@@ -2505,6 +2617,10 @@ void ComplianceReport::exportReport(QWidget *parent)
     QTextDocument doc;
     doc.setDocumentMargin(4.0);   // Pin to DOC_MARGIN used for displayW above.
     doc.setHtml(html);
+    // Swap chart placeholders for true-vector chart objects, then print. The
+    // handler must outlive doc.print() — it owns the SVG bytes it replays.
+    ChartObjectHandler chartHandler(chartRegistry);
+    embedVectorCharts(doc, &chartHandler);
     doc.print(&printer);
 
     mainwin->Notify(tr("Compliance report successfully saved to:\n\n%1").arg(savePath), tr("PDF Export Success"));
