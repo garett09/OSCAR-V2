@@ -173,6 +173,27 @@ worst night of the period.
   trace is labeled as a single night.
 - **No invented data.** Bands are fixed clinical ranges; the trace plots real samples only.
 
+## Page budget (constraint)
+
+The report is currently 7 pages and must **not gain a dedicated new page** under normal
+data. How this holds:
+
+- Changes 1–4 repaint **inside existing chart canvases** — no size change.
+- Inline legends (change 5's helper) are drawn **inside the plot area**, not as a new
+  strip — no added height.
+- The only two new content blocks — **Overnight Oxygen Summary** (small HTML panel) and
+  **Lowest-Oxygen Night** (one trace) — are placed in the **existing whitespace under the
+  pulse/SpO2 charts on the oximetry page** (page 4 today is ~40% empty; pages 5–7 end
+  mid-page). They are grouped with the SpO2 content, which is also their logical home.
+- Both new blocks are **conditional on oximetry data**; profiles without an oximeter gain
+  no content and keep the exact current layout.
+- **Quality is unchanged:** all charts remain true-vector SVG via `ChartObjectHandler`;
+  bands/legends are additional vector paths/text, sharp at any zoom — no rasterization.
+
+Caveat: identical page count cannot be hard-guaranteed for every dataset (very long
+ranges, many settings-change rows, etc. reflow naturally). The constraint is "no dedicated
+new page; reuse whitespace," verified during testing against representative profiles.
+
 ## Out of scope
 
 Sleep-stage charts (hypnogram / stage donut); plain-language verdict text; compliance
