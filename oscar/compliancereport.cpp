@@ -463,8 +463,9 @@ const int CHART_TITLE_H = 50; // pixels reserved at top of canvas for the title
 const int CHART_H = 360 + CHART_TITLE_H; // SVG canvas height (410px total)
 static const int CHART_DISPLAY_MIN_W = 200;
 const int CHART_LM = 86;   // left margin: y-axis labels
-const int CHART_RM = 150;  // right margin: last x label half-width (60) + gap,
-                           // also fits threshold annotations ("AHI 5", redline)
+const int CHART_RM = 190;  // right margin: last x label half-width (60) + gap,
+                           // also fits threshold annotations ("AHI 5", redline,
+                           // SpO2 "90%"/"88%") with clearance from the canvas edge
 // Cap on bar width. Short ranges have wide columns; without a cap their bars
 // would render as a few very fat bars. Capping spreads the bars across the
 // full-width plot area instead (AirView style). Long ranges fall below this
@@ -1556,16 +1557,26 @@ QString renderChannelBarChart(ChannelID chanId, const QColor& barColor,
     drawBars(painter, chartRect, totalDays, vals, yMax, barColor, 0.0, QColor(), medians, yMin);
 
     if (chanId == OXI_SPO2) {
+        auto yOf = [&](double v){ return chartRect.bottom() - static_cast<int>(((v - yMin) / (yMax - yMin)) * chartRect.height()); };
+        painter.setFont(QFont("SF Pro Display", 24));
         drawThresholdLine(painter, chartRect, yMax, 90.0, QColor("#ef4444"), yMin);
-        if (yMin < 88.0)
+        if (90.0 > yMin && 90.0 < yMax) {            // label the desaturation line
+            painter.setPen(QColor("#ef4444"));
+            painter.drawText(QRect(chartRect.right() + 8, yOf(90.0) - 34, 150, 30),
+                             Qt::AlignLeft | Qt::AlignVCenter, "90%");
+        }
+        if (yMin < 88.0) {                            // 88% O2-qualifying line
             drawThresholdLine(painter, chartRect, yMax, 88.0, QColor("#f59e0b"), yMin);
+            painter.setPen(QColor("#f59e0b"));
+            painter.drawText(QRect(chartRect.right() + 8, yOf(88.0) + 4, 150, 30),
+                             Qt::AlignLeft | Qt::AlignVCenter, "88%");
+        }
     }
 
     if (chanId == OXI_SPO2) {
         drawLegend(painter, chartRect,
-                   { { 0, barColor,            "nightly median" },
-                     { 1, QColor("#0f172a"),   "nightly low" },
-                     { 2, QColor("#ef4444"),   "90% / 88%" } },
+                   { { 0, barColor,          "nightly median" },
+                     { 1, QColor("#0f172a"), "nightly low" } },
                    /*topRight=*/false);
     } else {
         drawLegend(painter, chartRect,
@@ -2132,7 +2143,7 @@ void ComplianceReport::exportReport(QWidget *parent)
     // The scale factor canvasW/CHART_MAX_W is the same for every chart in the
     // report (all charts span the same date range), so fonts stay uniform.
     const int chartCanvasW = chartCanvasWidth(totalDays);
-    const int fullDisplayW = qMax(CHART_DISPLAY_MIN_W, usableW - STATS_COL_W - 16);
+    const int fullDisplayW = qMax(CHART_DISPLAY_MIN_W, usableW - STATS_COL_W - 40);
     int displayW = qMax(CHART_DISPLAY_MIN_W, (fullDisplayW * chartCanvasW) / CHART_MAX_W);
     int displayH = (CHART_H * displayW) / chartCanvasW;
 
@@ -2582,17 +2593,28 @@ void ComplianceReport::exportReport(QWidget *parent)
         Spo2ZonePercents z = spo2ZonePercents(spo2RecordingSecs, secAbove95, secAbove90);
         auto hm = [](double secs) -> QString { return QString::number(int(secs / 60.0)) + " min"; };
 
+        // Proportional time-in-zone bar. Use the HTML width ATTRIBUTE (not CSS
+        // style width%, which QTextDocument ignores — that produced wrong widths).
+        int gw = qRound(z.pctGe95), aw = qRound(z.pct90to95), rw = qRound(z.pctLt90);
+        int drift = 100 - (gw + aw + rw);
+        if (gw >= aw && gw >= rw) gw += drift; else if (aw >= rw) aw += drift; else rw += drift;
         html += "<div style='page-break-inside:avoid; margin-top:10pt;'>";
         html += "<div style='font-size:11pt; font-weight:700; color:#0f172a; margin-bottom:2px;'>" + tr("Overnight Oxygen Summary") + "</div>";
-        html += "<div style='font-size:8.5pt; color:#64748b; margin-bottom:4px;'>" + tr("Percent of night at each oxygen level") + "</div>";
-        html += "<table width='100%' cellspacing='0' cellpadding='0' style='height:18px; border-collapse:collapse;'><tr>";
-        if (z.pctGe95 > 0.5)   html += "<td style='background:#22c55e; color:#ffffff; font-size:8pt; text-align:center; width:" + QString::number(z.pctGe95, 'f', 0) + "%;'>" + tr("Normal &#8805;95%") + " &middot; " + QString::number(z.pctGe95, 'f', 0) + "%</td>";
-        if (z.pct90to95 > 0.5) html += "<td style='background:#eab308; color:#ffffff; font-size:8pt; text-align:center; width:" + QString::number(z.pct90to95, 'f', 0) + "%;'>90&#8211;95%</td>";
-        if (z.pctLt90 > 0.5)   html += "<td style='background:#ef4444; color:#ffffff; font-size:8pt; text-align:center; width:" + QString::number(z.pctLt90, 'f', 0) + "%;'>&lt;90%</td>";
+        html += "<div style='font-size:8.5pt; color:#64748b; margin-bottom:5px;'>" + tr("How much of the night was spent at each oxygen level") + "</div>";
+        html += "<table width='100%' cellspacing='0' cellpadding='0' style='border-collapse:collapse;'><tr>";
+        if (gw > 0) html += "<td width='" + QString::number(gw) + "%' style='background-color:#22c55e; font-size:2px; line-height:16px;'>&nbsp;</td>";
+        if (aw > 0) html += "<td width='" + QString::number(aw) + "%' style='background-color:#eab308; font-size:2px; line-height:16px;'>&nbsp;</td>";
+        if (rw > 0) html += "<td width='" + QString::number(rw) + "%' style='background-color:#ef4444; font-size:2px; line-height:16px;'>&nbsp;</td>";
         html += "</tr></table>";
-        html += "<table width='100%' cellpadding='0' cellspacing='0' style='font-size:9pt; color:#334155; margin-top:4px;'>";
-        html += "<tr><td>" + tr("Oxygen Desaturation Index (&#8805;%1% drops)").arg(QString::number(dropPct, 'f', 0)) + ": <b style='color:#0f172a;'>" + QString::number(odi, 'f', 1) + " / hr</b></td><td>" + tr("Lowest oxygen") + ": <b style='color:#0f172a;'>" + (minSpO2 > 0.0 ? QString::number(minSpO2, 'f', 0) + "%" : tr("N/A")) + "</b></td><td>" + tr("Average") + ": <b style='color:#0f172a;'>" + QString::number(avgSpO2Period, 'f', 0) + "%</b></td></tr>";
-        html += "<tr><td>" + tr("Time below 90%") + ": <b style='color:#0f172a;'>" + hm(t90Secs) + "</b></td><td>" + tr("Time below 88%") + ": <b style='color:#0f172a;'>" + hm(t88Secs) + "</b></td><td></td></tr>";
+        html += "<table width='100%' cellpadding='0' cellspacing='0' style='font-size:8.5pt; color:#334155; margin-top:5px;'><tr>";
+        html += "<td><font color='#16a34a'>&#9632;</font> " + tr("&#8805;95% normal") + ": <b style='color:#0f172a;'>" + QString::number(z.pctGe95, 'f', 0) + "%</b></td>";
+        html += "<td><font color='#ca8a04'>&#9632;</font> " + tr("90&#8211;95% mild") + ": <b style='color:#0f172a;'>" + QString::number(z.pct90to95, 'f', 0) + "%</b></td>";
+        html += "<td><font color='#dc2626'>&#9632;</font> " + tr("&lt;90% low") + ": <b style='color:#0f172a;'>" + QString::number(z.pctLt90, 'f', 0) + "%</b></td>";
+        html += "</tr></table>";
+        html += "<table width='100%' cellpadding='2' cellspacing='0' style='font-size:9pt; color:#334155; margin-top:8px; border-collapse:collapse;'>";
+        html += "<tr><td style='border-top:1px solid #eef2f7;'>" + tr("Oxygen Desaturation Index") + " <font color='#64748b'>(" + tr("&#8805;%1% dips per hour").arg(QString::number(dropPct, 'f', 0)) + ")</font></td><td align='right' style='border-top:1px solid #eef2f7;'><b style='color:#0f172a;'>" + QString::number(odi, 'f', 1) + " / hr</b></td><td style='border-top:1px solid #eef2f7; padding-left:24px;'>" + tr("Lowest oxygen") + "</td><td align='right' style='border-top:1px solid #eef2f7;'><b style='color:#ef4444;'>" + (minSpO2 > 0.0 ? QString::number(minSpO2, 'f', 0) + "%" : tr("N/A")) + "</b></td></tr>";
+        html += "<tr><td style='border-top:1px solid #eef2f7;'>" + tr("Time below 90%") + "</td><td align='right' style='border-top:1px solid #eef2f7;'><b style='color:#0f172a;'>" + hm(t90Secs) + "</b></td><td style='border-top:1px solid #eef2f7; padding-left:24px;'>" + tr("Average oxygen") + "</td><td align='right' style='border-top:1px solid #eef2f7;'><b style='color:#0f172a;'>" + QString::number(avgSpO2Period, 'f', 0) + "%</b></td></tr>";
+        html += "<tr><td style='border-top:1px solid #eef2f7;'>" + tr("Time below 88%") + "</td><td align='right' style='border-top:1px solid #eef2f7;'><b style='color:#0f172a;'>" + hm(t88Secs) + "</b></td><td style='border-top:1px solid #eef2f7;'></td><td style='border-top:1px solid #eef2f7;'></td></tr>";
         html += "</table>";
         html += "</div>";
 
