@@ -1389,6 +1389,28 @@ QString renderPressureChart(const QMap<QDate, Day*>& daysMap, const QDate& start
         vals.append(v);
         medians.append(med);
     }
+
+    // Prescribed pressure context. Fixed CPAP -> single setpoint; auto -> min/max.
+    bool   isAuto = false;
+    double setMin = 0.0, setMax = 0.0, setFixed = 0.0;
+    for (int i = 0; i < totalDays; ++i) {
+        QDate d = start.addDays(i);
+        if (!daysMap.contains(d) || daysMap[d]->hours(MT_CPAP) <= 0) continue;
+        Day* day = daysMap[d];
+        double mn = day->settings_min(CPAP_PressureMin);
+        double mx = day->settings_max(CPAP_PressureMax);
+        if (mn > 0.0 || mx > 0.0) {           // auto machine reported a window
+            isAuto = true;
+            if (mn > 0.0) setMin = (setMin == 0.0) ? mn : qMin(setMin, mn);
+            if (mx > 0.0) setMax = qMax(setMax, mx);
+        } else {
+            double f = day->settings_max(CPAP_Pressure);
+            if (f > 0.0) setFixed = qMax(setFixed, f);
+        }
+    }
+
+    if (isAuto) maxVal = qMax(maxVal, setMax);
+    else        maxVal = qMax(maxVal, setFixed);
     double yMax = qCeil(maxVal / 4.0) * 4.0;
     if (yMax < 12.0) yMax = 12.0;
 
@@ -1414,6 +1436,18 @@ QString renderPressureChart(const QMap<QDate, Day*>& daysMap, const QDate& start
     drawXAxisLabels(painter, chartRect, totalDays, colWidth, start, c.canvasW);
 
     drawBars(painter, chartRect, totalDays, vals, yMax, QColor("#3b82f6"), 0.0, QColor(), medians, yMin);
+
+    QList<LegendItem> legend = { { 0, QColor("#3b82f6"), "95th percentile" },
+                                 { 1, QColor("#0f172a"), "median" } };
+    if (isAuto && setMax > 0.0) {
+        drawThresholdLine(painter, chartRect, yMax, setMax, QColor("#64748b"), yMin);
+        if (setMin > yMin) drawThresholdLine(painter, chartRect, yMax, setMin, QColor("#64748b"), yMin);
+        legend.append({ 2, QColor("#64748b"), "set min / max" });
+    } else if (setFixed > 0.0) {
+        drawThresholdLine(painter, chartRect, yMax, setFixed, QColor("#64748b"), yMin);
+        legend.append({ 2, QColor("#64748b"), "set pressure" });
+    }
+    drawLegend(painter, chartRect, legend, /*topRight=*/true);
 
     return c.finish();
 }
