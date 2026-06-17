@@ -18,9 +18,9 @@
   ```
   cd /Users/adriangarett.sian/oscar-code/build-test
   /opt/homebrew/bin/qmake ../oscar/oscar.pro CONFIG+=test && make -j8
-  ./OSCAR20.app/Contents/MacOS/OSCAR20 <testFunctionName>
+  ./test <testFunctionName>
   ```
-  The AutoTest collector forwards argv to `QTest::qExec`, so `<testFunctionName>` runs only that slot. Omit it to run all tests.
+  The AutoTest collector forwards argv to `QTest::qExec`, so `<testFunctionName>` runs only that slot. Omit it to run all tests (`./test`).
 
 ---
 

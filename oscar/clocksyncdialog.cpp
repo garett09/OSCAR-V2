@@ -170,6 +170,8 @@ void ClockSyncDialog::onAnalyze()
                               "line may be wrong across it; consider narrowing the range.")
                               .arg(m_drift.jumpMs / 1000.0, 0, 'f', 0)
                               .arg(m_drift.jumpDate.toString(Qt::ISODate));
+        msg += " " + tr("Nights before %1 are left uncorrected (the model is not extrapolated backward).")
+                         .arg(m_drift.refDate.toString(Qt::ISODate));
         msg += " " + tr("Saves a drift correction to the CPAP. Re-run periodically as drift grows.");
     } else {
         msg = tr("Constant offset: %1 s (median of %2 nights, ± %3 s).")
