@@ -1330,6 +1330,11 @@ QString renderLeakChart(const QMap<QDate, Day*>& daysMap, const QDate& start, co
 
     drawYGridAndLabels(painter, chartRect, yMax, 4);
 
+    if (redline > 0.0)
+        drawReferenceBands(painter, chartRect, 0.0, yMax,
+                           { { 0.0,     redline, QColor(34, 197, 94, 30) },   // good seal
+                             { redline, yMax,    QColor(239, 68, 68, 26) } }); // elevated
+
     double colWidth = static_cast<double>(chartRect.width()) / totalDays;
     drawXGridLines(painter, chartRect, totalDays, colWidth, start);
     drawXAxisLabels(painter, chartRect, totalDays, colWidth, start, c.canvasW);
@@ -1354,6 +1359,12 @@ QString renderLeakChart(const QMap<QDate, Day*>& daysMap, const QDate& start, co
         painter.drawText(QRect(chartRect.right() + 4, ty - 18, 90, 36),
                          Qt::AlignLeft | Qt::AlignVCenter, QString::number(redline, 'f', 0));
     }
+
+    drawLegend(painter, chartRect,
+               { { 0, QColor("#fbbf24"), "95th percentile" },
+                 { 1, QColor("#0f172a"), "median" },
+                 { 2, QColor("#ef4444"), "leak limit" } },
+               /*topRight=*/false);  // right margin holds the redline value
 
     return c.finish();
 }
