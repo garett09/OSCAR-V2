@@ -700,6 +700,49 @@ static QString unitForChannel(ChannelID chanId)
     return "";
 }
 
+// Per-night oximetry summary used to pick the single "worst" night for the
+// Lowest-Oxygen Night trace. Pure data — no Qt rendering.
+struct NightO2Stat {
+    QDate   date;
+    double  nadir;     // lowest valid SpO2 that night (artifact-floored)
+    double  t90Secs;   // seconds below 90% that night
+    bool    valid;     // true only if the night had usable oximetry data
+};
+
+// Returns the index of the worst night: lowest nadir wins; ties broken by most
+// time below 90%, then earliest date. Returns -1 when no night is valid.
+static int selectWorstNightIndex(const QList<NightO2Stat>& nights)
+{
+    int best = -1;
+    for (int i = 0; i < nights.size(); ++i) {
+        const NightO2Stat& n = nights[i];
+        if (!n.valid) continue;
+        if (best < 0) { best = i; continue; }
+        const NightO2Stat& b = nights[best];
+        if (n.nadir < b.nadir) { best = i; }
+        else if (n.nadir == b.nadir && n.t90Secs > b.t90Secs) { best = i; }
+        // equal nadir and t90: keep earlier index (already `best`)
+    }
+    return best;
+}
+
+// SpO2 time-in-zone percentages for the Overnight Oxygen Summary, derived from
+// cumulative "time above threshold" seconds. totalSec = total recording seconds;
+// secAbove95/secAbove90 = cumulative seconds with SpO2 above each threshold.
+struct Spo2ZonePercents { double pctGe95; double pct90to95; double pctLt90; };
+
+static Spo2ZonePercents spo2ZonePercents(double totalSec, double secAbove95, double secAbove90)
+{
+    Spo2ZonePercents z { 0.0, 0.0, 0.0 };
+    if (totalSec <= 0.0) return z;
+    double ge95 = qBound(0.0, secAbove95, totalSec);
+    double ge90 = qBound(ge95, secAbove90, totalSec);   // monotonic: >=95 ⊆ >=90
+    z.pctGe95   = 100.0 * ge95 / totalSec;
+    z.pct90to95 = 100.0 * (ge90 - ge95) / totalSec;
+    z.pctLt90   = 100.0 * (totalSec - ge90) / totalSec;
+    return z;
+}
+
 static void drawChartTitle(QPainter& painter, const QString& title, const QString& unit)
 {
     // Render title inside the CHART_TITLE_H reservation at the top of the SVG canvas.
