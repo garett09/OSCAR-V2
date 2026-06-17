@@ -1615,6 +1615,78 @@ static double calcDayAvgPercentile(ChannelID chan, EventDataType pct,
 // taking the maximum — segmentation OSCAR cannot replicate from imported data —
 // so P99.5 is the artifact guard that keeps "Maximum (avg)" clinically sane.
 
+// Whole-night SpO2 trace for the single worst night of the period. Plots raw
+// OXI_SPO2 samples on a clock-time axis with 90%/88% reference lines and
+// desaturation marks; gaps (inter-session + probe-loss) are drawn as gaps so a
+// dropout is never misread as a desaturation.
+static QString renderLowestOxygenNight(Day* day, double nadir, const QString& title)
+{
+    SvgChart c(1, "Lowest-Oxygen Night", title, "%");
+    QPainter& painter = c.painter;
+    const QRect& chartRect = c.chartRect;
+
+    QList<Session*> sessions = day->getSessions(MT_OXIMETER, true);
+    if (sessions.isEmpty()) sessions = day->getSessions(MT_CPAP, true); // SpO2 via CPAP source
+    qint64 tStart = 0, tEnd = 0; bool haveSpan = false;
+    for (Session* s : sessions) {
+        if (!s->channelExists(OXI_SPO2)) continue;
+        qint64 f = s->first(OXI_SPO2), l = s->last(OXI_SPO2);
+        if (!haveSpan) { tStart = f; tEnd = l; haveSpan = true; }
+        else { tStart = qMin(tStart, f); tEnd = qMax(tEnd, l); }
+    }
+    if (!haveSpan || tEnd <= tStart) return c.finish();
+
+    double yMin = qMax(70.0, qMin(85.0, nadir - 5.0));
+    double yMax = 100.0;
+    drawReferenceBands(painter, chartRect, yMin, yMax,
+                       { { 95.0, 100.0, QColor(34, 197, 94, 30) },
+                         { 90.0,  95.0, QColor(234, 179, 8, 26) },
+                         { yMin,  90.0, QColor(239, 68, 68, 22) } });
+    drawYGridAndLabels(painter, chartRect, yMax, 5, yMin);
+    drawThresholdLine(painter, chartRect, yMax, 90.0, QColor("#ef4444"), yMin);
+    if (yMin < 88.0) drawThresholdLine(painter, chartRect, yMax, 88.0, QColor("#f59e0b"), yMin);
+
+    double range = yMax - yMin;
+    double span  = double(tEnd - tStart);
+    auto xFor = [&](qint64 t){ return chartRect.left() + (double(t - tStart) / span) * chartRect.width(); };
+    auto yFor = [&](double v){ return chartRect.bottom() - ((qBound(yMin, v, yMax) - yMin) / range) * chartRect.height(); };
+
+    // SpO2 trace — break the line across inter-session gaps and probe-loss spans.
+    painter.setPen(QPen(QColor("#16a34a"), 2.0));
+    const double GAP_MS = 120000.0;  // >2 min without a sample => gap
+    for (Session* s : sessions) {
+        if (!s->channelExists(OXI_SPO2)) continue;
+        const QVector<EventList*>& evs = s->eventlist.value(OXI_SPO2);
+        for (EventList* el : evs) {
+            QPointF prev; bool havePrev = false; qint64 prevT = 0;
+            for (quint32 i = 0; i < el->count(); ++i) {
+                double v = el->data(i);
+                qint64 t = el->time(i);
+                if (v <= SPO2_ARTIFACT_FLOOR) { havePrev = false; continue; } // probe loss = gap
+                QPointF p(xFor(t), yFor(v));
+                if (havePrev && (t - prevT) <= GAP_MS) painter.drawLine(prev, p);
+                prev = p; prevT = t; havePrev = true;
+            }
+        }
+    }
+
+    // Scored desaturations as small marks on a row beneath the trace.
+    painter.setPen(Qt::NoPen); painter.setBrush(QColor("#0f172a"));
+    for (Session* s : sessions) {
+        if (!s->channelExists(OXI_SPO2Drop)) continue;
+        const QVector<EventList*>& evs = s->eventlist.value(OXI_SPO2Drop);
+        for (EventList* el : evs) {
+            for (quint32 i = 0; i < el->count(); ++i) {
+                double x = xFor(el->time(i));
+                double y = chartRect.bottom() + 6;
+                QPainterPath tri; tri.moveTo(x - 4, y); tri.lineTo(x + 4, y); tri.lineTo(x, y + 7); tri.closeSubpath();
+                painter.drawPath(tri);
+            }
+        }
+    }
+    return c.finish();
+}
+
 } // namespace
 
 // ---- True-vector chart embedding (see ChartObjectHandler in the header) ----
@@ -2482,6 +2554,60 @@ void ComplianceReport::exportReport(QWidget *parent)
         }
     }
  
+    // Overnight oxygen detail (summary + worst-night trace) — placed in the
+    // channel-trends whitespace; oximetry-only, so non-oximetry reports are
+    // unchanged. The desaturation/zone indices are computed in the later stats
+    // section, so derive the few we need here.
+    if (usedDaysOxi > 0) {
+        double oximeterHrs = 0.0;
+        for (Day* d : oxiDaysMap)
+            for (Session* sess : d->getSessions(oxiSourceType))
+                oximeterHrs += sess->hours();
+        double odi = oximeterHrs > 0 ? p_profile->calcCount(OXI_SPO2Drop, oxiSourceType, start, end) / oximeterHrs : 0.0;
+        double t88Secs = calcFilteredStats(OXI_SPO2, oxiSourceType, start, end, SPO2_ARTIFACT_FLOOR, 88.0).timeBelowSecs;
+        double secAbove95 = 0.0, secAbove90 = 0.0;
+        for (Day* d : oxiDaysMap) {
+            secAbove95 += d->timeAboveThreshold(OXI_SPO2, 95.0) * 60.0;
+            secAbove90 += d->timeAboveThreshold(OXI_SPO2, 90.0) * 60.0;
+        }
+        Spo2ZonePercents z = spo2ZonePercents(spo2RecordingSecs, secAbove95, secAbove90);
+        auto hm = [](double secs) -> QString { return QString::number(int(secs / 60.0)) + " min"; };
+
+        html += "<div style='page-break-inside:avoid; margin-top:10pt;'>";
+        html += "<div style='font-size:11pt; font-weight:700; color:#0f172a; margin-bottom:2px;'>" + tr("Overnight Oxygen Summary") + "</div>";
+        html += "<div style='font-size:8.5pt; color:#64748b; margin-bottom:4px;'>" + tr("Percent of night at each oxygen level") + "</div>";
+        html += "<table width='100%' cellspacing='0' cellpadding='0' style='height:18px; border-collapse:collapse;'><tr>";
+        if (z.pctGe95 > 0.5)   html += "<td style='background:#22c55e; color:#ffffff; font-size:8pt; text-align:center; width:" + QString::number(z.pctGe95, 'f', 0) + "%;'>" + tr("Normal &#8805;95%") + " &middot; " + QString::number(z.pctGe95, 'f', 0) + "%</td>";
+        if (z.pct90to95 > 0.5) html += "<td style='background:#eab308; color:#ffffff; font-size:8pt; text-align:center; width:" + QString::number(z.pct90to95, 'f', 0) + "%;'>90&#8211;95%</td>";
+        if (z.pctLt90 > 0.5)   html += "<td style='background:#ef4444; color:#ffffff; font-size:8pt; text-align:center; width:" + QString::number(z.pctLt90, 'f', 0) + "%;'>&lt;90%</td>";
+        html += "</tr></table>";
+        html += "<table width='100%' cellpadding='0' cellspacing='0' style='font-size:9pt; color:#334155; margin-top:4px;'>";
+        html += "<tr><td>" + tr("Oxygen Desaturation Index (&#8805;3% drops)") + ": <b style='color:#0f172a;'>" + QString::number(odi, 'f', 1) + " / hr</b></td><td>" + tr("Lowest oxygen") + ": <b style='color:#0f172a;'>" + (minSpO2 > 0.0 ? QString::number(minSpO2, 'f', 0) + "%" : tr("N/A")) + "</b></td><td>" + tr("Average") + ": <b style='color:#0f172a;'>" + QString::number(avgSpO2Period, 'f', 0) + "%</b></td></tr>";
+        html += "<tr><td>" + tr("Time below 90%") + ": <b style='color:#0f172a;'>" + hm(t90Secs) + "</b></td><td>" + tr("Time below 88%") + ": <b style='color:#0f172a;'>" + hm(t88Secs) + "</b></td><td></td></tr>";
+        html += "</table>";
+        html += "</div>";
+
+        // Worst-night trace: pick the night with the lowest nadir (ties: most T90).
+        QList<NightO2Stat> nights; QList<Day*> dayPtrs;
+        for (auto it = oxiDaysMap.constBegin(); it != oxiDaysMap.constEnd(); ++it) {
+            QDate dt = it.key(); Day* d = it.value();
+            NightO2Stat n { dt, 0.0, 0.0, false };
+            if (d && d->channelExists(OXI_SPO2)) {
+                FilteredStats fs = calcFilteredStats(OXI_SPO2, oxiSourceType, dt, dt, SPO2_ARTIFACT_FLOOR, 90.0);
+                if (fs.found) { n.nadir = fs.min; n.t90Secs = fs.timeBelowSecs; n.valid = true; }
+            }
+            nights.append(n); dayPtrs.append(d);
+        }
+        int wi = selectWorstNightIndex(nights);
+        if (wi >= 0) {
+            const NightO2Stat& wn = nights[wi];
+            QString ttl = tr("Lowest-Oxygen Night") + " — " + wn.date.toString("MMM d");
+            QString url = renderLowestOxygenNight(dayPtrs[wi], wn.nadir, ttl);
+            QString caption = "<div style='font-size:8pt; color:#94a3b8;'>" + tr("single night · lowest reading %1% of the period").arg(QString::number(wn.nadir, 'f', 0)) + "</div>";
+            html += makeChartBlockHtml(url, caption, displayW, displayH, STATS_COL_W, chartRegistry);
+        }
+    }
+
     // Page 2 Footer
     html += "<div style='font-size: 8.5pt; color: #94a3b8; margin-top: 10pt; border-top: 1px solid #f1f5f9; padding-top: 4px;'>"
             + tr("Printed on %1 - OSCAR Sleep Insights Report - OSCAR %2").arg(QDateTime::currentDateTime().toString("MMM d, yyyy")).arg(getVersion().minimalString())
