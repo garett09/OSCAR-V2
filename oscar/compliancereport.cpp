@@ -1250,11 +1250,11 @@ QString renderAhiChart(const QMap<QDate, Day*>& daysMap, const QDate& start, con
     else if (maxAhi > 0.5)  yMax = 2.0;
     else                    yMax = 1.0;
 
-    drawYGridAndLabels(painter, chartRect, yMax, 5);
-
     if (yMax >= 5.0)
         drawReferenceBands(painter, chartRect, 0.0, yMax,
                            { { 0.0, 5.0, QColor(34, 197, 94, 38) } }); // controlled ≤5
+
+    drawYGridAndLabels(painter, chartRect, yMax, 5);
 
     double colWidth = static_cast<double>(chartRect.width()) / totalDays;
     drawXGridLines(painter, chartRect, totalDays, colWidth, start);
@@ -1328,12 +1328,12 @@ QString renderLeakChart(const QMap<QDate, Day*>& daysMap, const QDate& start, co
     double yMax = qCeil(maxVal / 5.0) * 5.0;
     if (yMax < 10.0) yMax = 10.0;
 
-    drawYGridAndLabels(painter, chartRect, yMax, 4);
-
     if (redline > 0.0)
         drawReferenceBands(painter, chartRect, 0.0, yMax,
                            { { 0.0,     redline, QColor(34, 197, 94, 30) },   // good seal
                              { redline, yMax,    QColor(239, 68, 68, 26) } }); // elevated
+
+    drawYGridAndLabels(painter, chartRect, yMax, 4);
 
     double colWidth = static_cast<double>(chartRect.width()) / totalDays;
     drawXGridLines(painter, chartRect, totalDays, colWidth, start);
@@ -1540,14 +1540,14 @@ QString renderChannelBarChart(ChannelID chanId, const QColor& barColor,
         }
     }
 
-    drawYGridAndLabels(painter, chartRect, yMax, 4, yMin);
-
     if (chanId == OXI_SPO2) {
         drawReferenceBands(painter, chartRect, yMin, yMax,
                            { { 95.0, 100.0, QColor(34, 197, 94, 34) },   // normal
                              { 90.0,  95.0, QColor(234, 179, 8, 30) },   // mild
                              { yMin,  90.0, QColor(239, 68, 68, 26) } }); // concern
     }
+
+    drawYGridAndLabels(painter, chartRect, yMax, 4, yMin);
 
     double colWidth = static_cast<double>(chartRect.width()) / totalDays;
     drawXGridLines(painter, chartRect, totalDays, colWidth, start);
@@ -1652,6 +1652,12 @@ static QString renderLowestOxygenNight(Day* day, double nadir, const QString& ti
     auto yFor = [&](double v){ return chartRect.bottom() - ((qBound(yMin, v, yMax) - yMin) / range) * chartRect.height(); };
 
     // SpO2 trace — break the line across inter-session gaps and probe-loss spans.
+    // Events are lazy-loaded — channelExists/first/last work from summaries, but
+    // eventlist is empty until OpenEvents(). Open for the chosen night, trash after.
+    QList<Session*> opened;
+    for (Session* s : sessions)
+        if (!s->eventsLoaded()) { s->OpenEvents(); opened.append(s); }
+
     painter.setPen(QPen(QColor("#16a34a"), 2.0));
     const double GAP_MS = 120000.0;  // >2 min without a sample => gap
     for (Session* s : sessions) {
@@ -1684,6 +1690,8 @@ static QString renderLowestOxygenNight(Day* day, double nadir, const QString& ti
             }
         }
     }
+
+    for (Session* s : opened) s->TrashEvents();  // restore lazy state
     return c.finish();
 }
 
@@ -2564,6 +2572,7 @@ void ComplianceReport::exportReport(QWidget *parent)
             for (Session* sess : d->getSessions(oxiSourceType))
                 oximeterHrs += sess->hours();
         double odi = oximeterHrs > 0 ? p_profile->calcCount(OXI_SPO2Drop, oxiSourceType, start, end) / oximeterHrs : 0.0;
+        double dropPct = p_profile->oxi ? p_profile->oxi->spO2DropPercentage() : 3.0;  // configured ODI criterion
         double t88Secs = calcFilteredStats(OXI_SPO2, oxiSourceType, start, end, SPO2_ARTIFACT_FLOOR, 88.0).timeBelowSecs;
         double secAbove95 = 0.0, secAbove90 = 0.0;
         for (Day* d : oxiDaysMap) {
@@ -2582,7 +2591,7 @@ void ComplianceReport::exportReport(QWidget *parent)
         if (z.pctLt90 > 0.5)   html += "<td style='background:#ef4444; color:#ffffff; font-size:8pt; text-align:center; width:" + QString::number(z.pctLt90, 'f', 0) + "%;'>&lt;90%</td>";
         html += "</tr></table>";
         html += "<table width='100%' cellpadding='0' cellspacing='0' style='font-size:9pt; color:#334155; margin-top:4px;'>";
-        html += "<tr><td>" + tr("Oxygen Desaturation Index (&#8805;3% drops)") + ": <b style='color:#0f172a;'>" + QString::number(odi, 'f', 1) + " / hr</b></td><td>" + tr("Lowest oxygen") + ": <b style='color:#0f172a;'>" + (minSpO2 > 0.0 ? QString::number(minSpO2, 'f', 0) + "%" : tr("N/A")) + "</b></td><td>" + tr("Average") + ": <b style='color:#0f172a;'>" + QString::number(avgSpO2Period, 'f', 0) + "%</b></td></tr>";
+        html += "<tr><td>" + tr("Oxygen Desaturation Index (&#8805;%1% drops)").arg(QString::number(dropPct, 'f', 0)) + ": <b style='color:#0f172a;'>" + QString::number(odi, 'f', 1) + " / hr</b></td><td>" + tr("Lowest oxygen") + ": <b style='color:#0f172a;'>" + (minSpO2 > 0.0 ? QString::number(minSpO2, 'f', 0) + "%" : tr("N/A")) + "</b></td><td>" + tr("Average") + ": <b style='color:#0f172a;'>" + QString::number(avgSpO2Period, 'f', 0) + "%</b></td></tr>";
         html += "<tr><td>" + tr("Time below 90%") + ": <b style='color:#0f172a;'>" + hm(t90Secs) + "</b></td><td>" + tr("Time below 88%") + ": <b style='color:#0f172a;'>" + hm(t88Secs) + "</b></td><td></td></tr>";
         html += "</table>";
         html += "</div>";
