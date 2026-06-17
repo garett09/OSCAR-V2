@@ -1222,20 +1222,22 @@ QString renderAhiChart(const QMap<QDate, Day*>& daysMap, const QDate& start, con
     // AHI excludes RERAs, and including them made bars cross the "AHI 5"
     // threshold line on nights whose true AHI was below 5.
     double maxAhi = 0.5;
-    QList<double> aiVals, hiVals;
+    QList<double> oaVals, caVals, hiVals;
     for (int i = 0; i < totalDays; ++i) {
         QDate d = start.addDays(i);
-        double ai = 0.0, hi = 0.0;
+        double oa = 0.0, ca = 0.0, hi = 0.0;
         if (daysMap.contains(d)) {
             Day* day = daysMap[d];
             double hrs = day->hours(MT_CPAP);
             if (hrs > 0.0) {
-                ai   = (day->count(CPAP_Obstructive) + day->count(CPAP_ClearAirway) + day->count(CPAP_Apnea)) / hrs;
-                hi   = day->count(CPAP_Hypopnea) / hrs;
-                maxAhi = qMax(maxAhi, ai + hi);
+                oa = (day->count(CPAP_Obstructive) + day->count(CPAP_Apnea)) / hrs;
+                ca = day->count(CPAP_ClearAirway) / hrs;
+                hi = day->count(CPAP_Hypopnea) / hrs;
+                maxAhi = qMax(maxAhi, oa + ca + hi);
             }
         }
-        aiVals.append(ai);
+        oaVals.append(oa);
+        caVals.append(ca);
         hiVals.append(hi);
     }
 
@@ -1250,6 +1252,10 @@ QString renderAhiChart(const QMap<QDate, Day*>& daysMap, const QDate& start, con
 
     drawYGridAndLabels(painter, chartRect, yMax, 5);
 
+    if (yMax >= 5.0)
+        drawReferenceBands(painter, chartRect, 0.0, yMax,
+                           { { 0.0, 5.0, QColor(34, 197, 94, 38) } }); // controlled ≤5
+
     double colWidth = static_cast<double>(chartRect.width()) / totalDays;
     drawXGridLines(painter, chartRect, totalDays, colWidth, start);
     drawXAxisLabels(painter, chartRect, totalDays, colWidth, start, c.canvasW);
@@ -1257,36 +1263,34 @@ QString renderAhiChart(const QMap<QDate, Day*>& daysMap, const QDate& start, con
     // Stacked bars (bottom→top): AI (dark indigo), HI (light indigo)
     // Two-pass overdraw: draw each layer top-down so upper colours overwrite lower.
     double barW = chartBarWidth(colWidth);
-    const QColor aiColor("#6366f1");    // indigo   — Apnea Index
-    const QColor hiColor("#a5b4fc");    // lavender — Hypopnea Index
+    const QColor oaColor("#4f46e5"); // obstructive — indigo
+    const QColor caColor("#fb7185"); // central — rose (stands out)
+    const QColor hiColor("#a5b4fc"); // hypopnea — lavender
 
-    // Helper: draw a bar with a rounded top cap
-    auto drawRoundedBar = [&](double x, double y, double w, double h, const QColor& col) {
-        if (h <= 0.0) return;
+    auto drawRoundedBar = [&](double x, double y, double w, double hgt, const QColor& col) {
+        if (hgt <= 0.0) return;
         double r = qMin(3.0, w / 2.0);
-        painter.setBrush(col);
-        painter.setPen(Qt::NoPen);
-        QPainterPath path;
-        path.addRoundedRect(QRectF(x, y, w, h), r, r);
+        painter.setBrush(col); painter.setPen(Qt::NoPen);
+        QPainterPath path; path.addRoundedRect(QRectF(x, y, w, hgt), r, r);
         painter.drawPath(path);
-        if (h > r) painter.fillRect(QRectF(x, y + r, w, h - r), col);
+        if (hgt > r) painter.fillRect(QRectF(x, y + r, w, hgt - r), col);
     };
 
     painter.setPen(Qt::NoPen);
     for (int i = 0; i < totalDays; ++i) {
-        double ai = aiVals[i], hi = hiVals[i];
-        double total = ai + hi;
+        double oa = oaVals[i], ca = caVals[i], hi = hiVals[i];
+        double total = oa + ca + hi;
         if (total <= 0.0) continue;
-        double x    = chartRect.left() + i * colWidth + (colWidth - barW) / 2.0;
+        double x = chartRect.left() + i * colWidth + (colWidth - barW) / 2.0;
         double totalH = (total / yMax) * chartRect.height();
+        double caHiH  = ((ca + hi) / yMax) * chartRect.height();
         double hiH    = (hi / yMax) * chartRect.height();
         if (totalH < 1.0) totalH = 1.0;
         double yTop = chartRect.bottom() - totalH;
-
-        // Pass 1: full bar in AI color (rounded top — may be overdrawn)
-        drawRoundedBar(x, yTop, barW, totalH, aiColor);
-        // Pass 2: overdraw HI portion in HI color
-        if (hiH > 0.0) drawRoundedBar(x, yTop, barW, hiH, hiColor);
+        // overdraw top-down: full(OA) → (CA+HI) → HI
+        drawRoundedBar(x, yTop, barW, totalH, oaColor);
+        if (caHiH > 0.0) drawRoundedBar(x, yTop, barW, caHiH, caColor);
+        if (hiH   > 0.0) drawRoundedBar(x, yTop, barW, hiH,   hiColor);
     }
 
     drawThresholdLine(painter, chartRect, yMax, 5.0, QColor("#10b981"));
@@ -1297,6 +1301,12 @@ QString renderAhiChart(const QMap<QDate, Day*>& daysMap, const QDate& start, con
         painter.drawText(QRect(chartRect.right() + 4, ty - 18, 90, 36),
                          Qt::AlignLeft | Qt::AlignVCenter, "AHI 5");
     }
+
+    drawLegend(painter, chartRect,
+               { { 0, oaColor, "Obstructive" },
+                 { 0, caColor, "Central" },
+                 { 0, hiColor, "Hypopnea" } },
+               /*topRight=*/false);  // right margin holds the "AHI 5" label
 
     return c.finish();
 }
