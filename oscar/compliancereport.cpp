@@ -1559,15 +1559,16 @@ QString renderChannelBarChart(ChannelID chanId, const QColor& barColor,
     if (chanId == OXI_SPO2) {
         auto yOf = [&](double v){ return chartRect.bottom() - static_cast<int>(((v - yMin) / (yMax - yMin)) * chartRect.height()); };
         painter.setFont(QFont("SF Pro Display", 24));
-        drawThresholdLine(painter, chartRect, yMax, 90.0, QColor("#ef4444"), yMin);
-        if (90.0 > yMin && 90.0 < yMax) {            // label the desaturation line
-            painter.setPen(QColor("#ef4444"));
+        // 90% = first warning (amber); 88% = more severe O2-qualifying low (red).
+        drawThresholdLine(painter, chartRect, yMax, 90.0, QColor("#f59e0b"), yMin);
+        if (90.0 > yMin && 90.0 < yMax) {
+            painter.setPen(QColor("#f59e0b"));
             painter.drawText(QRect(chartRect.right() + 8, yOf(90.0) - 34, 150, 30),
                              Qt::AlignLeft | Qt::AlignVCenter, "90%");
         }
-        if (yMin < 88.0) {                            // 88% O2-qualifying line
-            drawThresholdLine(painter, chartRect, yMax, 88.0, QColor("#f59e0b"), yMin);
-            painter.setPen(QColor("#f59e0b"));
+        if (yMin < 88.0) {
+            drawThresholdLine(painter, chartRect, yMax, 88.0, QColor("#ef4444"), yMin);
+            painter.setPen(QColor("#ef4444"));
             painter.drawText(QRect(chartRect.right() + 8, yOf(88.0) + 4, 150, 30),
                              Qt::AlignLeft | Qt::AlignVCenter, "88%");
         }
@@ -1654,8 +1655,8 @@ static QString renderLowestOxygenNight(Day* day, double nadir, const QString& ti
                          { 90.0,  95.0, QColor(234, 179, 8, 26) },
                          { yMin,  90.0, QColor(239, 68, 68, 22) } });
     drawYGridAndLabels(painter, chartRect, yMax, 5, yMin);
-    drawThresholdLine(painter, chartRect, yMax, 90.0, QColor("#ef4444"), yMin);
-    if (yMin < 88.0) drawThresholdLine(painter, chartRect, yMax, 88.0, QColor("#f59e0b"), yMin);
+    drawThresholdLine(painter, chartRect, yMax, 90.0, QColor("#f59e0b"), yMin);  // amber = first warning
+    if (yMin < 88.0) drawThresholdLine(painter, chartRect, yMax, 88.0, QColor("#ef4444"), yMin);  // red = severe
 
     double range = yMax - yMin;
     double span  = double(tEnd - tStart);
