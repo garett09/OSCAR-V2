@@ -291,6 +291,20 @@ static QString getSettingStr(Day* day, ChannelID cid) {
 static const double SPO2_ARTIFACT_FLOOR  = 40.0;  // % (probe-loss reads ~0)
 static const double PULSE_ARTIFACT_FLOOR = 30.0;  // bpm
 
+// Upper-percentile preference, read from the profile so the report matches
+// OSCAR's own Daily/Overview "95%" calc. ResMed locks this at 95%.
+static double upperPctValue()
+{
+    if (!p_profile) return 0.95;
+    return qBound(0.50, p_profile->general->prefCalcPercentile() / 100.0, 0.999);
+}
+
+static QString upperPctLabel()   // e.g. "95th"
+{
+    double p = p_profile ? p_profile->general->prefCalcPercentile() : 95.0;
+    return QString::number(qRound(p)) + QStringLiteral("th");
+}
+
 // Single-pass collector for the dropout-filtered oximetry statistics. The four
 // quantities the report needs — min, max, time-weighted mean, and seconds spent
 // below a threshold — all derive from one walk over the same raw event samples,
@@ -934,7 +948,7 @@ static QString makeChannelStatsHtml(double median, double p95, double max, doubl
 
     addRow(QCoreApplication::translate("ComplianceReport", "Maximum (avg)"),
            QString::number(max,    'f', 1) + u, "#64748b", "#0f172a", false);
-    addRow(QCoreApplication::translate("ComplianceReport", "95th % (avg)"),
+    addRow(upperPctLabel() + QCoreApplication::translate("ComplianceReport", " % (avg)"),
            QString::number(p95,    'f', 1) + u, accentHex, accentHex, true);
     addRow(QCoreApplication::translate("ComplianceReport", "Median (avg)"),
            QString::number(median, 'f', 1) + u, "#0f172a", "#0f172a", true);
@@ -1115,7 +1129,7 @@ static QString makePressureStatsHtml(Day* lastDay, double avgPressure, double p9
         addRow(QCoreApplication::translate("ComplianceReport", "Maximum (avg)"),
                QString::number(maxPressure, 'f', 1),
                "#64748b", "#0f172a", true);
-        addRow(QCoreApplication::translate("ComplianceReport", "95th % (avg)"),
+        addRow(upperPctLabel() + QCoreApplication::translate("ComplianceReport", " % (avg)"),
                QString::number(p95Pressure, 'f', 1),
                "#0ea5e9", "#0ea5e9", true, true);
         addRow(QCoreApplication::translate("ComplianceReport", "Median (avg)"),
@@ -1324,7 +1338,7 @@ QString renderLeakChart(const QMap<QDate, Day*>& daysMap, const QDate& start, co
     for (int i = 0; i < totalDays; ++i) {
         QDate d = start.addDays(i);
         if (daysMap.contains(d) && leakChan != NoChannel && daysMap[d]->hours(MT_CPAP) > 0)
-            maxVal = qMax(maxVal, (double)daysMap[d]->percentile(leakChan, 0.95));
+            maxVal = qMax(maxVal, (double)daysMap[d]->percentile(leakChan, upperPctValue()));
     }
     double yMax = qCeil(maxVal / 5.0) * 5.0;
     if (yMax < 10.0) yMax = 10.0;
@@ -1345,7 +1359,7 @@ QString renderLeakChart(const QMap<QDate, Day*>& daysMap, const QDate& start, co
     for (int i = 0; i < totalDays; ++i) {
         QDate d = start.addDays(i);
         double v = (daysMap.contains(d) && leakChan != NoChannel && daysMap[d]->hours(MT_CPAP) > 0)
-                   ? (double)daysMap[d]->percentile(leakChan, 0.95) : 0.0;
+                   ? (double)daysMap[d]->percentile(leakChan, upperPctValue()) : 0.0;
         double med = (daysMap.contains(d) && leakChan != NoChannel && daysMap[d]->hours(MT_CPAP) > 0)
                    ? (double)daysMap[d]->percentile(leakChan, 0.5) : 0.0;
         vals.append(v);
@@ -1362,7 +1376,7 @@ QString renderLeakChart(const QMap<QDate, Day*>& daysMap, const QDate& start, co
     }
 
     drawLegend(painter, chartRect,
-               { { 0, QColor("#fbbf24"), "95th percentile" },
+               { { 0, QColor("#fbbf24"), upperPctLabel() + " percentile" },
                  { 1, QColor("#0f172a"), "median" },
                  { 2, QColor("#ef4444"), "leak limit" } },
                /*topRight=*/false);  // right margin holds the redline value
@@ -1384,7 +1398,7 @@ QString renderPressureChart(const QMap<QDate, Day*>& daysMap, const QDate& start
     for (int i = 0; i < totalDays; ++i) {
         QDate d = start.addDays(i);
         bool hasData = daysMap.contains(d) && pressChan != NoChannel && daysMap[d]->hours(MT_CPAP) > 0;
-        double v   = hasData ? (double)daysMap[d]->percentile(pressChan, 0.95) : 0.0;
+        double v   = hasData ? (double)daysMap[d]->percentile(pressChan, upperPctValue()) : 0.0;
         double med = hasData ? (double)daysMap[d]->percentile(pressChan, 0.5)  : 0.0;
         if (hasData) maxVal = qMax(maxVal, v);
         vals.append(v);
@@ -1438,7 +1452,7 @@ QString renderPressureChart(const QMap<QDate, Day*>& daysMap, const QDate& start
 
     drawBars(painter, chartRect, totalDays, vals, yMax, QColor("#3b82f6"), 0.0, QColor(), medians, yMin);
 
-    QList<LegendItem> legend = { { 0, QColor("#3b82f6"), "95th percentile" },
+    QList<LegendItem> legend = { { 0, QColor("#3b82f6"), upperPctLabel() + " percentile" },
                                  { 1, QColor("#0f172a"), "median" } };
     if (isAuto && setMax > 0.0) {
         drawThresholdLine(painter, chartRect, yMax, setMax, QColor("#64748b"), yMin);
@@ -1467,7 +1481,7 @@ QString renderChannelBarChart(ChannelID chanId, const QColor& barColor,
     // SpO2: bars show nightly median (P50) — clinically expected, matches doctor's mental model.
     // P5 tick marks the nightly desaturation low inside each bar (artifact-resistant near-worst).
     // All other channels: bars = P95, tick = P50.
-    const double barPct  = (chanId == OXI_SPO2) ? 0.50 : 0.95;
+    const double barPct  = (chanId == OXI_SPO2) ? 0.50 : upperPctValue();
     const bool   showTick = true;
 
     double maxVal = 1.0;
@@ -1581,7 +1595,7 @@ QString renderChannelBarChart(ChannelID chanId, const QColor& barColor,
                    /*topRight=*/false);
     } else {
         drawLegend(painter, chartRect,
-                   { { 0, barColor,          "95th percentile" },
+                   { { 0, barColor,          upperPctLabel() + " percentile" },
                      { 1, QColor("#0f172a"), "median" } },
                    /*topRight=*/true);
     }
@@ -1619,13 +1633,38 @@ static double calcDayAvgPercentile(ChannelID chan, EventDataType pct,
     return count > 0 ? sum / count : 0.0;
 }
 
-// "Maximum (avg)" is DELIBERATELY the 99.5th percentile, not Day::Max.
-// The raw nightly maximum is dominated by non-therapy artifacts: removing the
-// mask while the blower runs spikes leak to 60+ L/min, and the same transition
-// produces absurd tidal volume (>1000 ml) and respiratory rate (50+ br/min)
-// readings. ResMed's AirView avoids this by excluding mask-off spans before
-// taking the maximum — segmentation OSCAR cannot replicate from imported data —
-// so P99.5 is the artifact guard that keeps "Maximum (avg)" clinically sane.
+// "Maximum (avg)" — averaged per night like calcDayAvgPercentile, but mirrors
+// OSCAR's max-calc preference (day.cpp): P99.5 when the percentile-max option is
+// set (default/locked for ResMed), else the true per-night maximum.
+static double calcDayAvgMax(ChannelID chan, const QMap<QDate, Day*>& daysMap,
+                            MachineType mt = MT_CPAP)
+{
+    const bool usePct = p_profile && p_profile->general->prefCalcMax() != 0;
+    double sum = 0.0;
+    int count = 0;
+    for (auto it = daysMap.constBegin(); it != daysMap.constEnd(); ++it) {
+        Day* day = it.value();
+        if (!day) continue;
+        bool hasData = (mt == MT_OXIMETER || mt == MT_UNKNOWN)
+            ? day->timeAboveThreshold(chan, 0.0) > 0.0
+            : day->hours(mt) > 0.0;
+        if (!hasData) continue;
+        if (!day->channelHasData(chan)) continue;
+        sum += usePct ? day->percentile(chan, 0.995) : day->Max(chan);
+        count++;
+    }
+    return count > 0 ? sum / count : 0.0;
+}
+
+// "Maximum (avg)" follows OSCAR's max-calc preference (see calcDayAvgMax):
+// the P99.5 percentile by default (and always for ResMed, where the pref is
+// locked), or the true per-night maximum if the user selects "True Maximum".
+// P99.5 is the default because the raw nightly maximum is dominated by
+// non-therapy artifacts: removing the mask while the blower runs spikes leak to
+// 60+ L/min, and the same transition produces absurd tidal volume (>1000 ml) and
+// respiratory rate (50+ br/min). ResMed's AirView avoids this by excluding
+// mask-off spans before taking the maximum — segmentation OSCAR cannot replicate
+// from imported data — so P99.5 keeps "Maximum (avg)" clinically sane.
 
 // Whole-night SpO2 trace for the single worst night of the period. Plots raw
 // OXI_SPO2 samples on a clock-time axis with 90%/88% reference lines and
@@ -1936,14 +1975,14 @@ void ComplianceReport::exportReport(QWidget *parent)
     double maxLeak = 0.0;
     if (leakChan != NoChannel) {
         medianLeak = calcDayAvgPercentile(leakChan, 0.5,  daysMap);
-        p95Leak    = calcDayAvgPercentile(leakChan, 0.95, daysMap);
-        maxLeak    = calcDayAvgPercentile(leakChan, 0.995, daysMap);  // P99.5: see artifact-guard note above
+        p95Leak    = calcDayAvgPercentile(leakChan, upperPctValue(), daysMap);
+        maxLeak    = calcDayAvgMax(leakChan, daysMap);  // respects OSCAR's max-calc pref (P99.5 or true max)
     }
 
     // 95th percentile flow limitation
     double p95FlowLimit = 0.0;
     if (p_profile->hasChannel(CPAP_FLG))
-        p95FlowLimit = calcDayAvgPercentile(CPAP_FLG, 0.95, daysMap);  // per-night avg, consistent with all other channels
+        p95FlowLimit = calcDayAvgPercentile(CPAP_FLG, upperPctValue(), daysMap);  // per-night avg, consistent with all other channels
 
     // Apnea Time and Leak Redline calculations
     double totalApneaSecs = p_profile->calcSum(CPAP_ClearAirway, MT_CPAP, start, end) +
@@ -2110,8 +2149,8 @@ void ComplianceReport::exportReport(QWidget *parent)
     double maxPressure = 0.0;
     if (p_profile->hasChannel(CPAP_Pressure)) {
         avgPressure = calcDayAvgPercentile(CPAP_Pressure, 0.5,  daysMap);
-        p95Pressure = calcDayAvgPercentile(CPAP_Pressure, 0.95, daysMap);
-        maxPressure = calcDayAvgPercentile(CPAP_Pressure, 0.995, daysMap);
+        p95Pressure = calcDayAvgPercentile(CPAP_Pressure, upperPctValue(), daysMap);
+        maxPressure = calcDayAvgMax(CPAP_Pressure, daysMap);
     }
 
     // Render compact bar charts in vector SVG format (no legend inside image)
@@ -2191,7 +2230,7 @@ void ComplianceReport::exportReport(QWidget *parent)
 
         bool hasData = false;
         for (Day* day : useDaysMap) {
-            if (day->timeAboveThreshold(cid, 0.0) > 0.0 && day->percentile(cid, 0.95) > 0.0) {
+            if (day->timeAboveThreshold(cid, 0.0) > 0.0 && day->percentile(cid, upperPctValue()) > 0.0) {
                 hasData = true;
                 break;
             }
@@ -2203,8 +2242,8 @@ void ComplianceReport::exportReport(QWidget *parent)
         QString chanChartUrl = renderChannelBarChart(cid, color, useDaysMap, start, end, ch.label, unit, mtype);
 
         double cMedian = calcDayAvgPercentile(cid, 0.5,  useDaysMap, mtype);
-        double c95     = calcDayAvgPercentile(cid, 0.95, useDaysMap, mtype);
-        double cMax    = calcDayAvgPercentile(cid, 0.995, useDaysMap, mtype);  // P99.5 artifact guard
+        double c95     = calcDayAvgPercentile(cid, upperPctValue(), useDaysMap, mtype);
+        double cMax    = calcDayAvgMax(cid, useDaysMap, mtype);  // respects OSCAR max-calc pref
         // Oximetry channels: exclude sensor dropout artifacts from the minimum.
         // Reuse the period-low values computed once above instead of re-walking.
         double cMin;
@@ -2439,7 +2478,7 @@ void ComplianceReport::exportReport(QWidget *parent)
         html += "<tr>"
                 "<td " + tkL + ">" + tr("Pressure - cmH₂O") + "</td>"
                 "<td " + tkM + ">" + tr("Median: ") + "<b style='color:#0f172a;'>" + QString::number(avgPressure,'f',1) + "</b></td>"
-                "<td " + tkM + ">" + tr("95th percentile: ") + "<b style='color:#0f172a;'>" + QString::number(p95Pressure,'f',1) + "</b></td>"
+                "<td " + tkM + ">" + (upperPctLabel() + tr(" percentile: ")) + "<b style='color:#0f172a;'>" + QString::number(p95Pressure,'f',1) + "</b></td>"
                 "<td " + tkR + ">" + tr("Maximum: ") + "<b style='color:#0f172a;'>" + QString::number(maxPressure,'f',1) + "</b></td>"
                 "</tr>";
     }
@@ -2447,7 +2486,7 @@ void ComplianceReport::exportReport(QWidget *parent)
         html += "<tr>"
                 "<td " + tkL + ">" + leakTypeLabel + tr(" - L/min") + "</td>"
                 "<td " + tkM + ">" + tr("Median: ") + "<b style='color:#0f172a;'>" + QString::number(medianLeak,'f',1) + "</b></td>"
-                "<td " + tkM + ">" + tr("95th percentile: ") + "<b style='color:#0f172a;'>" + QString::number(p95Leak,'f',1) + "</b></td>"
+                "<td " + tkM + ">" + (upperPctLabel() + tr(" percentile: ")) + "<b style='color:#0f172a;'>" + QString::number(p95Leak,'f',1) + "</b></td>"
                 "<td " + tkR + ">" + tr("Maximum: ") + "<b style='color:#0f172a;'>" + QString::number(maxLeak,'f',1) + "</b></td>"
                 "</tr>";
     }
@@ -2539,7 +2578,7 @@ void ComplianceReport::exportReport(QWidget *parent)
         QList<StatsRow> leakRows;
         if (!isTotalLeak)
             leakRows.append({ tr("Set threshold"), QString::number(leakRedline, 'f', 1) + tr(" L/min"), "", false, true });
-        leakRows.append({ tr("95th % (avg)"), QString::number(p95Leak,    'f', 1) + tr(" L/min"), "#f97316", true,  true });
+        leakRows.append({ upperPctLabel() + tr(" % (avg)"), QString::number(p95Leak,    'f', 1) + tr(" L/min"), "#f97316", true,  true });
         leakRows.append({ tr("Median (avg)"), QString::number(medianLeak, 'f', 1) + tr(" L/min"), "#f97316", true,  true });
         leakRows.append({ tr("Max (avg)"),    QString::number(maxLeak,    'f', 1) + tr(" L/min"), "",        false, true });
         QString leakStats = makeStatsRows(leakRows);
@@ -2791,7 +2830,7 @@ void ComplianceReport::exportReport(QWidget *parent)
         html += "<th width='10%' align='left' style='font-size: 9pt; font-weight: 700; color: #ffffff; padding: 2px 5px;'>Unit</th>";
         html += "<th width='15%' align='right' style='font-size: 9pt; font-weight: 700; color: #ffffff; padding: 2px 5px;'>Minimum</th>";
         html += "<th width='15%' align='right' style='font-size: 9pt; font-weight: 700; color: #ffffff; padding: 2px 5px;'>Median</th>";
-        html += "<th width='15%' align='right' style='font-size: 9pt; font-weight: 700; color: #ffffff; padding: 2px 5px;'>95th %</th>";
+        html += "<th width='15%' align='right' style='font-size: 9pt; font-weight: 700; color: #ffffff; padding: 2px 5px;'>" + upperPctLabel() + " %</th>";
         html += "<th width='15%' align='right' style='font-size: 9pt; font-weight: 700; color: #ffffff; padding: 2px 5px;'>Maximum</th>";
         html += "</tr>";
  
@@ -2810,8 +2849,8 @@ void ComplianceReport::exportReport(QWidget *parent)
             else                          cMin = p_profile->calcMin(ch.id, chMt, start, end);
             const QMap<QDate, Day*>& chMap = (chMt == MT_OXIMETER || chMt == MT_UNKNOWN) ? oxiDaysMap : daysMap;
             double cMed = calcDayAvgPercentile(ch.id, 0.5,  chMap, chMt);
-            double c95  = calcDayAvgPercentile(ch.id, 0.95, chMap, chMt);
-            double cMax = calcDayAvgPercentile(ch.id, 0.995, chMap, chMt);  // P99.5 artifact guard
+            double c95  = calcDayAvgPercentile(ch.id, upperPctValue(), chMap, chMt);
+            double cMax = calcDayAvgMax(ch.id, chMap, chMt);  // respects OSCAR max-calc pref
             QString rowBg = (chRowIdx++ % 2 == 0) ? "#ffffff" : "#f8fafc";
  
             QString chUnit = unitForChannel(static_cast<ChannelID>(ch.id));

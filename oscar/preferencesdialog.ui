@@ -1336,7 +1336,7 @@ as this is the only value available on summary-only days.</string>
                       </size>
                      </property>
                      <property name="toolTip">
-                      <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;True maximum is the maximum of the data set.&lt;/p&gt;&lt;p&gt;99th percentile filters out the rarest outliers.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                      <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;True maximum is the maximum of the data set.&lt;/p&gt;&lt;p&gt;99.5th percentile filters out the rarest outliers.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                      </property>
                      <item>
                       <property name="text">
@@ -1345,7 +1345,7 @@ as this is the only value available on summary-only days.</string>
                      </item>
                      <item>
                       <property name="text">
-                       <string>99% Percentile</string>
+                       <string>99.5% Percentile</string>
                       </property>
                      </item>
                     </widget>
