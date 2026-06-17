@@ -199,6 +199,10 @@ public:
     //! \brief Robust linear drift fit over the used nights' recording-window midpoints.
     static DriftLineFit fitDriftLine(const QVector<NightStartDiff>& nights);
 
+    //! \brief Shift a fitted drift line's intercept onto the behaviour-free cross-corr
+    //! offsets (validatorOffsetMs) of validated nights, keeping the window slope.
+    static void anchorIntercept(const QVector<NightStartDiff>& nights, DriftLineFit& fit);
+
 private:
     static QVector<double> buildDensity(const QList<qint64>& eventTimesMs,
                                         qint64 t0Ms, int nBins,

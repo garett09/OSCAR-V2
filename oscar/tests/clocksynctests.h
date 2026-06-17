@@ -36,5 +36,6 @@ private slots:
     void testFitDriftLineRecoversSlope();
     void testFitDriftLineFlatIsNotSignificant();
     void testFitDriftLineDetectsJump();
+    void testAnchorInterceptRemovesBehaviouralBias();
 };
 DECLARE_TEST(ClockSyncTests)

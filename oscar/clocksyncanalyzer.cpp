@@ -530,6 +530,44 @@ DriftLineFit ClockSyncAnalyzer::fitDriftLine(const QVector<NightStartDiff>& nigh
     return fit;
 }
 
+void ClockSyncAnalyzer::anchorIntercept(const QVector<NightStartDiff>& nights, DriftLineFit& fit)
+{
+    if (!fit.valid) return;
+
+    QVector<double> xs, ys;
+    for (const NightStartDiff& n : nights) {
+        if (!n.used || !n.validated) continue;
+        xs.append(double(fit.refDate.daysTo(n.date)));
+        ys.append(double(n.validatorOffsetMs));
+    }
+    if (xs.size() < ANCHOR_MIN_NIGHTS) return;   // too few cross-corr nights -> keep window intercept
+
+    // Refined intercept: median residual of cross-corr offsets against the window slope.
+    QVector<double> shifts(xs.size());
+    for (int i = 0; i < xs.size(); ++i) shifts[i] = ys[i] - fit.slopeMsPerDay * xs[i];
+    qint64 anchored = qRound64(medianD(shifts));
+
+    // Sanity: does a line through the cross-corr offsets share the window slope?
+    QVector<double> ccSlopes;
+    for (int i = 0; i < xs.size(); ++i)
+        for (int j = i + 1; j < xs.size(); ++j)
+            if (xs[j] != xs[i]) ccSlopes.append((ys[j] - ys[i]) / (xs[j] - xs[i]));
+    if (!ccSlopes.isEmpty()) {
+        std::sort(ccSlopes.begin(), ccSlopes.end());
+        double ccSlope = ccSlopes[ccSlopes.size() / 2];
+        fit.anchorSlopeDisagrees =
+            qAbs(ccSlope - fit.slopeMsPerDay) > ANCHOR_SLOPE_TOL_MS_PER_DAY;
+    }
+
+    // Only apply a plausible shift; a wild jump means the streams disagree -> leave & warn.
+    if (qAbs(anchored - fit.offsetAtRefMs) <= ANCHOR_MAX_SHIFT_MS) {
+        fit.offsetAtRefMs = anchored;
+        fit.anchored = true;
+    } else {
+        fit.anchorSlopeDisagrees = true;
+    }
+}
+
 DriftModel ClockSyncAnalyzer::driftToModel(double slopeMsPerDay, qint64 offsetAtRefMs,
                                            const QDate& refDate)
 {

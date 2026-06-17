@@ -431,6 +431,38 @@ void ClockSyncTests::testFitDriftLineDetectsJump()
     QVERIFY(fit.jumpDate <= d0.addDays(16));
 }
 
+void ClockSyncTests::testAnchorInterceptRemovesBehaviouralBias()
+{
+    // Recording-window midpoints carry a +90 s consistent behavioural bias on top of a
+    // true +2000 ms/day drift with true offset 500000 ms at ref. Cross-corr (validator)
+    // sees the behaviour-free truth. Anchoring should pull the intercept down by ~90 s.
+    QVector<NightStartDiff> nights;
+    QDate d0(2026, 5, 1);
+    const qint64 BIAS = 90000, TRUE_OFF = 500000;
+    const double SLOPE = 2000.0;
+    for (int i = 0; i < 20; ++i) {
+        NightStartDiff n;
+        n.date = d0.addDays(i);
+        qint64 trueOff = TRUE_OFF + qint64(SLOPE * i);
+        n.startDiffMs = trueOff + BIAS;        // window method is biased high
+        n.endDiffMs   = trueOff + BIAS;
+        n.used = true;
+        n.validated = true;
+        n.validatorOffsetMs = trueOff;         // cross-corr is unbiased
+        nights.append(n);
+    }
+
+    DriftLineFit fit = ClockSyncAnalyzer::fitDriftLine(nights);
+    QVERIFY(fit.valid);
+    QVERIFY(qAbs(fit.offsetAtRefMs - (TRUE_OFF + BIAS)) < 20000);  // biased before anchor
+
+    ClockSyncAnalyzer::anchorIntercept(nights, fit);
+    QVERIFY(fit.anchored);
+    QVERIFY(!fit.anchorSlopeDisagrees);
+    QVERIFY(qAbs(fit.offsetAtRefMs - TRUE_OFF) < 15000);          // bias removed
+    QVERIFY(qAbs(fit.slopeMsPerDay - SLOPE) < 300.0);             // slope untouched
+}
+
 void ClockSyncTests::testDriftToModelRoundTrip()
 {
     // Build a drift row from a known line, apply it through the REAL correctionMs,
