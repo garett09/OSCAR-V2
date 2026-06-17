@@ -35,5 +35,6 @@ private slots:
     void testDriftToModelRoundTrip();
     void testFitDriftLineRecoversSlope();
     void testFitDriftLineFlatIsNotSignificant();
+    void testFitDriftLineDetectsJump();
 };
 DECLARE_TEST(ClockSyncTests)

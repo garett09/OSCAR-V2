@@ -497,6 +497,36 @@ DriftLineFit ClockSyncAnalyzer::fitDriftLine(const QVector<NightStartDiff>& nigh
     fit.driftSpanMs = qRound64(qAbs(slope) * spanDays);
     fit.significant = fit.driftSpanMs >
                       qMax(qint64(DRIFT_SIGNIFICANCE_K * mad), DRIFT_SIGNIFICANCE_FLOOR_MS);
+
+    // Jump guard: a real clock re-sync shows up as a sustained level shift in the
+    // residuals (a tilted single line splits them into same-signed blocks). Scan every
+    // split with >= JUMP_MIN_SIDE nights on each side; flag the largest significant step.
+    if (n >= 2 * JUMP_MIN_SIDE) {
+        QVector<double> resid(n);
+        for (int i = 0; i < n; ++i) resid[i] = ys[i] - (intercept + slope * xs[i]);
+
+        double bestAbs = 0.0, bestStep = 0.0;
+        int bestK = -1;
+        for (int k = JUMP_MIN_SIDE; k <= n - JUMP_MIN_SIDE; ++k) {
+            double earlyMed = medianD(resid.mid(0, k));
+            double lateMed  = medianD(resid.mid(k, n - k));
+            double step = lateMed - earlyMed;
+            if (qAbs(step) > bestAbs) { bestAbs = qAbs(step); bestStep = step; bestK = k; }
+        }
+        double jumpThresh = qMax(JUMP_RESID_K * mad, double(JUMP_FLOOR_MS));
+        if (bestK >= 0 && bestAbs > jumpThresh) {
+            // Map split index k (in the used-nights sequence) back to its date.
+            int seen = 0;
+            for (const NightStartDiff& nn : nights) {
+                if (!nn.used) continue;
+                if (seen == bestK) { fit.jumpDate = nn.date; break; }
+                ++seen;
+            }
+            fit.hasJump = true;
+            fit.jumpMs  = qRound64(bestStep);
+        }
+    }
+
     return fit;
 }
 
