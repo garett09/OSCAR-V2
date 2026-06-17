@@ -4,43 +4,40 @@
 
 **Goal:** Add clinical reference bands, a central-apnea split, prescribed pressure bounds, inline legends, an Overnight Oxygen Summary, and a worst-night SpO2 trace to the OSCAR compliance report charts — keeping the AirView-faithful bar style, full vector quality, and the 7-page budget.
 
-**Architecture:** All charts are QPainter→SVG embedded as true PDF vectors via `ChartObjectHandler` (compliancereport.cpp). We add two pure, unit-tested helper functions (worst-night selection, SpO2 zone percentages) declared in the header, two new QPainter draw helpers (reference bands, inline legend) in the anonymous namespace, then thread them through the existing render functions and add two new oximetry blocks placed in existing whitespace.
+**Architecture:** All charts are QPainter→SVG embedded as true PDF vectors via `ChartObjectHandler` (compliancereport.cpp). We add two pure file-local helper functions (worst-night selection, SpO2 zone percentages) and two new QPainter draw helpers (reference bands, inline legend) in the anonymous namespace, then thread them through the existing render functions and add two new oximetry blocks placed in existing whitespace.
 
-**Tech Stack:** C++17, Qt 5 (QtGui/QtSvg, QPainter, QSvgGenerator/QSvgRenderer), qmake, QtTest (AutoTest harness).
+**Tech Stack:** C++17, Qt 5 (QtGui/QtSvg, QPainter, QSvgGenerator/QSvgRenderer), qmake.
+
+**No test files.** Per request, this project's existing test suite is NOT extended. The pure helpers live as file-local statics and are verified by compilation and by the visual checks of the charts that consume them.
 
 **Spec:** `docs/superpowers/specs/2026-06-17-compliance-report-chart-upgrades-design.md`
 
 **Build commands (macOS):**
 - App build: `qmake OSCAR_QT.pro && make -j$(sysctl -n hw.ncpu)`
-- Test build/run: `qmake OSCAR_QT.pro CONFIG+=test && make -j$(sysctl -n hw.ncpu)` then run the produced `OSCAR` binary — in `UNITTEST_MODE` it executes all AutoTests and prints `PASS`/`FAIL` per slot.
-- Visual check: launch the normal (non-test) `OSCAR` build, open a profile, run **Export → Compliance Report** (the dialog from `ComplianceReportDialog`), save the PDF, inspect the named page.
+- Visual check: launch the `OSCAR` build, open a profile, run **Export → Compliance Report** (the dialog from `ComplianceReportDialog`), save the PDF, inspect the named page.
 
 ---
 
 ## File Structure
 
-- **Modify** `oscar/compliancereport.h` — declare 2 pure helpers + their small structs (outside any class, so the test file can call them).
-- **Modify** `oscar/compliancereport.cpp` — define the 2 pure helpers; add `drawReferenceBands`/`drawLegend`; edit `renderAhiChart`, `renderLeakChart`, `renderPressureChart`, `renderChannelBarChart`; add `renderLowestOxygenNight`; add the Overnight Oxygen Summary HTML; place the two new blocks.
-- **Create** `oscar/tests/compliancereporttests.h` / `.cpp` — QtTest unit tests for the 2 pure helpers.
-- **Modify** `oscar/oscar.pro` — add the new test sources/headers under the `test {` block.
+- **Modify** `oscar/compliancereport.cpp` — add 2 pure helpers (`selectWorstNightIndex`, `spo2ZonePercents`) + their structs in the **anonymous namespace**; add `drawReferenceBands`/`drawLegend`; edit `renderAhiChart`, `renderLeakChart`, `renderPressureChart`, `renderChannelBarChart`; add `renderLowestOxygenNight`; add the Overnight Oxygen Summary HTML; place the two new blocks.
+
+(No header change, no new test files, no `oscar.pro` change. All helpers are file-local statics in the same translation unit, reachable from both the anonymous-namespace render functions and `ComplianceReport::exportReport`.)
 
 ---
 
-## Task 1: Test scaffold + pure helper `selectWorstNightIndex`
+## Task 1: Pure helper `selectWorstNightIndex`
 
 **Files:**
-- Modify: `oscar/compliancereport.h` (add struct + declaration near top, after includes, before `struct SelectedChannel`)
-- Modify: `oscar/compliancereport.cpp` (add definition after the anonymous namespace closes, i.e. after `} // namespace` at :1437)
-- Create: `oscar/tests/compliancereporttests.h`, `oscar/tests/compliancereporttests.cpp`
-- Modify: `oscar/oscar.pro`
+- Modify: `oscar/compliancereport.cpp` (add struct + static function inside the anonymous namespace, near the top of it — before `renderLowestOxygenNight` which uses it; e.g. just after the `} // ---- Shared QPainter chart helpers ----` region, before the render functions)
 
-- [ ] **Step 1: Declare the helper in the header**
+- [ ] **Step 1: Add the struct + helper in the anonymous namespace**
 
-In `oscar/compliancereport.h`, after the `#include` lines and before `struct SelectedChannel`:
+In `oscar/compliancereport.cpp`, inside the existing anonymous namespace (anywhere before the render functions, e.g. right after `colorForChannel`/`unitForChannel` helpers ~:701), add:
 
 ```cpp
 // Per-night oximetry summary used to pick the single "worst" night for the
-// Lowest-Oxygen Night trace. Pure data — no Qt rendering — so it is unit-tested.
+// Lowest-Oxygen Night trace. Pure data — no Qt rendering.
 struct NightO2Stat {
     QDate   date;
     double  nadir;     // lowest valid SpO2 that night (artifact-floored)
@@ -50,121 +47,7 @@ struct NightO2Stat {
 
 // Returns the index of the worst night: lowest nadir wins; ties broken by most
 // time below 90%, then earliest date. Returns -1 when no night is valid.
-int selectWorstNightIndex(const QList<NightO2Stat>& nights);
-```
-
-- [ ] **Step 2: Create the test file (failing test)**
-
-Create `oscar/tests/compliancereporttests.h`:
-
-```cpp
-/* Compliance Report Unit Tests
- *
- * Copyright (c) 2026 The OSCAR Team
- *
- * This file is subject to the terms and conditions of the GNU General Public
- * License. See the file COPYING in the main directory of the source code
- * for more details. */
-
-#ifndef COMPLIANCEREPORTTESTS_H
-#define COMPLIANCEREPORTTESTS_H
-
-#include "AutoTest.h"
-
-class ComplianceReportTests : public QObject
-{
-    Q_OBJECT
-
-private slots:
-    void testSelectWorstNightIndex();
-    void testSpo2ZonePercents();
-};
-
-DECLARE_TEST(ComplianceReportTests)
-
-#endif // COMPLIANCEREPORTTESTS_H
-```
-
-Create `oscar/tests/compliancereporttests.cpp`:
-
-```cpp
-/* Compliance Report Unit Tests — see header for license. */
-
-#include "compliancereporttests.h"
-#include "../compliancereport.h"
-
-void ComplianceReportTests::testSelectWorstNightIndex()
-{
-    // empty -> -1
-    QCOMPARE(selectWorstNightIndex({}), -1);
-
-    // all invalid -> -1
-    QList<NightO2Stat> allInvalid = {
-        { QDate(2026,5,1), 95.0, 0.0, false },
-        { QDate(2026,5,2), 80.0, 50.0, false },
-    };
-    QCOMPARE(selectWorstNightIndex(allInvalid), -1);
-
-    // distinct nadirs -> lowest nadir wins (index 1)
-    QList<NightO2Stat> distinct = {
-        { QDate(2026,5,1), 92.0, 10.0, true },
-        { QDate(2026,5,2), 75.0, 30.0, true },
-        { QDate(2026,5,3), 88.0, 20.0, true },
-    };
-    QCOMPARE(selectWorstNightIndex(distinct), 1);
-
-    // tie on nadir -> more time below 90% wins (index 2)
-    QList<NightO2Stat> tieNadir = {
-        { QDate(2026,5,1), 85.0, 10.0, true },
-        { QDate(2026,5,2), 90.0,  5.0, true },
-        { QDate(2026,5,3), 85.0, 40.0, true },
-    };
-    QCOMPARE(selectWorstNightIndex(tieNadir), 2);
-
-    // tie on nadir AND t90 -> earliest (lowest index) wins (index 0)
-    QList<NightO2Stat> tieBoth = {
-        { QDate(2026,5,1), 85.0, 10.0, true },
-        { QDate(2026,5,2), 85.0, 10.0, true },
-    };
-    QCOMPARE(selectWorstNightIndex(tieBoth), 0);
-}
-
-void ComplianceReportTests::testSpo2ZonePercents()
-{
-    // placeholder until Task 2 implements spo2ZonePercents()
-    QVERIFY(true);
-}
-```
-
-- [ ] **Step 3: Wire the test into the build**
-
-In `oscar/oscar.pro`, inside the `test {` block, add to the `SOURCES +=` list (after `tests/clocksynctests.cpp`):
-
-```
-        tests/clocksynctests.cpp \
-        tests/compliancereporttests.cpp
-```
-
-and to the `HEADERS +=` list (after `tests/clocksynctests.h`):
-
-```
-        tests/clocksynctests.h \
-        tests/compliancereporttests.h
-```
-
-(Add a trailing `\` to the previous last line of each list.)
-
-- [ ] **Step 4: Build tests and verify the new test FAILS to link/compile**
-
-Run: `qmake OSCAR_QT.pro CONFIG+=test && make -j$(sysctl -n hw.ncpu)`
-Expected: link error — `undefined symbol selectWorstNightIndex` (declared, not defined yet).
-
-- [ ] **Step 5: Implement `selectWorstNightIndex`**
-
-In `oscar/compliancereport.cpp`, immediately after `} // namespace` (:1437), add:
-
-```cpp
-int selectWorstNightIndex(const QList<NightO2Stat>& nights)
+static int selectWorstNightIndex(const QList<NightO2Stat>& nights)
 {
     int best = -1;
     for (int i = 0; i < nights.size(); ++i) {
@@ -180,16 +63,16 @@ int selectWorstNightIndex(const QList<NightO2Stat>& nights)
 }
 ```
 
-- [ ] **Step 6: Build and run tests — verify PASS**
+- [ ] **Step 2: Build the app — verify it compiles**
 
-Run: `qmake OSCAR_QT.pro CONFIG+=test && make -j$(sysctl -n hw.ncpu)` then run the `OSCAR` binary.
-Expected: output contains `PASS   : ComplianceReportTests::testSelectWorstNightIndex()`.
+Run: `qmake OSCAR_QT.pro && make -j$(sysctl -n hw.ncpu)`
+Expected: clean build. (Function is unused until Task 9; if `-Werror` flags the unused static, proceed to Task 9 in the same change before building, or temporarily mark it — but normal `make` of the app target does not enable `-Werror`, which is test-build only.)
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 3: Commit**
 
 ```bash
-git add oscar/compliancereport.h oscar/compliancereport.cpp oscar/tests/compliancereporttests.h oscar/tests/compliancereporttests.cpp oscar/oscar.pro
-git commit -m "feat: add worst-night selection helper for compliance report + test scaffold"
+git add oscar/compliancereport.cpp
+git commit -m "feat: add worst-night selection helper for compliance report"
 ```
 
 ---
@@ -197,65 +80,24 @@ git commit -m "feat: add worst-night selection helper for compliance report + te
 ## Task 2: Pure helper `spo2ZonePercents`
 
 **Files:**
-- Modify: `oscar/compliancereport.h`
-- Modify: `oscar/compliancereport.cpp`
-- Modify: `oscar/tests/compliancereporttests.cpp`
+- Modify: `oscar/compliancereport.cpp` (anonymous namespace, right after `selectWorstNightIndex`)
 
-- [ ] **Step 1: Declare in header**
+- [ ] **Step 1: Add the struct + helper**
 
-In `oscar/compliancereport.h`, after the `selectWorstNightIndex` declaration:
+In `oscar/compliancereport.cpp`, immediately after `selectWorstNightIndex`:
 
 ```cpp
 // SpO2 time-in-zone percentages for the Overnight Oxygen Summary, derived from
-// cumulative "time above threshold" seconds. Pure math — unit-tested.
+// cumulative "time above threshold" seconds. totalSec = total recording seconds;
+// secAbove95/secAbove90 = cumulative seconds with SpO2 above each threshold.
 struct Spo2ZonePercents { double pctGe95; double pct90to95; double pctLt90; };
 
-// totalSec = total SpO2 recording seconds; secAbove95/secAbove90 = cumulative
-// seconds with SpO2 strictly above each threshold. Returns zeros if totalSec<=0.
-Spo2ZonePercents spo2ZonePercents(double totalSec, double secAbove95, double secAbove90);
-```
-
-- [ ] **Step 2: Replace the placeholder test with the real one (failing)**
-
-In `oscar/tests/compliancereporttests.cpp`, replace the body of `testSpo2ZonePercents()`:
-
-```cpp
-void ComplianceReportTests::testSpo2ZonePercents()
-{
-    // no recording -> all zero
-    Spo2ZonePercents z0 = spo2ZonePercents(0.0, 0.0, 0.0);
-    QCOMPARE(z0.pctGe95, 0.0); QCOMPARE(z0.pct90to95, 0.0); QCOMPARE(z0.pctLt90, 0.0);
-
-    // 10h total; 92% >=95, 7% in 90-95, 1% <90
-    double total = 36000.0, above95 = 33120.0, above90 = 35640.0;
-    Spo2ZonePercents z = spo2ZonePercents(total, above95, above90);
-    QVERIFY(qAbs(z.pctGe95   - 92.0) < 1e-6);
-    QVERIFY(qAbs(z.pct90to95 -  7.0) < 1e-6);
-    QVERIFY(qAbs(z.pctLt90   -  1.0) < 1e-6);
-    QVERIFY(qAbs((z.pctGe95 + z.pct90to95 + z.pctLt90) - 100.0) < 1e-6);
-
-    // clamp: inconsistent inputs never produce negatives
-    Spo2ZonePercents zc = spo2ZonePercents(100.0, 120.0, 130.0);
-    QVERIFY(zc.pctGe95 >= 0.0 && zc.pct90to95 >= 0.0 && zc.pctLt90 >= 0.0);
-}
-```
-
-- [ ] **Step 3: Build tests — verify FAIL (undefined symbol)**
-
-Run: `qmake OSCAR_QT.pro CONFIG+=test && make -j$(sysctl -n hw.ncpu)`
-Expected: link error `undefined symbol spo2ZonePercents`.
-
-- [ ] **Step 4: Implement `spo2ZonePercents`**
-
-In `oscar/compliancereport.cpp`, after `selectWorstNightIndex`:
-
-```cpp
-Spo2ZonePercents spo2ZonePercents(double totalSec, double secAbove95, double secAbove90)
+static Spo2ZonePercents spo2ZonePercents(double totalSec, double secAbove95, double secAbove90)
 {
     Spo2ZonePercents z { 0.0, 0.0, 0.0 };
     if (totalSec <= 0.0) return z;
-    double ge95   = qBound(0.0, secAbove95, totalSec);
-    double ge90   = qBound(ge95, secAbove90, totalSec);   // monotonic: >=95 ⊆ >=90
+    double ge95 = qBound(0.0, secAbove95, totalSec);
+    double ge90 = qBound(ge95, secAbove90, totalSec);   // monotonic: >=95 ⊆ >=90
     z.pctGe95   = 100.0 * ge95 / totalSec;
     z.pct90to95 = 100.0 * (ge90 - ge95) / totalSec;
     z.pctLt90   = 100.0 * (totalSec - ge90) / totalSec;
@@ -263,16 +105,18 @@ Spo2ZonePercents spo2ZonePercents(double totalSec, double secAbove95, double sec
 }
 ```
 
-- [ ] **Step 5: Build and run tests — verify PASS**
+Sanity check the math by hand (no automated test per request): total=36000, above95=33120, above90=35640 → 92% / 7% / 1%, summing to 100%.
 
-Run: build with `CONFIG+=test`, run `OSCAR`.
-Expected: `PASS   : ComplianceReportTests::testSpo2ZonePercents()` and Task 1's test still PASS.
+- [ ] **Step 2: Build the app — verify it compiles**
 
-- [ ] **Step 6: Commit**
+Run: `qmake OSCAR_QT.pro && make -j$(sysctl -n hw.ncpu)`
+Expected: clean build.
+
+- [ ] **Step 3: Commit**
 
 ```bash
-git add oscar/compliancereport.h oscar/compliancereport.cpp oscar/tests/compliancereporttests.cpp
-git commit -m "feat: add SpO2 time-in-zone percentage helper + test"
+git add oscar/compliancereport.cpp
+git commit -m "feat: add SpO2 time-in-zone percentage helper"
 ```
 
 ---
@@ -897,10 +741,10 @@ If the trace pushes a page break, place the Overnight Oxygen Summary + Lowest-Ox
 
 Open the PDF, zoom to 400% on the new trace and the Events chart. Confirm lines/text stay crisp (vector), bands sit behind bars, legends don't overlap data.
 
-- [ ] **Step 4: Run the unit tests once more**
+- [ ] **Step 4: Final clean build**
 
-Run: `qmake OSCAR_QT.pro CONFIG+=test && make -j$(sysctl -n hw.ncpu)` then run `OSCAR`.
-Expected: `ComplianceReportTests` both PASS; no AddressSanitizer errors.
+Run: `qmake OSCAR_QT.pro && make -j$(sysctl -n hw.ncpu)`
+Expected: clean build, no warnings introduced by the new code.
 
 - [ ] **Step 5: Commit**
 
@@ -913,6 +757,7 @@ git commit -m "chore: verify page budget and vector quality for chart upgrades"
 
 ## Self-Review (completed during authoring)
 
+- **No test files** per user request: the two pure helpers are file-local statics, verified by compilation + the visual checks of their consuming charts (Tasks 8, 9). The math for `spo2ZonePercents` is sanity-checked by hand in Task 2.
 - **Spec coverage:** reference bands (Tasks 4,5,7,9) · central-apnea split (Task 4) · pressure bounds mode-branched (Task 6) · inline legends (Tasks 4–7) · Overnight Oxygen Summary (Task 8) · Lowest-Oxygen Night trace (Tasks 1,9) · accuracy rules: ODI label note (Task 8), gaps-as-gaps + artifact floor (Task 9), provenance caption (Tasks 8,9), bands only on clinical charts (Task 7 explicitly excludes raw channels) · page budget (Task 10). All spec sections map to a task.
 - **Type consistency:** `NightO2Stat`, `Spo2ZonePercents`, `RefBand`, `LegendItem`, `selectWorstNightIndex`, `spo2ZonePercents`, `drawReferenceBands`, `drawLegend`, `renderLowestOxygenNight` are used with identical signatures across tasks.
 - **Known confirm-at-implementation points (flagged, not placeholders):** exact APAP min/max channel constants (Task 6), `Session` per-channel eventlist accessor names (Task 9), the real desaturation drop threshold for the ODI label (Task 8), and whether `timeAboveThreshold` returns minutes vs seconds in the period loop (Task 8 matches the existing `*60.0` convention at :1750). Each has a stated fallback.
