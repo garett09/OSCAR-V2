@@ -299,10 +299,9 @@ static double upperPctValue()
     return qBound(0.50, p_profile->general->prefCalcPercentile() / 100.0, 0.999);
 }
 
-static QString upperPctLabel()   // e.g. "95th"
+static QString upperPctLabel()   // e.g. "95th"; tied to the clamped value used in math
 {
-    double p = p_profile ? p_profile->general->prefCalcPercentile() : 95.0;
-    return QString::number(qRound(p)) + QStringLiteral("th");
+    return QString::number(qRound(upperPctValue() * 100.0)) + QStringLiteral("th");
 }
 
 // Single-pass collector for the dropout-filtered oximetry statistics. The four
