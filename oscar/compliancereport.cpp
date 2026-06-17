@@ -1027,23 +1027,25 @@ static QString makeAhiStatsHtml(double AHI, double HI, double AI, double Central
            QString::number(HI, 'f', 2),
            "#6366f1", "#6366f1", true);
 
+    // AI is the apnea subtotal (Central+Obstructive+Unknown) — it spans two chart
+    // colors, so no single swatch; its components below carry the chart colors.
     addRow(QCoreApplication::translate("ComplianceReport", "AI"),
-           "<span style='color:#6366f1;'>&#9632;</span>",
+           "",
            QString::number(AI, 'f', 2),
            "#4338ca", "#4338ca", true);
 
     addRow(QCoreApplication::translate("ComplianceReport", "CAI"),
-           "",
+           "<span style='color:#fb7185;'>&#9632;</span>",   // rose = chart Central
            QString::number(CentralAI, 'f', 2),
            "#64748b", "#0f172a");
 
     addRow(QCoreApplication::translate("ComplianceReport", "OAI"),
-           "",
+           "<span style='color:#4f46e5;'>&#9632;</span>",   // indigo = chart Obstructive
            QString::number(ObstructiveAI, 'f', 2),
            "#64748b", "#0f172a");
 
     addRow(QCoreApplication::translate("ComplianceReport", "UAI"),
-           "",
+           "<span style='color:#4f46e5;'>&#9632;</span>",   // grouped with Obstructive in the chart
            QString::number(UnknownAI, 'f', 2),
            "#64748b", "#0f172a");
 
@@ -1303,11 +1305,9 @@ QString renderAhiChart(const QMap<QDate, Day*>& daysMap, const QDate& start, con
                          Qt::AlignLeft | Qt::AlignVCenter, "AHI 5");
     }
 
-    drawLegend(painter, chartRect,
-               { { 0, oaColor, "Obstructive" },
-                 { 0, caColor, "Central" },
-                 { 0, hiColor, "Hypopnea" } },
-               /*topRight=*/false);  // right margin holds the "AHI 5" label
+    // No inline legend: the AHI side-stats panel carries the color key
+    // (Hypopnea/Obstructive/Central swatches), so an in-chart legend would
+    // duplicate it with different wording.
 
     return c.finish();
 }
