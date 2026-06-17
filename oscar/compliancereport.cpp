@@ -623,6 +623,67 @@ static void drawXAxisLabels(QPainter& painter, const QRect& chartRect,
     }
 }
 
+// One shaded horizontal reference zone [lo,hi] in plot units. Use a low-alpha
+// QColor so bars/gridlines drawn afterwards remain readable.
+struct RefBand { double lo; double hi; QColor color; };
+
+// Draw reference zones BEHIND everything else. Call right after the SvgChart
+// background, before grid/bars.
+static void drawReferenceBands(QPainter& painter, const QRect& chartRect,
+                               double yMin, double yMax, const QList<RefBand>& bands)
+{
+    double range = yMax - yMin;
+    if (range <= 0.0) return;
+    painter.setPen(Qt::NoPen);
+    for (const RefBand& b : bands) {
+        double lo = qBound(yMin, qMin(b.lo, b.hi), yMax);
+        double hi = qBound(yMin, qMax(b.lo, b.hi), yMax);
+        if (hi <= lo) continue;
+        int yHi = chartRect.bottom() - static_cast<int>(((hi - yMin) / range) * chartRect.height());
+        int yLo = chartRect.bottom() - static_cast<int>(((lo - yMin) / range) * chartRect.height());
+        painter.setBrush(b.color);
+        painter.drawRect(QRect(chartRect.left(), yHi, chartRect.width(), yLo - yHi));
+    }
+}
+
+// glyph: 0 = filled swatch, 1 = solid tick line, 2 = dashed line
+struct LegendItem { int glyph; QColor color; QString label; };
+
+// Compact single-row legend inside the plot. topRight=false anchors top-left
+// (use that on charts whose right margin already carries a threshold label).
+static void drawLegend(QPainter& painter, const QRect& chartRect,
+                       const QList<LegendItem>& items, bool topRight = true)
+{
+    if (items.isEmpty()) return;
+    QFont f("SF Pro Display", 24);
+    painter.setFont(f);
+    QFontMetrics fm(f);
+    const int sw = 28, txtGap = 6, itemGap = 22, h = 30;
+    int totalW = 0;
+    for (const LegendItem& it : items)
+        totalW += sw + txtGap + fm.horizontalAdvance(it.label) + itemGap;
+    totalW -= itemGap;
+    int x = topRight ? (chartRect.right() - totalW) : (chartRect.left() + 8);
+    int y = chartRect.top() + 6;
+    int cy = y + h / 2;
+    for (const LegendItem& it : items) {
+        if (it.glyph == 0) {
+            painter.setPen(Qt::NoPen); painter.setBrush(it.color);
+            painter.drawRect(QRect(x, cy - 7, sw, 14));
+        } else {
+            QPen p(it.color, (it.glyph == 1) ? 4.0 : 3.0,
+                   (it.glyph == 2) ? Qt::DashLine : Qt::SolidLine);
+            painter.setPen(p);
+            painter.drawLine(x, cy, x + sw, cy);
+        }
+        int tw = fm.horizontalAdvance(it.label);
+        painter.setPen(QColor("#475569"));
+        painter.drawText(QRect(x + sw + txtGap, y, tw + 4, h),
+                         Qt::AlignLeft | Qt::AlignVCenter, it.label);
+        x += sw + txtGap + tw + itemGap;
+    }
+}
+
 static void drawThresholdLine(QPainter& painter, const QRect& chartRect,
                                double yMax, double value, const QColor& color,
                                double yMin = 0.0)
