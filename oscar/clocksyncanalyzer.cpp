@@ -344,6 +344,14 @@ qint64 medianI64(QVector<qint64> v)
     int m = v.size();
     return (m & 1) ? v[m / 2] : (v[m / 2 - 1] + v[m / 2]) / 2;
 }
+
+// Median of a copy of doubles (sorted in place). Returns 0 for empty.
+double medianD(QVector<double> v)
+{
+    if (v.isEmpty()) return 0.0;
+    std::sort(v.begin(), v.end());
+    return v[v.size() / 2];
+}
 } // namespace
 
 QVector<NightStartDiff> ClockSyncAnalyzer::collectStartDiffs(Machine* cpap, Machine* ref,
@@ -434,6 +442,61 @@ ConstantOffsetFit ClockSyncAnalyzer::fitConstantOffset(QVector<NightStartDiff>& 
         fit.shiftMs  = medianI64(keptMid.mid(keptMid.size() - h, h)) - medianI64(keptMid.mid(0, h));
         fit.unstable = qAbs(fit.shiftMs) > OFFSET_JUMP_MS;
     }
+    return fit;
+}
+
+DriftLineFit ClockSyncAnalyzer::fitDriftLine(const QVector<NightStartDiff>& nights)
+{
+    DriftLineFit fit;
+
+    QVector<double> xs, ys, starts, ends;
+    QDate ref, last;
+    for (const NightStartDiff& n : nights) {
+        if (!n.used) continue;
+        qint64 mid = (n.startDiffMs + n.endDiffMs) / 2;
+        if (!ref.isValid()) ref = n.date;
+        last = n.date;                       // nights are chronological (collectStartDiffs order)
+        xs.append(double(ref.daysTo(n.date)));
+        ys.append(double(mid));
+        starts.append(double(n.startDiffMs));
+        ends.append(double(n.endDiffMs));
+    }
+    int n = xs.size();
+    if (n < MIN_OFFSET_NIGHTS) return fit;
+
+    // Theil-Sen slope: median of pairwise slopes.
+    QVector<double> slopes;
+    slopes.reserve(n * (n - 1) / 2);
+    for (int i = 0; i < n; ++i)
+        for (int j = i + 1; j < n; ++j)
+            if (xs[j] != xs[i]) slopes.append((ys[j] - ys[i]) / (xs[j] - xs[i]));
+    if (slopes.isEmpty()) return fit;
+    std::sort(slopes.begin(), slopes.end());
+    double slope = slopes[slopes.size() / 2];
+
+    // Median intercept at ref (xs are days-from-ref, so intercept = median(y - slope*x)).
+    QVector<double> inter(n);
+    for (int i = 0; i < n; ++i) inter[i] = ys[i] - slope * xs[i];
+    double intercept = medianD(inter);
+
+    // Residual MAD about the line.
+    QVector<double> absResid(n);
+    for (int i = 0; i < n; ++i) absResid[i] = qAbs(ys[i] - (intercept + slope * xs[i]));
+    double mad = medianD(absResid);
+
+    fit.valid           = true;
+    fit.slopeMsPerDay   = slope;
+    fit.offsetAtRefMs   = qRound64(intercept);
+    fit.refDate         = ref;
+    fit.lastDate        = last;
+    fit.residualMadMs   = qRound64(mad);
+    fit.startEndSpreadMs = qRound64(medianD(ends) - medianD(starts));
+    fit.nUsed           = n;
+
+    double spanDays = double(ref.daysTo(last));
+    fit.driftSpanMs = qRound64(qAbs(slope) * spanDays);
+    fit.significant = fit.driftSpanMs >
+                      qMax(qint64(DRIFT_SIGNIFICANCE_K * mad), DRIFT_SIGNIFICANCE_FLOOR_MS);
     return fit;
 }
 

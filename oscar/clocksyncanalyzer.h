@@ -95,6 +95,26 @@ struct DriftModel {
     double c1   = 0.0;
 };
 
+//! \brief Robust linear drift fit over per-night recording-window midpoints.
+//! offset(night) = offsetAtRefMs + slopeMsPerDay * daysFromRef (additive-to-CPAP).
+struct DriftLineFit {
+    bool   valid          = false;
+    double slopeMsPerDay  = 0.0;
+    qint64 offsetAtRefMs  = 0;     // intercept at refDate (additive-to-CPAP)
+    QDate  refDate;                // first used night
+    QDate  lastDate;               // last used night
+    qint64 residualMadMs  = 0;     // MAD of residuals about the line
+    qint64 startEndSpreadMs = 0;   // medianEnd - medianStart (behavioural-asymmetry note)
+    int    nUsed          = 0;
+    qint64 driftSpanMs    = 0;     // |slope| * spanDays
+    bool   significant    = false; // true => save drift row; false => caller saves constant offset
+    bool   hasJump        = false; // sustained residual step (possible clock re-sync); set in Task 3
+    QDate  jumpDate;               // start of the late segment at the changepoint
+    qint64 jumpMs         = 0;     // signed late-minus-early residual step
+    bool   anchored             = false; // intercept refined by cross-correlation (Task 4)
+    bool   anchorSlopeDisagrees = false; // cross-corr slope vs window slope mismatch (Task 4)
+};
+
 class ClockSyncAnalyzer
 {
 public:
@@ -115,6 +135,15 @@ public:
     static constexpr qint64 OFFSET_OUTLIER_FLOOR_MS = 300000LL; // never flag within ±5 min of median
     static constexpr qint64 VALIDATOR_TOL_MS   = 120000LL; // cross-corr agrees within ±2 min
     static constexpr qint64 OFFSET_JUMP_MS     = 300000LL; // ≥5 min change = suspicious clock jump
+
+    static constexpr double DRIFT_SIGNIFICANCE_K   = 3.0;       // drift must exceed K * residual MAD
+    static constexpr qint64 DRIFT_SIGNIFICANCE_FLOOR_MS = 60000LL; // and at least 60 s over the span
+    static constexpr int    ANCHOR_MIN_NIGHTS      = 3;         // min cross-corr nights to anchor (Task 4)
+    static constexpr qint64 ANCHOR_MAX_SHIFT_MS    = 600000LL;  // implausible anchor shift => skip (Task 4)
+    static constexpr double ANCHOR_SLOPE_TOL_MS_PER_DAY = 5000.0; // slope-disagreement warn (Task 4)
+    static constexpr int    JUMP_MIN_SIDE          = 3;         // min nights each side of a changepoint (Task 3)
+    static constexpr double JUMP_RESID_K           = 4.0;       // residual-step significance multiple (Task 3)
+    static constexpr qint64 JUMP_FLOOR_MS          = 120000LL;  // absolute floor for a flagged jump (Task 3)
 
     // --- PRIMARY estimator: constant offset from recording-window differences ---
 
@@ -166,6 +195,9 @@ public:
     //! Machine::correctionMs applies. offsetAtRefMs is additive-to-CPAP at refDate.
     static DriftModel driftToModel(double slopeMsPerDay, qint64 offsetAtRefMs,
                                    const QDate& refDate);
+
+    //! \brief Robust linear drift fit over the used nights' recording-window midpoints.
+    static DriftLineFit fitDriftLine(const QVector<NightStartDiff>& nights);
 
 private:
     static QVector<double> buildDensity(const QList<qint64>& eventTimesMs,

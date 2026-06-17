@@ -33,5 +33,7 @@ private slots:
     void testFitConstantOffsetStableNoJump();
     void testFitConstantOffsetDetectsMidRangeStep();
     void testDriftToModelRoundTrip();
+    void testFitDriftLineRecoversSlope();
+    void testFitDriftLineFlatIsNotSignificant();
 };
 DECLARE_TEST(ClockSyncTests)

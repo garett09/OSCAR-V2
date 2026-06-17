@@ -362,6 +362,43 @@ void ClockSyncTests::testFitConstantOffsetDetectsMidRangeStep()
     QVERIFY(qAbs(fit.shiftMs - 600000) < 60000);        // ≈ +10 min step recovered
 }
 
+void ClockSyncTests::testFitDriftLineRecoversSlope()
+{
+    // 25 nights, +3900 ms/day drift on both edges, +/-15 s behavioural noise.
+    QVector<NightStartDiff> nights;
+    QDate d0(2026, 5, 1);
+    for (int i = 0; i < 25; ++i) {
+        NightStartDiff n = night(1000000 + 3900 * i, 1000000 + 3900 * i, 15000, 800 + i);
+        n.date = d0.addDays(i);
+        nights.append(n);
+    }
+
+    DriftLineFit fit = ClockSyncAnalyzer::fitDriftLine(nights);
+    QVERIFY(fit.valid);
+    QCOMPARE(fit.nUsed, 25);
+    QVERIFY(qAbs(fit.slopeMsPerDay - 3900.0) < 400.0);
+    QVERIFY(fit.significant);                       // ~93 s over 24 days >> floor
+    QCOMPARE(fit.refDate, d0);
+    QCOMPARE(fit.lastDate, d0.addDays(24));
+}
+
+void ClockSyncTests::testFitDriftLineFlatIsNotSignificant()
+{
+    // Flat offset, only behavioural noise -> slope ~0 -> not significant (use constant).
+    QVector<NightStartDiff> nights;
+    QDate d0(2026, 5, 1);
+    for (int i = 0; i < 25; ++i) {
+        NightStartDiff n = night(1404000, 1404000, 15000, 900 + i);
+        n.date = d0.addDays(i);
+        nights.append(n);
+    }
+
+    DriftLineFit fit = ClockSyncAnalyzer::fitDriftLine(nights);
+    QVERIFY(fit.valid);
+    QVERIFY(!fit.significant);
+    QVERIFY(qAbs(fit.offsetAtRefMs - 1404000) < 30000);
+}
+
 void ClockSyncTests::testDriftToModelRoundTrip()
 {
     // Build a drift row from a known line, apply it through the REAL correctionMs,
