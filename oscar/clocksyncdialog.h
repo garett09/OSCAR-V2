@@ -38,6 +38,7 @@ private:
     Ui::ClockSyncDialog *ui;
     QVector<NightStartDiff> m_nights;   // primary: per-night window offsets
     ConstantOffsetFit       m_fit;      // robust constant fitted across nights
+    DriftLineFit            m_drift;    // linear drift overlay over the same kept nights
 
     void populateCpapCombo();
     void populateOxiCombo();
