@@ -47,6 +47,11 @@ public:
 
     qint64  upsertOffset(qint64 machineId, const QString& date, qint64 offsetMs);
 
+    // Supersede any active row for this (machine, date range, 'drift') and insert a new
+    // drift row carrying the (c0Ms, c1) model. dateTo="" = open-ended.
+    qint64  upsertDrift(qint64 machineId, const QString& dateFrom, const QString& dateTo,
+                        qint64 c0Ms, double c1);
+
     bool    markUndone(qint64 id);
 
     QList<DeviceTimeCorrectionData> findManualOffsetRows(qint64 machineId);

@@ -133,6 +133,46 @@ qint64 DeviceTimeCorrectionRepository::upsertTyped(qint64 machineId, const QStri
     return upsertTyped(machineId, date, date, type, offsetMs);
 }
 
+qint64 DeviceTimeCorrectionRepository::upsertDrift(qint64 machineId, const QString& dateFrom,
+                                                   const QString& dateTo, qint64 c0Ms, double c1)
+{
+    QSqlQuery q(database());
+    if (dateTo.isEmpty()) {
+        q.prepare(R"(
+            UPDATE device_time_corrections
+            SET undone_at = datetime('now')
+            WHERE machine_id = :machine_id
+              AND date_from = :date_from AND date_to IS NULL
+              AND type = 'drift' AND undone_at IS NULL
+        )");
+    } else {
+        q.prepare(R"(
+            UPDATE device_time_corrections
+            SET undone_at = datetime('now')
+            WHERE machine_id = :machine_id
+              AND date_from = :date_from AND date_to = :date_to
+              AND type = 'drift' AND undone_at IS NULL
+        )");
+        q.bindValue(":date_to", dateTo);
+    }
+    q.bindValue(":machine_id", machineId);
+    q.bindValue(":date_from",  dateFrom);
+    if (!q.exec()) {
+        qCritical() << "DeviceTimeCorrectionRepository::upsertDrift mark-undone failed:" << q.lastError().text();
+        DatabaseManager::instance().checkQueryError("DeviceTimeCorrectionRepository::upsertDrift", q);
+        return -1;
+    }
+
+    DeviceTimeCorrectionData row;
+    row.machineId = machineId;
+    row.dateFrom  = dateFrom;
+    row.dateTo    = dateTo;
+    row.type      = "drift";
+    row.c0Ms      = c0Ms;
+    row.c1        = c1;
+    return create(row);
+}
+
 bool DeviceTimeCorrectionRepository::updateDateTo(qint64 id, const QString& dateTo)
 {
     QSqlQuery q(database());
