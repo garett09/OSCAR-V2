@@ -8,6 +8,8 @@
 
 #include "clocksynctests.h"
 #include "clocksyncanalyzer.h"
+#include "SleepLib/machine.h"
+#include "SleepLib/machine_common.h"
 #include <QRandomGenerator>
 
 // Synthetic apnea-like event train: `count` events with random gaps
@@ -358,4 +360,41 @@ void ClockSyncTests::testFitConstantOffsetDetectsMidRangeStep()
     QVERIFY(fit.valid);
     QVERIFY(fit.unstable);                              // guard tripped
     QVERIFY(qAbs(fit.shiftMs - 600000) < 60000);        // ≈ +10 min step recovered
+}
+
+void ClockSyncTests::testDriftToModelRoundTrip()
+{
+    // Build a drift row from a known line, apply it through the REAL correctionMs,
+    // and confirm the per-night additive offset matches offsetAtRef + slope*days.
+    QDate ref(2026, 1, 10);
+    struct Case { double slopePerDay; qint64 offsetAtRef; };
+    const Case cases[] = {
+        {  3900.0,  1440000 },   // +3.9 s/day, CPAP 24 min behind at ref
+        { -3900.0, -1440000 },   // opposite signs
+        {     0.0,   600000 },   // pure constant via the drift model
+    };
+
+    for (const Case& c : cases) {
+        DriftModel m = ClockSyncAnalyzer::driftToModel(c.slopePerDay, c.offsetAtRef, ref);
+
+        TimeCorrectionRow row;
+        row.dateFrom = ref;
+        row.type     = "drift";
+        row.c0Ms     = m.c0Ms;
+        row.c1       = m.c1;
+
+        Machine mach(nullptr, 1);                 // id!=0 skips profile use; ~Machine is a no-op
+        mach.rebuildCorrections(QList<TimeCorrectionRow>{ row });
+
+        for (int days : {0, 1, 7, 30, 200}) {
+            QDate night = ref.addDays(days);
+            qint64 expected = c.offsetAtRef + qint64(qRound(c.slopePerDay * days));
+            qint64 got = mach.correctionMs(night);
+            QVERIFY2(qAbs(got - expected) <= 5,
+                     qPrintable(QString("slope=%1 day=%2 expected=%3 got=%4")
+                                .arg(c.slopePerDay).arg(days).arg(expected).arg(got)));
+        }
+        // Nights before dateFrom are gated out -> no correction.
+        QCOMPARE(mach.correctionMs(ref.addDays(-1)), qint64(0));
+    }
 }

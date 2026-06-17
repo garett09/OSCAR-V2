@@ -88,6 +88,13 @@ struct ConstantOffsetFit {
     qint64 shiftMs = 0;           // late-half median − early-half median (signed step size)
 };
 
+//! \brief Storage form of a linear drift correction: applied as
+//! additive = -(c0Ms + c1 * t_noon_epoch_ms). c1 is ms-error per ms-epoch.
+struct DriftModel {
+    qint64 c0Ms = 0;
+    double c1   = 0.0;
+};
+
 class ClockSyncAnalyzer
 {
 public:
@@ -154,6 +161,11 @@ public:
     //! \brief Theil–Sen regression of accepted offsets vs date; flags MAD outliers
     //! by setting NightSyncResult::driftOutlier in place.
     static DriftFit fitDrift(QList<NightSyncResult>& results);
+
+    //! \brief Convert a fitted drift line to the (c0Ms, c1) storage model that
+    //! Machine::correctionMs applies. offsetAtRefMs is additive-to-CPAP at refDate.
+    static DriftModel driftToModel(double slopeMsPerDay, qint64 offsetAtRefMs,
+                                   const QDate& refDate);
 
 private:
     static QVector<double> buildDensity(const QList<qint64>& eventTimesMs,

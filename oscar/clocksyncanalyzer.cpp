@@ -12,6 +12,7 @@
 #include "SleepLib/session.h"
 #include "SleepLib/machine_common.h"
 #include "SleepLib/schema.h"
+#include <QDateTime>
 #include <QtMath>
 #include <algorithm>
 
@@ -434,6 +435,19 @@ ConstantOffsetFit ClockSyncAnalyzer::fitConstantOffset(QVector<NightStartDiff>& 
         fit.unstable = qAbs(fit.shiftMs) > OFFSET_JUMP_MS;
     }
     return fit;
+}
+
+DriftModel ClockSyncAnalyzer::driftToModel(double slopeMsPerDay, qint64 offsetAtRefMs,
+                                           const QDate& refDate)
+{
+    DriftModel m;
+    // t_noon must match Machine::correctionMs exactly (UTC noon epoch ms).
+    qint64 tRef = QDateTime(refDate, QTime(12, 0, 0), Qt::UTC).toMSecsSinceEpoch();
+    m.c1 = -slopeMsPerDay / 86400000.0;
+    // Define c0 against the SAME truncated qint64(c1*tRef) the application uses, so
+    // the model evaluates to exactly -offsetAtRef at refDate (no rounding at the anchor).
+    m.c0Ms = -offsetAtRefMs - qint64(m.c1 * double(tRef));
+    return m;
 }
 
 void ClockSyncAnalyzer::validateNight(Machine* cpap, Machine* ref, NightStartDiff& night)

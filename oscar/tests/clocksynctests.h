@@ -32,5 +32,6 @@ private slots:
     void testFitConstantOffsetStartEndSpread();
     void testFitConstantOffsetStableNoJump();
     void testFitConstantOffsetDetectsMidRangeStep();
+    void testDriftToModelRoundTrip();
 };
 DECLARE_TEST(ClockSyncTests)
