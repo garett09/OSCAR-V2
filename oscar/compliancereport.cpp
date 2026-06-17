@@ -1542,15 +1542,37 @@ QString renderChannelBarChart(ChannelID chanId, const QColor& barColor,
 
     drawYGridAndLabels(painter, chartRect, yMax, 4, yMin);
 
+    if (chanId == OXI_SPO2) {
+        drawReferenceBands(painter, chartRect, yMin, yMax,
+                           { { 95.0, 100.0, QColor(34, 197, 94, 34) },   // normal
+                             { 90.0,  95.0, QColor(234, 179, 8, 30) },   // mild
+                             { yMin,  90.0, QColor(239, 68, 68, 26) } }); // concern
+    }
+
     double colWidth = static_cast<double>(chartRect.width()) / totalDays;
     drawXGridLines(painter, chartRect, totalDays, colWidth, start);
     drawXAxisLabels(painter, chartRect, totalDays, colWidth, start, c.canvasW);
 
     drawBars(painter, chartRect, totalDays, vals, yMax, barColor, 0.0, QColor(), medians, yMin);
 
-    // SpO2: draw clinically significant 90% desaturation threshold line
-    if (chanId == OXI_SPO2)
+    if (chanId == OXI_SPO2) {
         drawThresholdLine(painter, chartRect, yMax, 90.0, QColor("#ef4444"), yMin);
+        if (yMin < 88.0)
+            drawThresholdLine(painter, chartRect, yMax, 88.0, QColor("#f59e0b"), yMin);
+    }
+
+    if (chanId == OXI_SPO2) {
+        drawLegend(painter, chartRect,
+                   { { 0, barColor,            "nightly median" },
+                     { 1, QColor("#0f172a"),   "nightly low" },
+                     { 2, QColor("#ef4444"),   "90% / 88%" } },
+                   /*topRight=*/false);
+    } else {
+        drawLegend(painter, chartRect,
+                   { { 0, barColor,          "95th percentile" },
+                     { 1, QColor("#0f172a"), "median" } },
+                   /*topRight=*/true);
+    }
 
     return c.finish();
 }
