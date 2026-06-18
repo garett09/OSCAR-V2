@@ -603,10 +603,12 @@ BmcDateSession BmcData::ReadDateSession(QDate aDate)
         lastPacketTimestamp = packet.Timestamp;
     }
 
-    if (lastPacketTimestamp.isValid() && !session->Waveforms.isEmpty()){
+    if (lastPacketTimestamp.isValid() && !session->Waveforms.isEmpty()) {
         session->StartTimestamp = session->Waveforms.first().Timestamp;
         session->EndTimestamp = lastPacketTimestamp;
         dateSession.Sessions.append(session);
+    } else {
+        delete session;
     }
 
     //Get all the respiratory events that fall in this session
@@ -621,6 +623,26 @@ BmcDateSession BmcData::ReadDateSession(QDate aDate)
         }
     }
 
+    // If no waveform data is available, create an EVT-only session from the USR summary.
+    // This preserves respiratory event data for nights where the circular waveform buffer
+    // has been overwritten.
+    if (dateSession.Sessions.isEmpty() && foundLink->UsrSession.DurationMinutes > 0) {
+        BmcSession* evtOnly = new BmcSession();
+        if (!dateSession.RespiratoryEvents.isEmpty()) {
+            evtOnly->StartTimestamp = dateSession.RespiratoryEvents.first().StartTime;
+            evtOnly->EndTimestamp   = dateSession.RespiratoryEvents.last().EndTime;
+            const QDateTime minEnd  = evtOnly->StartTimestamp.addSecs(
+                static_cast<qint64>(foundLink->UsrSession.DurationMinutes) * 60);
+            if (evtOnly->EndTimestamp < minEnd)
+                evtOnly->EndTimestamp = minEnd;
+            evtOnly->RespiratoryEvents = dateSession.RespiratoryEvents;
+        } else {
+            evtOnly->StartTimestamp = foundLink->UsrSession.StartTimestamp;
+            evtOnly->EndTimestamp   = foundLink->UsrSession.StartTimestamp.addSecs(
+                static_cast<qint64>(foundLink->UsrSession.DurationMinutes) * 60);
+        }
+        dateSession.Sessions.append(evtOnly);
+    }
 
     return dateSession;
 }
@@ -980,8 +1002,20 @@ void BmcData::FindValidSessions()
             else
                 break;
         }
-        if (!chosenCrumb.Timestamp.isValid())
-            continue;
+        // If no crumb precedes the session's noon start (e.g. the user went to bed
+        // after noon on the same calendar day), fall back to the first crumb within
+        // this OSCAR day (noon → next noon).
+        if (!chosenCrumb.Timestamp.isValid()) {
+            const QDateTime oscarDayEnd(usrSession.StartTimestamp.date().addDays(1), QTime(12, 0, 0));
+            for (const auto &crumb : this->WaveformCrumbs) {
+                if (crumb.Timestamp >= usrSession.StartTimestamp &&
+                    crumb.Timestamp < oscarDayEnd) {
+                    chosenCrumb = crumb;
+                    break;
+                }
+            }
+        }
+        // Sessions with no waveform crumb are still linked for EVT-only import.
 
         BmcDataLink link;
         link.UsrSession   = usrSession;

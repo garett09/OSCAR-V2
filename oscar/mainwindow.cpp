@@ -171,47 +171,6 @@ MainWindow::MainWindow(QWidget *parent) :
     restoreGeometry(settings.value("MainWindow/geometry").toByteArray());
     settings.endGroup();
 
-#ifdef Q_OS_WIN
-    // restoreGeometry() on Windows can confuse frame vs. client-area coordinates,
-    // placing the window offset by the frame border widths (most visibly the title bar).
-    // Correct to the saved frame position and clamp to the available screen area.
-    // Not applied on Linux because WM decorations arrive asynchronously after
-    // show(), making frameGeometry() unreliable at this point.
-    QTimer::singleShot(0, this, [this]() {
-        QScreen *scr = screen() ? screen() : QApplication::primaryScreen();
-        if (!scr) return;
-        QRect avail = scr->availableGeometry();
-        QRect frame = frameGeometry();
-        // restoreGeometry() on Windows can confuse frame vs. client-area origin,
-        // shifting the window by the frame border widths (most visibly the title bar).
-        // Use the saved frame top-left as the authoritative position for normal windows.
-        QPoint savedFrameTopLeft = frame.topLeft();
-        if (!(windowState() & Qt::WindowMaximized)) {
-            QSettings s;
-            s.beginGroup(QFileInfo(GetAppData()).fileName());
-            savedFrameTopLeft = s.value("MainWindow/frameTopLeft", frame.topLeft()).toPoint();
-            s.endGroup();
-        }
-        int newX = savedFrameTopLeft.x();
-        int newY = savedFrameTopLeft.y();
-        // Clamp to available screen area
-        if (newX + frame.width() > avail.right() + 1)
-            newX = avail.right() - frame.width() + 1;
-        if (newX < avail.left())
-            newX = avail.left();
-        if (newY + frame.height() > avail.bottom() + 1)
-            newY = avail.bottom() - frame.height() + 1;
-        if (newY < avail.top())
-            newY = avail.top();
-        // move() positions the client area; adjust by the current frame offset
-        // so that the frame lands at (newX, newY), not the client area.
-        QPoint delta(newX - frame.left(), newY - frame.top());
-        if (!delta.isNull())
-            move(x() + delta.x(), y() + delta.y());
-    });
-#endif
-
-
     // Nifty Notification popups in System Tray (uses Growl on Mac)
     if (QSystemTrayIcon::isSystemTrayAvailable() && QSystemTrayIcon::supportsMessages()) {
         qDebug() << "Using System Tray for Menu";
@@ -421,6 +380,49 @@ void MainWindow::SetupGUI()
 void MainWindow::logMessage(QString msg)
 {
     ui->logText->appendPlainText(msg);
+}
+
+void MainWindow::showEvent(QShowEvent *event)
+{
+    QMainWindow::showEvent(event);
+#ifdef Q_OS_WIN
+    // On Windows, restoreGeometry() confuses frame vs. client-area coordinates and
+    // fires before show() (via processEvents() in SetupGUI), making frameGeometry()
+    // unreliable.  Correct here instead, the first time the window is shown, when
+    // the frame is fully placed by the WM.
+    if (!m_geometryCorrected) {
+        m_geometryCorrected = true;
+        QTimer::singleShot(0, this, [this]() {
+            QScreen *scr = screen() ? screen() : QApplication::primaryScreen();
+            if (!scr) return;
+            if (windowState() & Qt::WindowMaximized)
+                return; // maximized windows need no position correction
+            QRect avail = scr->availableGeometry();
+            QRect frame = frameGeometry();
+            // Use the saved frame top-left as the authoritative position.
+            QSettings s;
+            s.beginGroup(QFileInfo(GetAppData()).fileName());
+            QPoint savedFrameTopLeft = s.value("MainWindow/frameTopLeft", frame.topLeft()).toPoint();
+            s.endGroup();
+            int newX = savedFrameTopLeft.x();
+            int newY = savedFrameTopLeft.y();
+            // Clamp so the entire frame stays within the usable screen area.
+            if (newX + frame.width() > avail.right() + 1)
+                newX = avail.right() - frame.width() + 1;
+            if (newX < avail.left())
+                newX = avail.left();
+            if (newY + frame.height() > avail.bottom() + 1)
+                newY = avail.bottom() - frame.height() + 1;
+            if (newY < avail.top())
+                newY = avail.top();
+            // move() positions the client area; adjust by frame offset so the
+            // frame lands at (newX, newY).
+            QPoint delta(newX - frame.left(), newY - frame.top());
+            if (!delta.isNull())
+                move(x() + delta.x(), y() + delta.y());
+        });
+    }
+#endif
 }
 
 void MainWindow::closeEvent(QCloseEvent * event)

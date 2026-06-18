@@ -195,6 +195,7 @@ class MainWindow : public QMainWindow
   protected:
     void closeEvent(QCloseEvent *) override;
     void keyPressEvent(QKeyEvent *event) override;
+    void showEvent(QShowEvent *event) override;
 
   private slots:
     /*! \fn void on_action_Import_Data_triggered();
@@ -487,6 +488,7 @@ private:
     QString bookmarkFilter;
     bool m_restartRequired;
     bool m_clinicalMode = false;
+    bool m_geometryCorrected = false;
     volatile bool m_inRecalculation;
 
     void PopulatePurgeMenu();
