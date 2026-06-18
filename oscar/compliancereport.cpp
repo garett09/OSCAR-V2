@@ -291,6 +291,26 @@ static QString getSettingStr(Day* day, ChannelID cid) {
 static const double SPO2_ARTIFACT_FLOOR  = 40.0;  // % (probe-loss reads ~0)
 static const double PULSE_ARTIFACT_FLOOR = 30.0;  // bpm
 
+// Max physiologically plausible SpO2 fall rate, %/sec. Blood takes ~6-8s to
+// travel lung -> finger, so true desaturations ramp down over seconds; an
+// isolated sample that plunges 20%+ in one reading and recovers next reading is
+// a motion / probe-slip artifact, not hypoxaemia. Applying this as a downward
+// slew limit to the *minimum* computation rejects those teleport spikes while
+// following genuine (ramped) desaturations, mirroring how a PSG technician
+// excludes artifact before reporting the nadir. 4 %/s is generous: real desats
+// rarely exceed it, so a true nadir is never blunted by more than the slack.
+// Only the min is slew-limited; mean, T90 and T88 still use the raw samples.
+static const double SPO2_MAX_FALL_PCT_PER_SEC = 4.0;
+
+// After a full probe dropout the sensor needs a few seconds to reacquire a
+// stable reading. The first samples back are reattachment artifact — a loose
+// ring snapping into place reads a spurious low (e.g. 75%) — and, having no
+// pre-dropout slew anchor, they slip straight past the slew limiter above.
+// Suppress the *minimum* for this settle window after each recovery so a
+// reattach spike can never set the nadir. Sized to the lung->finger lag noted
+// above; max, mean, T90 and T88 still use every valid sample.
+static const qint64 SPO2_POST_DROPOUT_SETTLE_MS = 8000;
+
 // Upper-percentile preference, read from the profile so the report matches
 // OSCAR's own Daily/Overview "95%" calc. ResMed locks this at 95%.
 static double upperPctValue()
@@ -333,9 +353,100 @@ struct FilteredStats {
 // belowThreshold is consulted only for timeBelowSecs; callers that don't need a
 // time-below figure can pass any value at or below floorVal (the in-range test
 // never fires, so timeBelowSecs stays 0) and ignore the field.
+// Accumulate one Day's filtered samples into `r` + the running sums. Factored out
+// of calcFilteredStats so a single Day can be scanned directly (see
+// calcDayFilteredStats): the per-night worst-night pass MUST measure a night over
+// that night's whole session, because an overnight recording straddles midnight
+// and a getDays(date, date) window clips the half on the wrong calendar day —
+// which made the night's nadir read higher than the true low and disagree with
+// the period minimum.
+//
+// maxFallPerSec (>0) slew-limits the *minimum* only: a sample can lower the min
+// no faster than maxFallPerSec %/sec from the previous valid sample, so an
+// isolated probe-slip that plunges and recovers in one reading cannot define the
+// nadir, while a genuine ramped desaturation still does. max/mean/timeBelow are
+// always taken from the raw samples.
+static void accumulateDayFilteredStats(Day* day, ChannelID code, MachineType mt,
+                                       double floorVal, double belowThreshold,
+                                       double maxFallPerSec, FilteredStats& r,
+                                       double& weightedSum, double& totalTime,
+                                       double& totalMs)
+{
+    if (!day) return;
+    for (Session* sess : day->getSessions(mt)) {
+        bool alreadyLoaded = sess->eventsLoaded();
+        if (!alreadyLoaded) sess->OpenEvents();
+        auto EVEC = sess->eventlist.find(code);
+        if (EVEC == sess->eventlist.end()) {
+            if (!alreadyLoaded) sess->TrashEvents();
+            continue;
+        }
+        for (EventList* el : EVEC.value()) {
+            const quint32 cnt = el->count();
+            qint64 started = 0, ti = 0;
+            // Downward slew envelope for the min, reset per EventList (and on
+            // dropout below) so it never carries across a gap.
+            double slewVal = 0.0; qint64 slewT = 0; bool haveSlew = false;
+            // Post-dropout min-suppression window (see SPO2_POST_DROPOUT_SETTLE_MS).
+            // Reset per EventList alongside the slew envelope. haveMin tracks
+            // whether any min-eligible sample has been seen, so the settle window
+            // can defer the first min past r.found (which max/wavg still use).
+            bool haveMin = false; bool inRecovery = false; qint64 settleUntil = 0;
+            for (quint32 i = 0; i < cnt; ++i) {
+                ti = el->time(i);
+                double v = el->data(i);
+
+                // Time-below gap integration runs over every sample so a
+                // dropout read still closes an open below-threshold span.
+                bool inRange = (v > floorVal && v <= belowThreshold);
+                if (started == 0) {
+                    if (inRange) started = ti;
+                } else if (!inRange) {
+                    totalMs += ti - started;
+                    started = 0;
+                }
+
+                if (v <= floorVal) { haveSlew = false; inRecovery = true; continue; } // dropout resets slew + opens settle window
+
+                // mv = value allowed to lower the minimum. With slew limiting on,
+                // it can fall no more than maxFallPerSec %/s below the previous
+                // valid sample; recovery (upward) is unconstrained.
+                double mv = v;
+                if (maxFallPerSec > 0.0 && haveSlew) {
+                    double dtSec = double(ti - slewT) / 1000.0;
+                    mv = qMax(v, slewVal - maxFallPerSec * dtSec);
+                }
+                slewVal = mv; slewT = ti; haveSlew = true;
+
+                // Open the settle window on the first sample back from a dropout,
+                // then suppress the min until the sensor has had
+                // SPO2_POST_DROPOUT_SETTLE_MS to reacquire. max and wavg still
+                // take every valid sample (r.found drives max as before).
+                if (inRecovery) { settleUntil = ti + SPO2_POST_DROPOUT_SETTLE_MS; inRecovery = false; }
+                bool minEligible = (ti >= settleUntil);
+
+                if (!r.found) { r.found = true; r.max = v; }
+                else if (v > r.max) { r.max = v; }
+                if (minEligible) {
+                    if (!haveMin) { haveMin = true; r.min = mv; }
+                    else if (mv < r.min) { r.min = mv; }
+                }
+
+                if (i + 1 < cnt) {
+                    double dt = double(el->time(i + 1) - ti);
+                    if (dt > 0.0) { weightedSum += v * dt; totalTime += dt; }
+                }
+            }
+            if (started) totalMs += ti - started;
+        }
+        if (!alreadyLoaded) sess->TrashEvents();
+    }
+}
+
 static FilteredStats calcFilteredStats(ChannelID code, MachineType mt,
                                        const QDate& start, const QDate& end,
-                                       double floorVal, double belowThreshold)
+                                       double floorVal, double belowThreshold,
+                                       double maxFallPerSec = 0.0)
 {
     FilteredStats r;
     if (!p_profile) return r;
@@ -346,49 +457,27 @@ static FilteredStats calcFilteredStats(ChannelID code, MachineType mt,
     // oximetry view does. Oximeter sessions may be stored on days whose machine
     // type is MT_UNKNOWN, so getDays(MT_OXIMETER) can miss them.
     QList<Day*> days = p_profile->getDays(MT_UNKNOWN, start, end);
-    for (Day* day : days) {
-        if (!day) continue;
-        for (Session* sess : day->getSessions(mt)) {
-            bool alreadyLoaded = sess->eventsLoaded();
-            if (!alreadyLoaded) sess->OpenEvents();
-            auto EVEC = sess->eventlist.find(code);
-            if (EVEC == sess->eventlist.end()) {
-                if (!alreadyLoaded) sess->TrashEvents();
-                continue;
-            }
-            for (EventList* el : EVEC.value()) {
-                const quint32 cnt = el->count();
-                qint64 started = 0, ti = 0;
-                for (quint32 i = 0; i < cnt; ++i) {
-                    ti = el->time(i);
-                    double v = el->data(i);
+    for (Day* day : days)
+        accumulateDayFilteredStats(day, code, mt, floorVal, belowThreshold,
+                                   maxFallPerSec, r, weightedSum, totalTime, totalMs);
 
-                    // Time-below gap integration runs over every sample so a
-                    // dropout read still closes an open below-threshold span.
-                    bool inRange = (v > floorVal && v <= belowThreshold);
-                    if (started == 0) {
-                        if (inRange) started = ti;
-                    } else if (!inRange) {
-                        totalMs += ti - started;
-                        started = 0;
-                    }
+    r.wavg = totalTime > 0.0 ? weightedSum / totalTime : 0.0;
+    r.timeBelowSecs = totalMs / 1000.0;
+    return r;
+}
 
-                    if (v <= floorVal) continue;   // dropout: out of min/max/wavg
-
-                    if (!r.found) { r.min = r.max = v; r.found = true; }
-                    else { if (v < r.min) r.min = v; if (v > r.max) r.max = v; }
-
-                    if (i + 1 < cnt) {
-                        double dt = double(el->time(i + 1) - ti);
-                        if (dt > 0.0) { weightedSum += v * dt; totalTime += dt; }
-                    }
-                }
-                if (started) totalMs += ti - started;
-            }
-            if (!alreadyLoaded) sess->TrashEvents();
-        }
-    }
-
+// Same statistics for a single Day object. Used by the worst-night pass so each
+// night's nadir/T90 is measured over the night's entire session instead of a
+// one-calendar-day getDays() window — guaranteeing the displayed night's nadir
+// matches the period minimum and the rendered trace.
+static FilteredStats calcDayFilteredStats(Day* day, ChannelID code, MachineType mt,
+                                          double floorVal, double belowThreshold,
+                                          double maxFallPerSec = 0.0)
+{
+    FilteredStats r;
+    double weightedSum = 0.0, totalTime = 0.0, totalMs = 0.0;
+    accumulateDayFilteredStats(day, code, mt, floorVal, belowThreshold,
+                               maxFallPerSec, r, weightedSum, totalTime, totalMs);
     r.wavg = totalTime > 0.0 ? weightedSum / totalTime : 0.0;
     r.timeBelowSecs = totalMs / 1000.0;
     return r;
@@ -1030,49 +1119,56 @@ static QString makeAhiStatsHtml(double AHI, double HI, double AI, double Central
         html += "</tr>";
     };
 
+    // All label/value text uses one neutral colour (labelTextColor / valTextColor);
+    // the only colour key is each row's swatch, which mirrors its chart band. This
+    // avoids tinting AHI/HI/AI text in hues that never appear in the chart.
+    const QString labelTextColor = "#334155";  // slate — uniform across every row
+    const QString valTextColor   = "#0f172a";  // near-black — uniform across every row
+
     addRow(QCoreApplication::translate("ComplianceReport", "AHI"),
            "<span style='color:#6366f1;'>&#9633;</span>",
            QString::number(AHI, 'f', 2),
-           "#4f46e5", "#4f46e5", true);
+           labelTextColor, valTextColor, true);
 
     addRow(QCoreApplication::translate("ComplianceReport", "HI"),
            "<span style='color:#a5b4fc;'>&#9632;</span>",
            QString::number(HI, 'f', 2),
-           "#6366f1", "#6366f1", true);
+           labelTextColor, valTextColor, true);
 
-    // AI is the apnea subtotal (Central+Obstructive+Unknown) — it spans two chart
-    // colors, so no single swatch; its components below carry the chart colors.
+    // AI is the apnea subtotal (Central+Obstructive+Unknown), drawn as the single
+    // indigo band in the chart (AirView-style). CAI/OAI/UAI below are its
+    // breakdown — flush-left, no swatch, since the chart no longer splits them.
     addRow(QCoreApplication::translate("ComplianceReport", "AI"),
-           "",
+           "<span style='color:#4f46e5;'>&#9632;</span>",   // indigo = chart AI band
            QString::number(AI, 'f', 2),
-           "#4338ca", "#4338ca", true);
+           labelTextColor, valTextColor, true);
 
     addRow(QCoreApplication::translate("ComplianceReport", "CAI"),
-           "<span style='color:#fb7185;'>&#9632;</span>",   // rose = chart Central
+           "",
            QString::number(CentralAI, 'f', 2),
-           "#64748b", "#0f172a");
+           labelTextColor, valTextColor);
 
     addRow(QCoreApplication::translate("ComplianceReport", "OAI"),
-           "<span style='color:#4f46e5;'>&#9632;</span>",   // indigo = chart Obstructive
+           "",
            QString::number(ObstructiveAI, 'f', 2),
-           "#64748b", "#0f172a");
+           labelTextColor, valTextColor);
 
     addRow(QCoreApplication::translate("ComplianceReport", "UAI"),
-           "<span style='color:#4f46e5;'>&#9632;</span>",   // grouped with Obstructive in the chart
+           "",
            QString::number(UnknownAI, 'f', 2),
-           "#64748b", "#0f172a");
+           labelTextColor, valTextColor);
 
     // No swatch: RERA is reported as an index only, it is not stacked in the
     // AHI chart (AHI excludes RERAs).
     addRow(QCoreApplication::translate("ComplianceReport", "RERA"),
            "",
            QString::number(ReraIndex, 'f', 2),
-           "#64748b", "#0f172a");
+           labelTextColor, valTextColor);
 
-    addRow(QCoreApplication::translate("ComplianceReport", "CSR% (period)"),
+    addRow(QCoreApplication::translate("ComplianceReport", "CSR% (avg)"),
            "",
            QString::number(avgCsrPctPerNight, 'f', 1) + "%",
-           "#64748b", "#0f172a");
+           labelTextColor, valTextColor);
 
     html += "</table>";
     return html;
@@ -1276,12 +1372,13 @@ QString renderAhiChart(const QMap<QDate, Day*>& daysMap, const QDate& start, con
     drawXGridLines(painter, chartRect, totalDays, colWidth, start);
     drawXAxisLabels(painter, chartRect, totalDays, colWidth, start, c.canvasW);
 
-    // Stacked bars (bottom→top): AI (dark indigo), HI (light indigo)
+    // Stacked bars (bottom→top): AI (indigo) then HI (lavender) — mirrors the
+    // ResMed AirView AHI breakdown (apnea index + hypopnea index = AHI). Apnea
+    // sub-types are summed into one AI band; the side panel lists them below AI.
     // Two-pass overdraw: draw each layer top-down so upper colours overwrite lower.
     double barW = chartBarWidth(colWidth);
-    const QColor oaColor("#4f46e5"); // obstructive — indigo
-    const QColor caColor("#fb7185"); // central — rose (stands out)
-    const QColor hiColor("#a5b4fc"); // hypopnea — lavender
+    const QColor aiColor("#4f46e5"); // apnea index — indigo
+    const QColor hiColor("#a5b4fc"); // hypopnea index — lavender
 
     auto drawRoundedBar = [&](double x, double y, double w, double hgt, const QColor& col) {
         if (hgt <= 0.0) return;
@@ -1294,19 +1391,17 @@ QString renderAhiChart(const QMap<QDate, Day*>& daysMap, const QDate& start, con
 
     painter.setPen(Qt::NoPen);
     for (int i = 0; i < totalDays; ++i) {
-        double oa = oaVals[i], ca = caVals[i], hi = hiVals[i];
-        double total = oa + ca + hi;
+        double ai = oaVals[i] + caVals[i], hi = hiVals[i];
+        double total = ai + hi;
         if (total <= 0.0) continue;
         double x = chartRect.left() + i * colWidth + (colWidth - barW) / 2.0;
         double totalH = (total / yMax) * chartRect.height();
-        double caHiH  = ((ca + hi) / yMax) * chartRect.height();
         double hiH    = (hi / yMax) * chartRect.height();
         if (totalH < 1.0) totalH = 1.0;
         double yTop = chartRect.bottom() - totalH;
-        // overdraw top-down: full(OA) → (CA+HI) → HI
-        drawRoundedBar(x, yTop, barW, totalH, oaColor);
-        if (caHiH > 0.0) drawRoundedBar(x, yTop, barW, caHiH, caColor);
-        if (hiH   > 0.0) drawRoundedBar(x, yTop, barW, hiH,   hiColor);
+        // overdraw top-down: full(AI) → HI
+        drawRoundedBar(x, yTop, barW, totalH, aiColor);
+        if (hiH > 0.0) drawRoundedBar(x, yTop, barW, hiH, hiColor);
     }
 
     drawThresholdLine(painter, chartRect, yMax, 5.0, QColor("#10b981"));
@@ -1719,6 +1814,10 @@ static QString renderLowestOxygenNight(Day* day, double nadir, const QString& ti
                 double v = el->data(i);
                 qint64 t = el->time(i);
                 if (v <= SPO2_ARTIFACT_FLOOR) { havePrev = false; continue; } // probe loss = gap
+                // Anything below the robust floor (nadir - 5) is a slew-rejected
+                // teleport artifact — the nadir excluded it, so the trace must too.
+                // Bridge the line over it (keep prev) instead of diving to the axis.
+                if (v < yMin) continue;
                 QPointF p(xFor(t), yFor(v));
                 if (havePrev && (t - prevT) <= GAP_MS) painter.drawLine(prev, p);
                 prev = p; prevT = t; havePrev = true;
@@ -1896,17 +1995,24 @@ void ComplianceReport::exportReport(QWidget *parent)
         }
     }
 
-    int usedDaysOxi = 0;
+    // usedDaysOxi   = nights with SpO2 data (gates SpO2-specific output).
+    // usedDaysPulse = nights with Pulse data (gates Pulse-specific output).
+    // usedDaysOxiAny= nights with EITHER channel — the oximetry section as a
+    //   whole appears whenever any oximetry was recorded, so a Pulse-only
+    //   profile (no SpO2) still gets its oximeter page instead of nothing.
+    int usedDaysOxi = 0, usedDaysPulse = 0, usedDaysOxiAny = 0;
     for (Day* day : allDays) {
         if (!day) continue;
-        if (day->timeAboveThreshold(OXI_SPO2, 0.0) > 0.0) {
-            usedDaysOxi++;
-        }
+        bool hasS = day->timeAboveThreshold(OXI_SPO2,  0.0) > 0.0;
+        bool hasP = day->timeAboveThreshold(OXI_Pulse, 0.0) > 0.0;
+        if (hasS) usedDaysOxi++;
+        if (hasP) usedDaysPulse++;
+        if (hasS || hasP) usedDaysOxiAny++;
     }
     QList<SettingsChangeBlock> settingsBlocks = getSettingsChanges(start, end, daysList);
     if (usedDaysOxi > 0) {
         for (auto& block : settingsBlocks) {
-            double v = calcFilteredStats(OXI_SPO2, oxiSourceType, block.start, block.end, SPO2_ARTIFACT_FLOOR, 0.0).min;
+            double v = calcFilteredStats(OXI_SPO2, oxiSourceType, block.start, block.end, SPO2_ARTIFACT_FLOOR, 0.0, SPO2_MAX_FALL_PCT_PER_SEC).min;
             block.minSpo2 = (v > SPO2_ARTIFACT_FLOOR) ? v : -1.0;
         }
     }
@@ -2053,7 +2159,7 @@ void ComplianceReport::exportReport(QWidget *parent)
         }
     }
     if (hasSpO2) {
-        FilteredStats spo2 = calcFilteredStats(OXI_SPO2, oxiSourceType, start, end, SPO2_ARTIFACT_FLOOR, 90.0);
+        FilteredStats spo2 = calcFilteredStats(OXI_SPO2, oxiSourceType, start, end, SPO2_ARTIFACT_FLOOR, 90.0, SPO2_MAX_FALL_PCT_PER_SEC);
         t90Secs       = spo2.timeBelowSecs;
         minSpO2       = spo2.min;
         avgSpO2Period = spo2.wavg;
@@ -2154,7 +2260,7 @@ void ComplianceReport::exportReport(QWidget *parent)
 
     // Render compact bar charts in vector SVG format (no legend inside image)
     QString usageChartUrl = renderUsageChart(daysMap, start, end, complianceThreshold, tr("Daily Usage"), tr("hours"));
-    QString ahiChartUrl   = renderAhiChart(daysMap, start, end, tr("AHI"), tr("events/hr"));
+    QString ahiChartUrl   = renderAhiChart(daysMap, start, end, tr("AHI"), tr("events/hour"));
     QString leakChartUrl  = renderLeakChart(daysMap, start, end, leakChan, leakChartRedline, tr("Leak Rate"), tr("L/min"));
     QString pressChartUrl = renderPressureChart(daysMap, start, end, CPAP_Pressure, tr("Pressure"), tr("cmH₂O"));
 
@@ -2646,9 +2752,13 @@ void ComplianceReport::exportReport(QWidget *parent)
         if (rw > 0) html += "<td width='" + QString::number(rw) + "%' style='background-color:#ef4444; font-size:2px; line-height:16px;'>&nbsp;</td>";
         html += "</tr></table>";
         html += "<table width='100%' cellpadding='0' cellspacing='0' style='font-size:8.5pt; color:#334155; margin-top:5px;'><tr>";
-        html += "<td><font color='#16a34a'>&#9632;</font> " + tr("&#8805;95% normal") + ": <b style='color:#0f172a;'>" + QString::number(z.pctGe95, 'f', 0) + "%</b></td>";
-        html += "<td><font color='#ca8a04'>&#9632;</font> " + tr("90&#8211;95% mild") + ": <b style='color:#0f172a;'>" + QString::number(z.pct90to95, 'f', 0) + "%</b></td>";
-        html += "<td><font color='#dc2626'>&#9632;</font> " + tr("&lt;90% low") + ": <b style='color:#0f172a;'>" + QString::number(z.pctLt90, 'f', 0) + "%</b></td>";
+        // Labels reuse the drift-corrected bar integers (gw/aw/rw) instead of
+        // rounding each raw percentage independently, so the three printed
+        // numbers always sum to 100 and match the bar widths exactly. Rounding
+        // each separately could drop or add a point (e.g. 98+1+0 = 99).
+        html += "<td><font color='#16a34a'>&#9632;</font> " + tr("&#8805;95% normal") + ": <b style='color:#0f172a;'>" + QString::number(gw) + "%</b></td>";
+        html += "<td><font color='#ca8a04'>&#9632;</font> " + tr("90&#8211;95% mild") + ": <b style='color:#0f172a;'>" + QString::number(aw) + "%</b></td>";
+        html += "<td><font color='#dc2626'>&#9632;</font> " + tr("&lt;90% low") + ": <b style='color:#0f172a;'>" + QString::number(rw) + "%</b></td>";
         html += "</tr></table>";
         html += "<table width='100%' cellpadding='2' cellspacing='0' style='font-size:9pt; color:#334155; margin-top:8px; border-collapse:collapse;'>";
         html += "<tr><td style='border-top:1px solid #eef2f7;'>" + tr("Oxygen Desaturation Index") + " <font color='#64748b'>(" + tr("&#8805;%1% dips per hour").arg(QString::number(dropPct, 'f', 0)) + ")</font></td><td align='right' style='border-top:1px solid #eef2f7;'><b style='color:#0f172a;'>" + QString::number(odi, 'f', 1) + " / hr</b></td><td style='border-top:1px solid #eef2f7; padding-left:24px;'>" + tr("Lowest oxygen") + "</td><td align='right' style='border-top:1px solid #eef2f7;'><b style='color:#ef4444;'>" + (minSpO2 > 0.0 ? QString::number(minSpO2, 'f', 0) + "%" : tr("N/A")) + "</b></td></tr>";
@@ -2663,7 +2773,11 @@ void ComplianceReport::exportReport(QWidget *parent)
             QDate dt = it.key(); Day* d = it.value();
             NightO2Stat n { dt, 0.0, 0.0, false };
             if (d && d->channelExists(OXI_SPO2)) {
-                FilteredStats fs = calcFilteredStats(OXI_SPO2, oxiSourceType, dt, dt, SPO2_ARTIFACT_FLOOR, 90.0);
+                // Scan the whole Day (not a getDays(dt,dt) window, which clips the
+                // overnight session straddling midnight) and apply the same slew
+                // limit as the period minimum, so this night's nadir matches the
+                // "Lowest oxygen" summary figure exactly.
+                FilteredStats fs = calcDayFilteredStats(d, OXI_SPO2, oxiSourceType, SPO2_ARTIFACT_FLOOR, 90.0, SPO2_MAX_FALL_PCT_PER_SEC);
                 if (fs.found) { n.nadir = fs.min; n.t90Secs = fs.timeBelowSecs; n.valid = true; }
             }
             nights.append(n); dayPtrs.append(d);
@@ -2751,19 +2865,18 @@ void ComplianceReport::exportReport(QWidget *parent)
         }
     }
 
-    if (usedDaysOxi > 0 || stageNights > 0) {
+    if (usedDaysOxiAny > 0 || stageNights > 0) {
         html += "<div style='page-break-before: always;'></div>";
-        QString title = (usedDaysOxi > 0 && stageNights > 0) ? tr("Oximetry &amp; Sleep Stage Statistics") : (usedDaysOxi > 0 ? tr("Oximeter Statistics") : tr("Sleep Stage Statistics"));
+        QString title = (usedDaysOxiAny > 0 && stageNights > 0) ? tr("Oximetry &amp; Sleep Stage Statistics") : (usedDaysOxiAny > 0 ? tr("Oximeter Statistics") : tr("Sleep Stage Statistics"));
         html += makePageHeaderHtml(title, patientNameStr, pageSubInfo, logoBase64);
 
-        if (usedDaysOxi > 0) {
-            // Sum actual session durations from the oximetry source, filtered to days
-            // in oxiDaysMap (which only contains days with recorded SpO2 data).
-            // Using session->hours() rather than timeAboveThreshold(OXI_SPO2, 0.0)
-            // avoids a unit bug in the timesummary fast path: waveform channels
-            // (e.g. Viatom stores OXI_SPO2 as EVL_Waveform with 1000 ms rate)
-            // accumulated count*rate_ms in timesummary, but the fast path divided
-            // by 60 treating the values as seconds, giving a result 1000x too large.
+        if (usedDaysOxiAny > 0) {
+            // Sum oximetry session durations from the source machine. session->hours()
+            // (whole-session span) is the right denominator for "Average Hours per
+            // Night" and indices (events / recording-hour); it also sidesteps the
+            // probe-loss exclusion that timeAboveThreshold(OXI_SPO2, 0.0) would apply.
+            // Summed over oxiDaysMap, which holds every night with SpO2 OR Pulse data,
+            // so a Pulse-only profile still gets correct usage totals.
             double oximeterHours = 0.0;
             for (Day* day : oxiDaysMap) {
                 for (Session* sess : day->getSessions(oxiSourceType)) {
@@ -2779,18 +2892,27 @@ void ComplianceReport::exportReport(QWidget *parent)
             html += "<div style='font-size: 8.5pt; color: #64748b; margin-bottom: 4px;'>" + tr("Device") + ": <b style='color:#0f172a;'>" + oxiDevice.toHtmlEscaped() + "</b></div>";
             html += "<table width='100%' cellpadding='2' cellspacing='0' style='border: none; border-collapse: collapse; font-size: 8.5pt; line-height: 1.1; margin-bottom: 6px; page-break-inside: avoid;'>";
             html += "<tr style='background-color: #454545; color: #ffffff;'><th align='left' style='padding: 1.5px 6px; color: #ffffff; font-weight: bold; border-bottom: 1px solid #f1f5f9;'>Statistics Group</th><th align='left' style='padding: 1.5px 6px; color: #ffffff; font-weight: bold; border-bottom: 1px solid #f1f5f9;'>Metric Description</th><th align='right' style='padding: 1.5px 6px; color: #ffffff; font-weight: bold; border-bottom: 1px solid #f1f5f9;'>Selected Period Value</th></tr>";
-            html += "<tr><td rowspan='3' valign='top' style='font-weight: bold; color: #454545; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px; background-color: #f8fafc;'>Oximeter Usage</td><td style='color: #475569; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>Total Days / Used Days</td><td align='right' style='font-weight: bold; color: #0f172a; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + QString::number(totalDays) + tr(" days / %1 days").arg(usedDaysOxi) + "</td></tr>";
-            html += "<tr><td style='color: #475569; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>Days Not Used</td><td align='right' style='font-weight: bold; color: #0f172a; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + QString::number(totalDays - usedDaysOxi) + " days" + "</td></tr>";
-            html += "<tr><td style='color: #475569; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>Average Hours per Night</td><td align='right' style='font-weight: bold; color: #0f172a; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + formatHoursMinutesShort(oximeterHours / usedDaysOxi) + "</td></tr>";
-            html += "<tr><td rowspan='4' valign='top' style='font-weight: bold; color: #454545; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px; background-color: #f8fafc;'>Oxygen Saturation</td><td style='color: #475569; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>Average SpO2</td><td align='right' style='font-weight: bold; color: #0f172a; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + QString::number(avgSpO2Period, 'f', 2) + "%" + "</td></tr>";
-            html += "<tr><td style='color: #475569; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>Minimum SpO2</td><td align='right' style='font-weight: bold; color: #0f172a; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + (minSpO2 > 0.0 ? QString::number(minSpO2, 'f', 0) + "%" : tr("N/A")) + "</td></tr>";
-            html += "<tr><td style='color: #475569; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>SpO2 Desaturation Drop Index</td><td align='right' style='font-weight: bold; color: #0f172a; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + QString::number(spo2DropIndex, 'f', 2) + " / hr" + "</td></tr>";
-            html += "<tr><td style='color: #475569; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>% of Time in SpO2 Drop</td><td align='right' style='font-weight: bold; color: #0f172a; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + QString::number(pctTimeSpo2Drop, 'f', 2) + "%" + "</td></tr>";
-            html += "<tr><td rowspan='3' valign='top' style='font-weight: bold; color: #454545; padding: 1.5px 6px; background-color: #f8fafc;'>Pulse Rate</td><td style='color: #475569; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>Average Pulse Rate</td><td align='right' style='font-weight: bold; color: #0f172a; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + QString::number(avgPulsePeriod, 'f', 2) + " bpm" + "</td></tr>";
-            html += "<tr><td style='color: #475569; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>Minimum / Maximum Pulse Rate</td><td align='right' style='font-weight: bold; color: #0f172a; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + QString("%1 / %2 bpm").arg(QString::number(minPulsePeriod, 'f', 1)).arg(QString::number(maxPulsePeriod, 'f', 1)) + "</td></tr>";
-            html += "<tr><td style='color: #475569; padding: 1.5px 6px;'>Pulse Change Index</td><td align='right' style='font-weight: bold; color: #0f172a; padding: 1.5px 6px;'>" + QString::number(pulseChangeIndex, 'f', 2) + " / hr" + "</td></tr></table>";
+            // Oximeter Usage — any-oximetry days (usedDaysOxiAny), matching the
+            // oximeterHours numerator so "Average Hours per Night" is consistent.
+            html += "<tr><td rowspan='3' valign='top' style='font-weight: bold; color: #454545; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px; background-color: #f8fafc;'>Oximeter Usage</td><td style='color: #475569; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>Total Days / Used Days</td><td align='right' style='font-weight: bold; color: #0f172a; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + QString::number(totalDays) + tr(" days / %1 days").arg(usedDaysOxiAny) + "</td></tr>";
+            html += "<tr><td style='color: #475569; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>Days Not Used</td><td align='right' style='font-weight: bold; color: #0f172a; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + QString::number(totalDays - usedDaysOxiAny) + " days" + "</td></tr>";
+            html += "<tr><td style='color: #475569; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>Average Hours per Night</td><td align='right' style='font-weight: bold; color: #0f172a; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + (usedDaysOxiAny > 0 ? formatHoursMinutesShort(oximeterHours / usedDaysOxiAny) : tr("N/A")) + "</td></tr>";
+            // Oxygen Saturation group — only when SpO2 was actually recorded.
+            if (usedDaysOxi > 0) {
+                html += "<tr><td rowspan='4' valign='top' style='font-weight: bold; color: #454545; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px; background-color: #f8fafc;'>Oxygen Saturation</td><td style='color: #475569; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>Average SpO2</td><td align='right' style='font-weight: bold; color: #0f172a; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + QString::number(avgSpO2Period, 'f', 2) + "%" + "</td></tr>";
+                html += "<tr><td style='color: #475569; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>Minimum SpO2</td><td align='right' style='font-weight: bold; color: #0f172a; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + (minSpO2 > 0.0 ? QString::number(minSpO2, 'f', 0) + "%" : tr("N/A")) + "</td></tr>";
+                html += "<tr><td style='color: #475569; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>SpO2 Desaturation Drop Index</td><td align='right' style='font-weight: bold; color: #0f172a; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + QString::number(spo2DropIndex, 'f', 2) + " / hr" + "</td></tr>";
+                html += "<tr><td style='color: #475569; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>% of Time in SpO2 Drop</td><td align='right' style='font-weight: bold; color: #0f172a; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + QString::number(pctTimeSpo2Drop, 'f', 2) + "%" + "</td></tr>";
+            }
+            // Pulse Rate group — only when Pulse was actually recorded.
+            if (usedDaysPulse > 0) {
+                html += "<tr><td rowspan='3' valign='top' style='font-weight: bold; color: #454545; padding: 1.5px 6px; background-color: #f8fafc;'>Pulse Rate</td><td style='color: #475569; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>Average Pulse Rate</td><td align='right' style='font-weight: bold; color: #0f172a; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + QString::number(avgPulsePeriod, 'f', 2) + " bpm" + "</td></tr>";
+                html += "<tr><td style='color: #475569; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>Minimum / Maximum Pulse Rate</td><td align='right' style='font-weight: bold; color: #0f172a; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + QString("%1 / %2 bpm").arg(QString::number(minPulsePeriod, 'f', 1)).arg(QString::number(maxPulsePeriod, 'f', 1)) + "</td></tr>";
+                html += "<tr><td style='color: #475569; padding: 1.5px 6px;'>Pulse Change Index</td><td align='right' style='font-weight: bold; color: #0f172a; padding: 1.5px 6px;'>" + QString::number(pulseChangeIndex, 'f', 2) + " / hr" + "</td></tr>";
+            }
+            html += "</table>";
         }
-        if (usedDaysOxi > 0 && stageNights > 0) html += "<div style='line-height: 2pt;'>&nbsp;</div>";
+        if (usedDaysOxiAny > 0 && stageNights > 0) html += "<div style='line-height: 2pt;'>&nbsp;</div>";
         if (stageNights > 0) {
             double totalMin = avgWakeMin + avgTSTMin;
             auto pct = [&](double part) -> QString { return totalMin <= 0 ? tr("N/A") : QString::number(100.0 * part / totalMin, 'f', 1) + "%"; };
