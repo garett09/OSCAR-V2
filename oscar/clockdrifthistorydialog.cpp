@@ -23,7 +23,7 @@ ClockDriftHistoryDialog::ClockDriftHistoryDialog(Machine* cpap, Machine* oxi, QW
     ui->setupUi(this);
 
     // Device pair label
-    auto label = [](Machine* m) -> QString {
+    auto label = [this](Machine* m) -> QString {
         if (!m) return tr("none");
         QString s = m->brand() + " " + m->model();
         if (s.trimmed().isEmpty()) s = m->loaderName();
@@ -208,16 +208,20 @@ void ClockDriftHistoryDialog::populateChart(const QList<NightClockOffsetData>& n
 {
     ui->plotWidget->clear();
 
-    // Per-night dots
+    // Per-night dots: used=filled, outlier=hollow ref points
     QList<DriftPlotWidget::Point> pts;
+    QList<DriftPlotWidget::Point> outlierPts;
     for (const auto& n : nights) {
-        if (!n.used) continue;
         QDate d = QDate::fromString(n.date, Qt::ISODate);
-        if (d.isValid())
+        if (!d.isValid()) continue;
+        if (n.used)
             pts.append({ d, (double)n.midMs });
+        else
+            outlierPts.append({ d, (double)n.midMs });
     }
-    // setData must be called before setCorrectionDates (early-return guard in DriftPlotWidget)
+    // setData/setRefPoints must be called before setCorrectionDates (early-return guard in DriftPlotWidget)
     ui->plotWidget->setData(pts);
+    ui->plotWidget->setRefPoints(outlierPts);
 
     // Active drift/offset model -> red line
     // Most recent undone drift -> gray dashed
@@ -292,7 +296,10 @@ void ClockDriftHistoryDialog::onExport()
             QTableWidgetItem* it = t->item(row, col);
             QString val = it ? it->text() : QString();
             // Quote cells that contain commas
-            if (val.contains(',')) val = "\"" + val + "\"";
+            if (val.contains(',') || val.contains('"') || val.contains('\n')) {
+                val.replace("\"", "\"\"");
+                val = "\"" + val + "\"";
+            }
             cells << val;
         }
         out << cells.join(",") << "\n";

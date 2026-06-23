@@ -8,6 +8,9 @@
   <property name="windowTitle">
    <string>Clock Drift History</string>
   </property>
+  <property name="minimumSize">
+   <size><width>800</width><height>560</height></size>
+  </property>
   <property name="sizeGripEnabled"><bool>true</bool></property>
   <layout class="QVBoxLayout" name="mainLayout">
    <property name="spacing"><number>6</number></property>
@@ -90,8 +93,8 @@
           <property name="editTriggers"><set>QAbstractItemView::NoEditTriggers</set></property>
           <property name="alternatingRowColors"><bool>true</bool></property>
           <column><property name="text"><string>Date</string></property></column>
-          <column><property name="text"><string>Start Delta (s)</string></property></column>
-          <column><property name="text"><string>End Delta (s)</string></property></column>
+          <column><property name="text"><string>Start Δ (s)</string></property></column>
+          <column><property name="text"><string>End Δ (s)</string></property></column>
           <column><property name="text"><string>Offset (s)</string></property></column>
           <column><property name="text"><string>Used</string></property></column>
           <column><property name="text"><string>Cross-check</string></property></column>

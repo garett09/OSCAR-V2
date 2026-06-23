@@ -229,3 +229,34 @@ void ClockDriftHistoryTests::testFindByMachinesFiltersDateRange()
 
     QSqlDatabase::removeDatabase("test_nco_find");
 }
+
+void ClockDriftHistoryTests::testUpsertNightsValidatorAgreesRoundTrip()
+{
+    QSqlDatabase db = makeTestDb("test_nco_validator");
+
+    NightStartDiff n;
+    n.date        = QDate(2026, 4, 1);
+    n.startDiffMs = 10000;
+    n.endDiffMs   = 12000;
+    n.midMs       = 11000;
+    n.used        = true;
+    n.validated   = true;
+    n.validatorAgrees = true;
+
+    NightClockOffsetsRepository repo;
+    repo.upsertNights(1, 2, QVector<NightStartDiff>{ n });
+
+    auto rows = repo.findByMachines(1, 2);
+    QVERIFY(!rows.isEmpty());
+    QCOMPARE(rows[0].validated, true);
+    QCOMPARE(rows[0].validatorAgrees, 1);  // 1 = agrees, not NULL (-1)
+
+    // Also test validatorAgrees = false (disagrees)
+    n.validatorAgrees = false;
+    repo.upsertNights(1, 2, QVector<NightStartDiff>{ n });
+    rows = repo.findByMachines(1, 2);
+    QVERIFY(!rows.isEmpty());
+    QCOMPARE(rows[0].validatorAgrees, 0);  // 0 = disagrees
+
+    QSqlDatabase::removeDatabase("test_nco_validator");
+}

@@ -26,6 +26,7 @@ private slots:
     void testUpsertNightsInsertsRows();
     void testUpsertNightsUpdatesOnRerun();
     void testFindByMachinesFiltersDateRange();
+    void testUpsertNightsValidatorAgreesRoundTrip();
 private:
     QApplication* m_app = nullptr;
 };
