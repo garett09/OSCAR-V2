@@ -23,6 +23,9 @@ private slots:
     void testCorrectionDateCountMatchesInput();
     void testFindAllIncludingUndoneReturnsUndoneRows();
     void testSchemaVersion18HasNightClockOffsetsTable();
+    void testUpsertNightsInsertsRows();
+    void testUpsertNightsUpdatesOnRerun();
+    void testFindByMachinesFiltersDateRange();
 private:
     QApplication* m_app = nullptr;
 };

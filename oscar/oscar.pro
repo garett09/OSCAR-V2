@@ -438,6 +438,7 @@ SOURCES += \
     database/event_data_repository.cpp \
     database/respiratory_events_repository.cpp \
     database/device_time_correction_repository.cpp \
+    database/night_clock_offsets_repository.cpp \
     database/report_repository.cpp \
     database/reports_initializer.cpp \
     database/report_contents_repository.cpp \
@@ -627,6 +628,7 @@ HEADERS  += \
     database/event_data_repository.h \
     database/respiratory_events_repository.h \
     database/device_time_correction_repository.h \
+    database/night_clock_offsets_repository.h \
     database/report_repository.h \
     database/report_contents_repository.h \
     database/report_tree_repository.h \
