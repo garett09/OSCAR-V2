@@ -42,19 +42,41 @@
       <widget class="QLabel"><property name="text"><string>Range start:</string></property></widget>
      </item>
      <item row="2" column="1">
-      <widget class="QDateEdit" name="startDate">
-       <property name="calendarPopup"><bool>false</bool></property>
-       <property name="displayFormat"><string>yyyy-MM-dd</string></property>
-      </widget>
+      <layout class="QHBoxLayout">
+       <item>
+        <widget class="QDateEdit" name="startDate">
+         <property name="calendarPopup"><bool>false</bool></property>
+         <property name="displayFormat"><string>yyyy-MM-dd</string></property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="btnFirstData">
+         <property name="text"><string>First</string></property>
+         <property name="maximumWidth"><number>55</number></property>
+         <property name="toolTip"><string>Set to the earliest data date across the selected devices</string></property>
+        </widget>
+       </item>
+      </layout>
      </item>
      <item row="3" column="0">
       <widget class="QLabel"><property name="text"><string>Range end:</string></property></widget>
      </item>
      <item row="3" column="1">
-      <widget class="QDateEdit" name="endDate">
-       <property name="calendarPopup"><bool>false</bool></property>
-       <property name="displayFormat"><string>yyyy-MM-dd</string></property>
-      </widget>
+      <layout class="QHBoxLayout">
+       <item>
+        <widget class="QDateEdit" name="endDate">
+         <property name="calendarPopup"><bool>false</bool></property>
+         <property name="displayFormat"><string>yyyy-MM-dd</string></property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="btnLastData">
+         <property name="text"><string>Last</string></property>
+         <property name="maximumWidth"><number>55</number></property>
+         <property name="toolTip"><string>Set to the latest data date across the selected devices</string></property>
+        </widget>
+       </item>
+      </layout>
      </item>
     </layout>
    </item>
@@ -80,6 +102,13 @@
        <property name="sizeType"><enum>QSizePolicy::Expanding</enum></property>
        <property name="sizeHint" stdset="0"><size><width>40</width><height>20</height></size></property>
       </spacer>
+     </item>
+     <item>
+      <widget class="QPushButton" name="btnHistory">
+       <property name="text"><string>History</string></property>
+       <property name="maximumWidth"><number>80</number></property>
+       <property name="toolTip"><string>View the history of measured offsets and applied corrections for this device pair</string></property>
+      </widget>
      </item>
     </layout>
    </item>

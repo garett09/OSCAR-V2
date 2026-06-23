@@ -13,6 +13,7 @@
 #include <QDate>
 #include <QVector>
 #include "clocksyncanalyzer.h"
+#include "database/night_clock_offsets_repository.h"
 
 namespace Ui {
 class ClockSyncDialog;
@@ -33,12 +34,16 @@ signals:
 private slots:
     void onAnalyze();
     void onApply();
+    void onHistory();
+    void onFirstData();
+    void onLastData();
 
 private:
     Ui::ClockSyncDialog *ui;
     QVector<NightStartDiff> m_nights;   // primary: per-night window offsets
     ConstantOffsetFit       m_fit;      // robust constant fitted across nights
     DriftLineFit            m_drift;    // linear drift overlay over the same kept nights
+    NightClockOffsetsRepository m_nightRepo;
 
     void populateCpapCombo();
     void populateOxiCombo();

@@ -9,6 +9,7 @@
 #include "clocksyncdialog.h"
 #include "ui_clocksyncdialog.h"
 #include "clocksyncanalyzer.h"
+#include "clockdrifthistorydialog.h"
 #include "SleepLib/profiles.h"
 #include "SleepLib/machine_common.h"
 #include "database/device_time_correction_repository.h"
@@ -23,8 +24,11 @@ ClockSyncDialog::ClockSyncDialog(QWidget *parent)
     , ui(new Ui::ClockSyncDialog)
 {
     ui->setupUi(this);
-    connect(ui->btnAnalyze, &QPushButton::clicked, this, &ClockSyncDialog::onAnalyze);
-    connect(ui->btnApply,   &QPushButton::clicked, this, &ClockSyncDialog::onApply);
+    connect(ui->btnAnalyze,   &QPushButton::clicked, this, &ClockSyncDialog::onAnalyze);
+    connect(ui->btnApply,     &QPushButton::clicked, this, &ClockSyncDialog::onApply);
+    connect(ui->btnFirstData, &QPushButton::clicked, this, &ClockSyncDialog::onFirstData);
+    connect(ui->btnLastData,  &QPushButton::clicked, this, &ClockSyncDialog::onLastData);
+    connect(ui->btnHistory,   &QPushButton::clicked, this, &ClockSyncDialog::onHistory);
 
     ui->resultsTable->horizontalHeader()->setStretchLastSection(true);
     ui->resultsTable->verticalHeader()->setVisible(false);
@@ -133,6 +137,10 @@ void ClockSyncDialog::onAnalyze()
 
     ui->btnAnalyze->setEnabled(true);
     populateTable();
+
+    // Persist nightly measurements for history view
+    if (cpap && oxi)
+        m_nightRepo.upsertNights(cpap->getDatabaseId(), oxi->getDatabaseId(), m_nights);
 
     if (!m_fit.valid) {
         ui->statusLabel->setText(tr("Not enough paired nights (%1) — need at least %2 nights "
@@ -256,6 +264,32 @@ void ClockSyncDialog::populateTable()
     t->resizeRowsToContents();
 }
 
+void ClockSyncDialog::onFirstData()
+{
+    Machine* cpap = currentCpap();
+    Machine* oxi  = currentOxi();
+    QDate first;
+    if (cpap && cpap->FirstDay().isValid())
+        first = cpap->FirstDay();
+    if (oxi && oxi->FirstDay().isValid())
+        first = first.isValid() ? std::min(first, oxi->FirstDay()) : oxi->FirstDay();
+    if (first.isValid())
+        ui->startDate->setDate(first);
+}
+
+void ClockSyncDialog::onLastData()
+{
+    Machine* cpap = currentCpap();
+    Machine* oxi  = currentOxi();
+    QDate last;
+    if (cpap && cpap->LastDay().isValid())
+        last = cpap->LastDay();
+    if (oxi && oxi->LastDay().isValid())
+        last = last.isValid() ? std::max(last, oxi->LastDay()) : oxi->LastDay();
+    if (last.isValid())
+        ui->endDate->setDate(last);
+}
+
 void ClockSyncDialog::onApply()
 {
     Machine* cpap = currentCpap();
@@ -363,4 +397,16 @@ void ClockSyncDialog::onApply()
                                  .arg(superseded));
     ui->btnApply->setEnabled(false);
     emit correctionsChanged();
+}
+
+void ClockSyncDialog::onHistory()
+{
+    Machine* cpap = currentCpap();
+    Machine* oxi  = currentOxi();
+    if (!cpap || !oxi) {
+        ui->statusLabel->setText(tr("Select both devices before opening history."));
+        return;
+    }
+    ClockDriftHistoryDialog dlg(cpap, oxi, this);
+    dlg.exec();
 }
