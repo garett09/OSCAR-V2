@@ -71,7 +71,7 @@ public:
      * - Added type field to channels
      * - Removed events_file and summary_file from sessions (no longer needed)
      */
-    static const int CURRENT_SCHEMA_VERSION = 17;
+    static const int CURRENT_SCHEMA_VERSION = 18;
 
     /*!
      * \brief Oldest schema version that can be restored into the current database.
@@ -184,6 +184,12 @@ private:
 
     // Migration from v16 to v17
     static bool migrateV16ToV17(QSqlDatabase& db);
+
+    // Night clock offsets table (schema version 18)
+    static bool createNightClockOffsetsTable(QSqlDatabase& db);
+
+    // Migration from v17 to v18
+    static bool migrateV17ToV18(QSqlDatabase& db);
 
     static bool createIndexes(QSqlDatabase& db);
     static bool setSchemaVersion(QSqlDatabase& db, int version);

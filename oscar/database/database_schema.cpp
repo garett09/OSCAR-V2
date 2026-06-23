@@ -152,6 +152,12 @@ bool DatabaseSchema::createSchema(QSqlDatabase& db)
         return false;
     }
 
+    // Night clock offsets table (schema version 18)
+    if (!createNightClockOffsetsTable(db)) {
+        qCritical() << "DatabaseSchema: Failed to create night_clock_offsets table";
+        return false;
+    }
+
     // Create indexes
     if (!createIndexes(db)) {
         qCritical() << "DatabaseSchema: Failed to create indexes";
@@ -247,6 +253,14 @@ bool DatabaseSchema::upgradeSchema(QSqlDatabase& db, int fromVersion)
             return false;
         }
         fromVersion = 17;
+    }
+
+    if (fromVersion == 17) {
+        if (!migrateV17ToV18(db)) {
+            qCritical() << "DatabaseSchema: v17->v18 migration failed";
+            return false;
+        }
+        fromVersion = 18;
     }
 
     if (fromVersion != CURRENT_SCHEMA_VERSION) {
@@ -1721,5 +1735,90 @@ bool DatabaseSchema::migrateV16ToV17(QSqlDatabase& db)
     }
 
     qDebug() << "DatabaseSchema: Migration v16->v17 complete";
+    return true;
+}
+
+/*
+ * Create the night_clock_offsets table
+ *
+ * Parameters:
+ *   db - Database connection to use
+ *
+ * Returns: true if successful, false otherwise
+ *
+ * Stores one row per (machine_id, ref_machine_id, date) triple, recording
+ * the measured clock offset at the start and end of the night, and whether
+ * the measurement was used in drift correction.
+ */
+bool DatabaseSchema::createNightClockOffsetsTable(QSqlDatabase& db)
+{
+    QSqlQuery q(db);
+    if (!q.exec(R"(
+        CREATE TABLE IF NOT EXISTS night_clock_offsets (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            machine_id      INTEGER NOT NULL
+                                REFERENCES machines(id) ON DELETE CASCADE,
+            ref_machine_id  INTEGER NOT NULL,
+            date            TEXT    NOT NULL,
+            start_diff_ms   INTEGER NOT NULL,
+            end_diff_ms     INTEGER NOT NULL,
+            mid_ms          INTEGER NOT NULL,
+            used            INTEGER NOT NULL,
+            validated       INTEGER NOT NULL DEFAULT 0,
+            validator_agrees INTEGER,
+            recorded_at     TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(machine_id, ref_machine_id, date)
+        )
+    )")) {
+        qCritical() << "DatabaseSchema: Failed to create night_clock_offsets:"
+                    << q.lastError().text();
+        DatabaseManager::instance().checkQueryError(
+            "DatabaseSchema::createNightClockOffsetsTable", q);
+        return false;
+    }
+    if (!q.exec("CREATE INDEX IF NOT EXISTS idx_nco_machine_date "
+                "ON night_clock_offsets(machine_id, ref_machine_id, date)")) {
+        qCritical() << "DatabaseSchema: Failed to create idx_nco_machine_date:"
+                    << q.lastError().text();
+        DatabaseManager::instance().checkQueryError(
+            "DatabaseSchema::createNightClockOffsetsTable", q);
+        return false;
+    }
+    return true;
+}
+
+/*
+ * Migrate database from schema version 17 to 18
+ *
+ * Adds the night_clock_offsets table for per-night clock offset measurements.
+ */
+bool DatabaseSchema::migrateV17ToV18(QSqlDatabase& db)
+{
+    qDebug() << "DatabaseSchema: Migrating v17 -> v18";
+
+    if (!db.transaction()) {
+        qCritical() << "DatabaseSchema: migrateV17ToV18: failed to start transaction";
+        return false;
+    }
+
+    if (!createNightClockOffsetsTable(db)) {
+        qCritical() << "DatabaseSchema: migrateV17ToV18: createNightClockOffsetsTable failed";
+        db.rollback();
+        return false;
+    }
+
+    if (!setSchemaVersion(db, 18)) {
+        qCritical() << "DatabaseSchema: migrateV17ToV18: setSchemaVersion failed";
+        db.rollback();
+        return false;
+    }
+
+    if (!db.commit()) {
+        qCritical() << "DatabaseSchema: migrateV17ToV18: commit failed";
+        db.rollback();
+        return false;
+    }
+
+    qDebug() << "DatabaseSchema: Migration v17->v18 complete";
     return true;
 }

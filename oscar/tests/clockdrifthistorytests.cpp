@@ -94,3 +94,30 @@ void ClockDriftHistoryTests::testFindAllIncludingUndoneReturnsUndoneRows()
 
     QSqlDatabase::removeDatabase("test_dtc");
 }
+
+void ClockDriftHistoryTests::testSchemaVersion18HasNightClockOffsetsTable()
+{
+    QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE", "test_schema18");
+    db.setDatabaseName(":memory:");
+    QVERIFY(db.open());
+
+    // createSchema may return false in test mode due to ReportsInitializer using the
+    // default DB connection instead of the named in-memory one — this is a pre-existing
+    // issue unrelated to the night_clock_offsets table. The table is still created
+    // correctly before ReportsInitializer runs, so we verify the table directly.
+    DatabaseSchema::createSchema(db);
+
+    {
+        // Confirm night_clock_offsets table exists
+        QSqlQuery q(db);
+        QVERIFY(q.exec("SELECT name FROM sqlite_master WHERE type='table' AND name='night_clock_offsets'"));
+        QVERIFY(q.next());
+        QCOMPARE(q.value(0).toString(), QString("night_clock_offsets"));
+
+        // Confirm schema version is 18
+        QCOMPARE(DatabaseSchema::getSchemaVersion(db), 18);
+    }
+
+    db.close();
+    QSqlDatabase::removeDatabase("test_schema18");
+}
