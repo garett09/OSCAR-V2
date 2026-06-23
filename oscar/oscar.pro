@@ -313,6 +313,7 @@ SOURCES += \
     driftplotwidget.cpp \
     clocksyncanalyzer.cpp \
     clocksyncdialog.cpp \
+    clockdrifthistorydialog.cpp \
     backupdialog.cpp \
     restoredialog.cpp \
     sharedialog.cpp \
@@ -497,6 +498,7 @@ HEADERS  += \
     driftplotwidget.h \
     clocksyncanalyzer.h \
     clocksyncdialog.h \
+    clockdrifthistorydialog.h \
     backupdialog.h \
     restoredialog.h \
     sharedialog.h \
@@ -662,6 +664,7 @@ FORMS += \
     devicetimecorrectiondialog.ui \
     driftanalysisdialog.ui \
     clocksyncdialog.ui \
+    clockdrifthistorydialog.ui \
     backupdialog.ui \
     restoredialog.ui \
     sharedialog.ui \

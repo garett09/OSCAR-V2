@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>ClockDriftHistoryDialog</class>
+ <widget class="QDialog" name="ClockDriftHistoryDialog">
+  <property name="geometry">
+   <rect><x>0</x><y>0</y><width>860</width><height>620</height></rect>
+  </property>
+  <property name="windowTitle">
+   <string>Clock Drift History</string>
+  </property>
+  <property name="sizeGripEnabled"><bool>true</bool></property>
+  <layout class="QVBoxLayout" name="mainLayout">
+   <property name="spacing"><number>6</number></property>
+   <property name="margin"><number>8</number></property>
+
+   <!-- Top bar -->
+   <item>
+    <layout class="QHBoxLayout" name="topBar">
+     <item>
+      <widget class="QLabel" name="deviceLabel">
+       <property name="text"><string>No devices selected</string></property>
+      </widget>
+     </item>
+     <item>
+      <spacer>
+       <property name="orientation"><enum>Qt::Horizontal</enum></property>
+       <property name="sizeType"><enum>QSizePolicy::Expanding</enum></property>
+       <property name="sizeHint" stdset="0"><size><width>20</width><height>20</height></size></property>
+      </spacer>
+     </item>
+     <item>
+      <widget class="QLabel"><property name="text"><string>From:</string></property></widget>
+     </item>
+     <item>
+      <widget class="QDateEdit" name="fromDate">
+       <property name="displayFormat"><string>yyyy-MM-dd</string></property>
+       <property name="calendarPopup"><bool>false</bool></property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLabel"><property name="text"><string>To:</string></property></widget>
+     </item>
+     <item>
+      <widget class="QDateEdit" name="toDate">
+       <property name="displayFormat"><string>yyyy-MM-dd</string></property>
+       <property name="calendarPopup"><bool>false</bool></property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="btnReset">
+       <property name="text"><string>Reset</string></property>
+       <property name="maximumWidth"><number>60</number></property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="btnExport">
+       <property name="text"><string>Export CSV...</string></property>
+       <property name="maximumWidth"><number>100</number></property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QCheckBox" name="chkShowUndone">
+       <property name="text"><string>Show undone corrections</string></property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+
+   <!-- Splitter -->
+   <item>
+    <widget class="QSplitter" name="splitter">
+     <property name="orientation"><enum>Qt::Vertical</enum></property>
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+       <horstretch>0</horstretch><verstretch>1</verstretch>
+      </sizepolicy>
+     </property>
+     <widget class="DriftPlotWidget" name="plotWidget">
+      <property name="minimumHeight"><number>180</number></property>
+     </widget>
+     <widget class="QTabWidget" name="tabWidget">
+      <property name="minimumHeight"><number>120</number></property>
+      <widget class="QWidget" name="tabNightly">
+       <attribute name="title"><string>Nightly offsets</string></attribute>
+       <layout class="QVBoxLayout">
+        <property name="margin"><number>0</number></property>
+        <item>
+         <widget class="QTableWidget" name="nightlyTable">
+          <property name="selectionMode"><enum>QAbstractItemView::NoSelection</enum></property>
+          <property name="editTriggers"><set>QAbstractItemView::NoEditTriggers</set></property>
+          <property name="alternatingRowColors"><bool>true</bool></property>
+          <column><property name="text"><string>Date</string></property></column>
+          <column><property name="text"><string>Start Delta (s)</string></property></column>
+          <column><property name="text"><string>End Delta (s)</string></property></column>
+          <column><property name="text"><string>Offset (s)</string></property></column>
+          <column><property name="text"><string>Used</string></property></column>
+          <column><property name="text"><string>Cross-check</string></property></column>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="tabCorrections">
+       <attribute name="title"><string>Applied corrections</string></attribute>
+       <layout class="QVBoxLayout">
+        <property name="margin"><number>0</number></property>
+        <item>
+         <widget class="QTableWidget" name="correctionsTable">
+          <property name="selectionMode"><enum>QAbstractItemView::NoSelection</enum></property>
+          <property name="editTriggers"><set>QAbstractItemView::NoEditTriggers</set></property>
+          <property name="alternatingRowColors"><bool>true</bool></property>
+          <column><property name="text"><string>From</string></property></column>
+          <column><property name="text"><string>To</string></property></column>
+          <column><property name="text"><string>Type</string></property></column>
+          <column><property name="text"><string>Value</string></property></column>
+          <column><property name="text"><string>Applied</string></property></column>
+          <column><property name="text"><string>Status</string></property></column>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </widget>
+    </widget>
+   </item>
+
+   <!-- Close button row -->
+   <item>
+    <layout class="QHBoxLayout">
+     <item>
+      <spacer>
+       <property name="orientation"><enum>Qt::Horizontal</enum></property>
+       <property name="sizeType"><enum>QSizePolicy::Expanding</enum></property>
+       <property name="sizeHint" stdset="0"><size><width>40</width><height>20</height></size></property>
+      </spacer>
+     </item>
+     <item>
+      <widget class="QPushButton" name="btnClose">
+       <property name="text"><string>Close</string></property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+
+  </layout>
+ </widget>
+ <customwidgets>
+  <customwidget>
+   <class>DriftPlotWidget</class>
+   <extends>QWidget</extends>
+   <header>driftplotwidget.h</header>
+  </customwidget>
+ </customwidgets>
+ <resources/>
+ <connections>
+  <connection>
+   <sender>btnClose</sender><signal>clicked()</signal>
+   <receiver>ClockDriftHistoryDialog</receiver><slot>accept()</slot>
+   <hints>
+    <hint type="sourcelabel"><x>800</x><y>600</y></hint>
+    <hint type="destinationlabel"><x>430</x><y>310</y></hint>
+   </hints>
+  </connection>
+ </connections>
+</ui>
