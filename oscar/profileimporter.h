@@ -118,6 +118,13 @@ private:
     
     // Helper to find machine by folder name
     Machine* findMachineByFolderName(Profile* profile, const QString& folderName);
+
+    // Read Sessions.info (primary) or Summaries.xml (fallback) from a 1.7.1 machine
+    // folder and return a map of SessionID → enabled state (true = enabled).
+    // Sessions.info is authoritative: 1.7.1 writes it on every exit; Summaries.xml
+    // is only updated during SD card imports and can be stale.
+    // Returns an empty map if neither file is found (all sessions treated as enabled).
+    QHash<quint32, bool> readSummariesEnabledMap(const QString& machinePath);
     
     // Progress reporting helpers
     void reportProgress(int current, int total, const QString& message);

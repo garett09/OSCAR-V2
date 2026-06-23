@@ -19,10 +19,13 @@
 #include "database/preferences_repository.h"
 #include "database/profile_repository.h"
 #include "SleepLib/appsettings.h"
+#include "SleepLib/common.h"
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QHash>
 #include <QSet>
+#include <QDomDocument>
 #include <QDebug>
 #include <QApplication>
 
@@ -863,7 +866,106 @@ bool ProfileImporter::loadSessionsFromFiles(Profile* profile,
     return true;
 }
 
-bool ProfileImporter::loadMachineSessions(Machine* machine, 
+QHash<quint32, bool> ProfileImporter::readSummariesEnabledMap(const QString& machinePath)
+{
+    QHash<quint32, bool> enabledMap;
+
+    // Sessions.info is the authoritative source: 1.7.1 writes it on every Machine
+    // destructor call (OSCAR exit), so it always reflects the latest enabled state.
+    // Summaries.xml is only written during SD card imports and can be stale.
+    static const quint32 OSCAR_MAGIC       = 0xC73216AB;
+    static const quint16 FILETYPE_SESSENABLED = 5;
+
+    QString sessInfoPath = machinePath + "/Sessions.info";
+    QFile sessFile(sessInfoPath);
+    if (sessFile.open(QIODevice::ReadOnly)) {
+        QDataStream in(&sessFile);
+        in.setByteOrder(QDataStream::LittleEndian);
+        in.setVersion(QDataStream::Qt_5_0);
+
+        quint32 magic;  in >> magic;
+        quint16 ftype;  in >> ftype;
+        quint16 ver;    in >> ver;
+
+        if (magic == OSCAR_MAGIC && ftype == FILETYPE_SESSENABLED) {
+            if (ver == 1) {
+                // Legacy: skip a QHash<ChannelID,bool> that used to be here
+                QHash<quint32, bool> crap;
+                in >> crap;
+            }
+            int size;
+            in >> size;
+            for (int i = 0; i < size && !in.atEnd(); ++i) {
+                quint32 sid;
+                quint8  b;
+                in >> sid >> b;
+                enabledMap[sid] = (b & 0x1) != 0;
+            }
+            sessFile.close();
+            return enabledMap;
+        }
+        sessFile.close();
+        qWarning() << "ProfileImporter::readSummariesEnabledMap: Sessions.info has unexpected"
+                   << "magic/filetype in" << sessInfoPath;
+    }
+
+    // Fallback: Summaries.xml (uncompressed — 1.7.1 SaveSummaryCache writes this)
+    // or Summaries.xml.gz (compressed — written by older OSCAR builds).
+    // These may be stale relative to Sessions.info, but are better than nothing
+    // when Sessions.info is absent (very old profiles).
+    QByteArray xmlData;
+    QString xmlPath = machinePath + "/Summaries.xml";
+    QString gzPath  = machinePath + "/Summaries.xml.gz";
+
+    if (QFile::exists(xmlPath)) {
+        QFile f(xmlPath);
+        if (f.open(QIODevice::ReadOnly)) { xmlData = f.readAll(); f.close(); }
+    }
+    if (xmlData.isEmpty() && QFile::exists(gzPath)) {
+        QFile f(gzPath);
+        if (f.open(QIODevice::ReadOnly)) { xmlData = gUncompress(f.readAll()); f.close(); }
+    }
+    if (xmlData.isEmpty()) {
+        return enabledMap;
+    }
+
+    QDomDocument doc;
+#if QT_VERSION < QT_VERSION_CHECK(6, 8, 0)
+    QString errorMsg;
+    int errorLine = 0;
+    if (!doc.setContent(xmlData, false, &errorMsg, &errorLine)) {
+        qWarning() << "ProfileImporter::readSummariesEnabledMap: XML parse error in"
+                   << xmlPath << "line" << errorLine << ":" << errorMsg;
+        return enabledMap;
+    }
+#else
+    auto result = doc.setContent(xmlData);
+    if (!result) {
+        qWarning() << "ProfileImporter::readSummariesEnabledMap: XML parse error in"
+                   << xmlPath << "line" << result.errorLine << ":" << result.errorMessage;
+        return enabledMap;
+    }
+#endif
+
+    QDomElement root = doc.documentElement();
+    if (root.tagName().compare("sessions", Qt::CaseInsensitive) != 0) {
+        return enabledMap;
+    }
+
+    QDomNodeList sessionNodes = root.childNodes();
+    for (int i = 0; i < sessionNodes.size(); ++i) {
+        QDomElement e = sessionNodes.at(i).toElement();
+        if (e.isNull()) continue;
+        bool ok;
+        quint32 id = e.attribute("id", "0").toUInt(&ok);
+        if (!ok) continue;
+        enabledMap[id] = e.attribute("enabled", "1").toInt() != 0;
+    }
+
+    return enabledMap;
+}
+
+bool ProfileImporter::loadMachineSessions(Machine* machine,
                                          const QString& oldMachinePath)
 {
     // Scan for .000 files in Summaries subdirectory
@@ -885,6 +987,10 @@ bool ProfileImporter::loadMachineSessions(Machine* machine,
     }
     
     m_totalSessions += files.size();
+
+    // Read Summaries.xml(.gz) to recover each session's enabled/disabled state.
+    // OSCAR 1.7.1 stores this in the XML index, not in the .000 binary files.
+    QHash<quint32, bool> enabledMap = readSummariesEnabledMap(oldMachinePath);
 
     int sessionFailures = 0;
     int eventFailures = 0;
@@ -908,11 +1014,19 @@ bool ProfileImporter::loadMachineSessions(Machine* machine,
         // Create session
         Session* session = new Session(machine, sessionId);
 
-        // Load summary from .000 file
+        // Load summary from .000 file (always sets enabled=true; corrected below)
         if (!session->LoadSummaryFromFile(fileInfo.absoluteFilePath())) {
             qWarning() << "ProfileImporter::loadMachineSessions: Failed to load summary:" << fileInfo.fileName();
             delete session;
             continue;
+        }
+
+        // Restore enabled/disabled state from Summaries.xml.  The session ID stored
+        // in the XML is a quint32 (truncated from quint64), matching how 1.7.1 writes
+        // it: el.setAttribute("id", (quint32)sess->session()).
+        quint32 xmlId = static_cast<quint32>(sessionId);
+        if (enabledMap.contains(xmlId) && !enabledMap[xmlId]) {
+            session->setEnabled(false);
         }
 
         // Load events from .001 file (if exists)
