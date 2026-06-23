@@ -817,7 +817,8 @@ test {
         tests/dreemtests.cpp \
         tests/eventstabtests.cpp \
         tests/zeotests.cpp \
-        tests/clocksynctests.cpp
+        tests/clocksynctests.cpp \
+        tests/clockdrifthistorytests.cpp
 
     HEADERS += \
         tests/AutoTest.h \
@@ -832,7 +833,8 @@ test {
         tests/dreemtests.h \
         tests/eventstabtests.h \
         tests/zeotests.h \
-        tests/clocksynctests.h
+        tests/clocksynctests.h \
+        tests/clockdrifthistorytests.h
 }
 
 macx {

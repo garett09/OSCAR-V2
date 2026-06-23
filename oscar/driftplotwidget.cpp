@@ -84,6 +84,19 @@ void DriftPlotWidget::clear()
     m_hasRefModel = false;
     m_rangeStart  = QDate();
     m_rangeEnd    = QDate();
+    m_correctionDates.clear();
+    update();
+}
+
+void DriftPlotWidget::setCorrectionDates(const QList<QDate>& dates)
+{
+    m_correctionDates = dates;
+    update();
+}
+
+void DriftPlotWidget::clearCorrectionDates()
+{
+    m_correctionDates.clear();
     update();
 }
 
@@ -202,6 +215,25 @@ void DriftPlotWidget::paintEvent(QPaintEvent*)
         p.setPen(QColor(80, 80, 80));
         QRect lr(x - 28, plot.bottom() + 4, 56, 18);
         p.drawText(lr, Qt::AlignCenter, d.toString("MM-dd"));
+    }
+
+    // --- Correction-date markers (dark orange vertical lines) ---
+    if (!m_correctionDates.isEmpty()) {
+        QFont markerFont = tickFont;
+        markerFont.setPointSize(qMax(6, tickFont.pointSize() - 1));
+        p.setFont(markerFont);
+        for (const QDate& d : m_correctionDates) {
+            if (d < minD || d > maxD) continue;
+            int x = (int)toX(d);
+            p.setPen(QPen(QColor(180, 80, 0), 1, Qt::SolidLine));
+            p.drawLine(x, plot.top(), x, plot.bottom());
+            // Date caption above the line (non-color cue for accessibility)
+            QString cap = d.toString("MM-dd");
+            QRect capRect(x - 20, plot.top() - mt + 1, 40, mt - 1);
+            p.setPen(QColor(180, 80, 0));
+            p.drawText(capRect, Qt::AlignCenter, cap);
+        }
+        p.setFont(tickFont); // restore
     }
 
     // --- Existing model line (gray dashed) ---

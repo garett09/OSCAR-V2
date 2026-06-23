@@ -32,6 +32,10 @@ public:
     void setDateRange(const QDate& start, const QDate& end); // fallback X-axis bounds
     void clear();
 
+    void setCorrectionDates(const QList<QDate>& dates);
+    void clearCorrectionDates();
+    int  correctionDateCount() const { return m_correctionDates.size(); }
+
 protected:
     void paintEvent(QPaintEvent* event) override;
 
@@ -49,6 +53,8 @@ private:
 
     QDate m_rangeStart;
     QDate m_rangeEnd;
+
+    QList<QDate> m_correctionDates;
 
     static double tNoon(QDate d);
 };
