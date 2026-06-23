@@ -13,6 +13,7 @@
 #include <QFileDialog>
 #include <QTextStream>
 #include <QFile>
+#include <QDateTime>
 
 ClockDriftHistoryDialog::ClockDriftHistoryDialog(Machine* cpap, Machine* oxi, QWidget* parent)
     : QDialog(parent)
@@ -185,8 +186,11 @@ void ClockDriftHistoryDialog::populateCorrectionsTable(const QList<DeviceTimeCor
         t->setItem(row, 1, item(r.dateTo.isEmpty() ? tr("open") : r.dateTo));
         t->setItem(row, 2, item(r.type));
         t->setItem(row, 3, item(formatCorrectionValue(r)));
-        // appliedAt: trim to "YYYY-MM-DD HH:MM"
-        t->setItem(row, 4, item(r.appliedAt.left(16)));
+        // appliedAt stored as UTC datetime('now'); convert to local time for display
+        QDateTime dt = QDateTime::fromString(r.appliedAt.left(19), "yyyy-MM-dd HH:mm:ss");
+        dt.setTimeSpec(Qt::UTC);
+        QString localTime = dt.isValid() ? dt.toLocalTime().toString("yyyy-MM-dd HH:mm") : r.appliedAt.left(16);
+        t->setItem(row, 4, item(localTime));
         QTableWidgetItem* status;
         if (r.undoneAt.isEmpty()) {
             status = item(tr("active"));
