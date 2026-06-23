@@ -56,6 +56,10 @@ public:
 
     QList<DeviceTimeCorrectionData> findManualOffsetRows(qint64 machineId);
 
+    // Returns all rows for the machine including undone (superseded) ones.
+    // Used by ClockDriftHistoryDialog when "Show undone" is checked.
+    QList<DeviceTimeCorrectionData> findAllIncludingUndone(qint64 machineId);
+
 private:
     QSqlDatabase database();
     DeviceTimeCorrectionData recordToData(QSqlQuery& q);

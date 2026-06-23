@@ -21,6 +21,7 @@ private slots:
     void testSetCorrectionDatesStoresDates();
     void testClearCorrectionDatesEmptiesList();
     void testCorrectionDateCountMatchesInput();
+    void testFindAllIncludingUndoneReturnsUndoneRows();
 private:
     QApplication* m_app = nullptr;
 };

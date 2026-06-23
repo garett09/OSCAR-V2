@@ -231,3 +231,29 @@ QList<DeviceTimeCorrectionData> DeviceTimeCorrectionRepository::findManualOffset
     }
     return rows;
 }
+
+QList<DeviceTimeCorrectionData> DeviceTimeCorrectionRepository::findAllIncludingUndone(qint64 machineId)
+{
+    QSqlQuery q(database());
+    q.prepare(R"(
+        SELECT id, machine_id, date_from, date_to, type, offset_ms, c0_ms, c1,
+               reason, applied_at, undone_at
+        FROM device_time_corrections
+        WHERE machine_id = :machine_id
+        ORDER BY date_from ASC, id ASC
+    )");
+    q.bindValue(":machine_id", machineId);
+
+    QList<DeviceTimeCorrectionData> rows;
+    if (!q.exec()) {
+        qCritical() << "DeviceTimeCorrectionRepository::findAllIncludingUndone failed:"
+                    << q.lastError().text();
+        DatabaseManager::instance().checkQueryError(
+            "DeviceTimeCorrectionRepository::findAllIncludingUndone", q);
+        return rows;
+    }
+    while (q.next()) {
+        rows.append(recordToData(q));
+    }
+    return rows;
+}
