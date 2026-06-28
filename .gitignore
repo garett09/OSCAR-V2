@@ -64,3 +64,4 @@ doxydoc
 *.json
 # Added by code-review-graph
 .code-review-graph/
+.superpowers/

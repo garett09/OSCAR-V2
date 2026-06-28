@@ -15,6 +15,7 @@
 #include <QDateEdit>
 #include <QLabel>
 #include <QPushButton>
+#include <QCheckBox>
 
 #include <QCoreApplication>
 #include <QListWidget>
@@ -81,6 +82,7 @@ public:
     QDate endDate() const;
     QDate lastSettingsChangeStartDate() const;
     QList<SelectedChannel> selectedChannels() const;
+    bool airViewFormat() const;
 
 private slots:
     void onRangeChanged(int index);
@@ -92,6 +94,7 @@ private:
     QLabel *m_startLabel;
     QLabel *m_endLabel;
     QListWidget *m_channelsListWidget;
+    QCheckBox *m_airViewCheck;
 };
 
 class ComplianceReport

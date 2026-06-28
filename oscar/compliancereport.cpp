@@ -44,6 +44,18 @@ extern MainWindow *mainwin;
 extern ChannelID RMS9_EPR;
 extern ChannelID RMS9_EPRLevel;
 extern ChannelID RMAS1x_Comfort;
+// Additional ResMed device-setting channels for the Device Settings page.
+extern ChannelID RMS9_Mode;
+extern ChannelID RMS9_SmartStart;
+extern ChannelID RMS9_HumidStatus;
+extern ChannelID RMS9_HumidLevel;
+extern ChannelID RMS9_Temp;
+extern ChannelID RMS9_TempEnable;
+extern ChannelID RMS9_ABFilter;
+extern ChannelID RMS9_ClimateControl;
+extern ChannelID RMS9_Mask;
+extern ChannelID RMS9_RampEnable;
+extern ChannelID RMAS11_PtView;
 
 ComplianceReportDialog::ComplianceReportDialog(QWidget *parent)
     : QDialog(parent)
@@ -131,6 +143,14 @@ ComplianceReportDialog::ComplianceReportDialog(QWidget *parent)
             }
         }
     }
+
+    // ResMed AirView format: when ticked, the report mimics a ResMed AirView
+    // Compliance + Therapy report — it drops the O2/pulse-ox, sleep-stage/bedtime,
+    // detailed-channel and therapy-history sections and the extra device/therapy
+    // rows AirView does not show. Unticked = OSCAR's full report (unchanged).
+    m_airViewCheck = new QCheckBox(tr("ResMed AirView format (omit O2, bedtime && extra rows)"), this);
+    m_airViewCheck->setChecked(false);
+    mainLayout->addWidget(m_airViewCheck);
 
     // Dialog Buttons
     QDialogButtonBox *buttonBox = new QDialogButtonBox(
@@ -234,6 +254,11 @@ QList<SelectedChannel> ComplianceReportDialog::selectedChannels() const
         }
     }
     return selected;
+}
+
+bool ComplianceReportDialog::airViewFormat() const
+{
+    return m_airViewCheck->isChecked();
 }
 
 void ComplianceReportDialog::onRangeChanged(int index)
@@ -562,7 +587,9 @@ QList<SettingsChangeBlock> getSettingsChanges(const QDate& start, const QDate& e
 
 const int CHART_MAX_W = 1500;  // SVG canvas width — fixed; charts always span the full page width
 const int CHART_TITLE_H = 50; // pixels reserved at top of canvas for the title
-const int CHART_H = 360 + CHART_TITLE_H; // SVG canvas height (410px total)
+const int CHART_LEGEND_H = 40; // dedicated legend band below the title, above the plot
+                               // (keeps the legend off the bars so it can never hide data)
+const int CHART_H = 360 + CHART_TITLE_H + CHART_LEGEND_H; // SVG canvas height (450px total)
 static const int CHART_DISPLAY_MIN_W = 200;
 const int CHART_LM = 86;   // left margin: y-axis labels
 const int CHART_RM = 190;  // right margin: last x label half-width (60) + gap,
@@ -767,7 +794,11 @@ static void drawLegend(QPainter& painter, const QRect& chartRect,
         totalW += sw + txtGap + fm.horizontalAdvance(it.label) + itemGap;
     totalW -= itemGap;
     int x = topRight ? (chartRect.right() - totalW) : (chartRect.left() + 8);
-    int y = chartRect.top() + 6;
+    // Draw in the dedicated legend band between the title and the plot (above
+    // chartRect.top()) so the legend is physically outside the plotting area and
+    // can never overlap a bar, threshold line, or reference band — nor be occluded
+    // by one. The band spans CHART_TITLE_H .. CHART_TITLE_H + CHART_LEGEND_H.
+    int y = CHART_TITLE_H + 6;
     int cy = y + h / 2;
     for (const LegendItem& it : items) {
         if (it.glyph == 0) {
@@ -954,7 +985,7 @@ struct SvgChart {
         painter.setRenderHint(QPainter::TextAntialiasing);
         painter.fillRect(QRect(0, 0, canvasW, CHART_H), Qt::white);
         drawChartTitle(painter, title, unit);
-        const int tm = CHART_TITLE_H + 22, bm = 80;
+        const int tm = CHART_TITLE_H + CHART_LEGEND_H + 22, bm = 80;
         chartRect = QRect(CHART_LM, tm, canvasW - CHART_LM - CHART_RM, CHART_H - tm - bm);
     }
 
@@ -1930,6 +1961,7 @@ void ComplianceReport::exportReport(QWidget *parent)
     QDate start = dlg.startDate();
     QDate end = dlg.endDate();
     QList<SelectedChannel> selectedChans = dlg.selectedChannels();
+    const bool airView = dlg.airViewFormat();  // mimic ResMed AirView: trim non-AirView sections/rows
 
     if (start > end) {
         QMessageBox::warning(parent, tr("Invalid Date Range"), tr("Start date must be before or equal to end date."));
@@ -2321,6 +2353,8 @@ void ComplianceReport::exportReport(QWidget *parent)
             mtype = oxiSourceType;
         }
         if (fixedChanIds.contains(cid)) continue;
+        // AirView's channel-trends page covers only these three respiratory channels.
+        if (airView && cid != CPAP_MinuteVent && cid != CPAP_RespRate && cid != CPAP_TidalVolume) continue;
         if (!p_profile->hasChannel(cid)) continue;
         // EPAP is only a clinically independent channel in BiLevel/ASV modes.
         // In CPAP and APAP, EPAP = set pressure - EPR level — derivative, not worth charting.
@@ -2388,7 +2422,7 @@ void ComplianceReport::exportReport(QWidget *parent)
     {
         double untreatedAHI = p_profile->cpap ? p_profile->cpap->untreatedAHI() : 0.0;
         QDate diagDate = p_profile->cpap ? p_profile->cpap->dateDiagnosed() : QDate();
-        if (untreatedAHI > 0.0) {
+        if (!airView && untreatedAHI > 0.0) {  // AirView header carries no baseline-AHI line
             double pctChange = (untreatedAHI - AHI) / untreatedAHI * 100.0;
             QString sign = pctChange >= 0.0 ? "-" : "+";  // reduction shown as negative
             QString diagStr = diagDate.isValid()
@@ -2482,10 +2516,10 @@ void ComplianceReport::exportReport(QWidget *parent)
     html += "<tr><td " + cellL + ">" + tr("Serial number") + "</td><td align='right' " + cellR + ">" + serial + "</td></tr>";
     html += "<tr><td " + cellL + ">" + tr("Mode") + "</td><td align='right' " + cellR + ">" + modeStr + "</td></tr>";
     if (lastDay && p1IsCpap) {
-        html += "<tr><td " + cellL + ">" + tr("Pressure") + "</td><td align='right' " + cellR + ">" + p1MinPresStr + "</td></tr>";
+        html += "<tr><td " + cellL + ">" + (airView ? tr("Set pressure") : tr("Pressure")) + "</td><td align='right' " + cellR + ">" + p1MinPresStr + "</td></tr>";
     } else if (lastDay) {
-        html += "<tr><td " + cellL + ">" + tr("Min Pressure") + "</td><td align='right' " + cellR + ">" + p1MinPresStr + "</td></tr>";
-        html += "<tr><td " + cellL + ">" + tr("Max Pressure") + "</td><td align='right' " + cellR + ">" + p1MaxPresStr + "</td></tr>";
+        html += "<tr><td " + cellL + ">" + (airView ? tr("Set Min Pressure") : tr("Min Pressure")) + "</td><td align='right' " + cellR + ">" + p1MinPresStr + "</td></tr>";
+        html += "<tr><td " + cellL + ">" + (airView ? tr("Set Max Pressure") : tr("Max Pressure")) + "</td><td align='right' " + cellR + ">" + p1MaxPresStr + "</td></tr>";
     }
     bool isResMed = brand.contains("ResMed", Qt::CaseInsensitive);
     bool eprIsOn = false;
@@ -2505,7 +2539,16 @@ void ComplianceReport::exportReport(QWidget *parent)
         }
     }
 
-    if (eprIsOn) {
+    if (airView) {
+        // AirView device box shows a single "EPR" row carrying the full relief
+        // setting (mode and level, e.g. "Ramp Only, 3.0"), matching the pressure
+        // sidebar. Strip a redundant "EPR: " prefix so the plain "Off" case reads
+        // "EPR | Off" rather than "EPR | EPR: Off".
+        QString airViewEpr = relief;
+        if (airViewEpr.startsWith("EPR: ", Qt::CaseInsensitive)) airViewEpr = airViewEpr.mid(5);
+        if (airViewEpr.isEmpty()) airViewEpr = tr("Off");
+        html += "<tr><td " + cellL + ">" + tr("EPR") + "</td><td align='right' " + cellR + ">" + airViewEpr + "</td></tr>";
+    } else if (eprIsOn) {
         html += "<tr><td " + cellL + ">" + tr("EPR") + "</td><td align='right' " + cellR + ">" + eprModeStr + "</td></tr>";
         html += "<tr><td " + cellL + ">" + tr("EPR level") + "</td><td align='right' " + cellR + ">" + eprLevelStr + "</td></tr>";
         if (!responseStr.isEmpty()) {
@@ -2514,18 +2557,22 @@ void ComplianceReport::exportReport(QWidget *parent)
     } else {
         html += "<tr><td " + cellL + ">" + tr("EPR / Pressure Relief") + "</td><td align='right' " + cellR + ">" + relief + "</td></tr>";
     }
-    if (!humidLevel.isEmpty())
-        html += "<tr><td " + cellL + ">" + tr("Humidifier Level") + "</td><td align='right' " + cellR + ">" + humidLevel + "</td></tr>";
-    if (!rampTime.isEmpty() && rampTime != "0.0 min") {
-        html += "<tr><td " + cellL + ">" + tr("Ramp Time") + "</td><td align='right' " + cellR + ">" + rampTime + "</td></tr>";
-        if (!rampPres.isEmpty())
-            html += "<tr><td " + cellL + ">" + tr("Ramp Pressure") + "</td><td align='right' " + cellR + ">" + rampPres.toHtmlEscaped() + "</td></tr>";
-    } else {
-        html += "<tr><td " + cellL + ">" + tr("Ramp") + "</td><td align='right' " + cellR + ">" + tr("Off") + "</td></tr>";
+    // Humidifier, Ramp and Mask are not part of the AirView device box.
+    if (!airView) {
+        if (!humidLevel.isEmpty())
+            html += "<tr><td " + cellL + ">" + tr("Humidifier Level") + "</td><td align='right' " + cellR + ">" + humidLevel + "</td></tr>";
+        if (lastDay && lastDay->settingExists(CPAP_RampTime)
+                && lastDay->settings_wavg(CPAP_RampTime) > 0) {
+            html += "<tr><td " + cellL + ">" + tr("Ramp Time") + "</td><td align='right' " + cellR + ">" + rampTime + "</td></tr>";
+            if (!rampPres.isEmpty())
+                html += "<tr><td " + cellL + ">" + tr("Ramp Pressure") + "</td><td align='right' " + cellR + ">" + rampPres.toHtmlEscaped() + "</td></tr>";
+        } else {
+            html += "<tr><td " + cellL + ">" + tr("Ramp") + "</td><td align='right' " + cellR + ">" + tr("Off") + "</td></tr>";
+        }
     }
 
-    // Mask: show if configured in Preferences
-    {
+    // Mask: show if configured in Preferences (omitted in AirView format)
+    if (!airView) {
         QString maskDesc = p_profile->cpap ? p_profile->cpap->maskDescription() : QString();
         if (!maskDesc.isEmpty()) {
             MaskType mtype = p_profile->cpap ? p_profile->cpap->maskType() : Mask_Unknown;
@@ -2579,7 +2626,7 @@ void ComplianceReport::exportReport(QWidget *parent)
     html += "<table width='100%' cellpadding='0' cellspacing='0' style='" + tblStyle + "'>";
     html += "<tr style='background-color:#454545;'><td colspan='4' style='padding:6px 8px; font-size:11pt; font-weight:700; color:#ffffff;'>" + tr("Therapy") + "</td></tr>";
 
-    if (p_profile->hasChannel(CPAP_Pressure) && !p1IsCpap) {
+    if (!airView && p_profile->hasChannel(CPAP_Pressure) && !p1IsCpap) {  // AirView shows pressure only in the trend chart, not the therapy box
         html += "<tr>"
                 "<td " + tkL + ">" + tr("Pressure - cmH₂O") + "</td>"
                 "<td " + tkM + ">" + tr("Median: ") + "<b style='color:#0f172a;'>" + QString::number(avgPressure,'f',1) + "</b></td>"
@@ -2611,14 +2658,16 @@ void ComplianceReport::exportReport(QWidget *parent)
             "<td colspan='3' " + tkL + ">" + tr("Respiratory Effort-Related Arousal Index (RERA)") + "</td>"
             "<td " + tkR + "><b style='color:#0f172a;'>" + QString::number(ReraIndex,'f',1) + "</b></td>"
             "</tr>";
-    html += "<tr>"
-            "<td colspan='3' " + tkL + ">" + tr("Respiratory Disturbance Index (RDI)") + "</td>"
-            "<td " + tkR + "><b style='color:#0f172a;'>" + QString::number(RDI,'f',2) + "</b></td>"
-            "</tr>";
-    html += "<tr>"
-            "<td colspan='3' " + tkL + ">" + tr("95% Flow Limitation") + "</td>"
-            "<td " + tkR + "><b style='color:#0f172a;'>" + QString::number(p95FlowLimit,'f',2) + "</b></td>"
-            "</tr>";
+    if (!airView) {  // RDI and 95% Flow Limitation are not on the AirView therapy box
+        html += "<tr>"
+                "<td colspan='3' " + tkL + ">" + tr("Respiratory Disturbance Index (RDI)") + "</td>"
+                "<td " + tkR + "><b style='color:#0f172a;'>" + QString::number(RDI,'f',2) + "</b></td>"
+                "</tr>";
+        html += "<tr>"
+                "<td colspan='3' " + tkL + ">" + tr("95% Flow Limitation") + "</td>"
+                "<td " + tkR + "><b style='color:#0f172a;'>" + QString::number(p95FlowLimit,'f',2) + "</b></td>"
+                "</tr>";
+    }
     if (p_profile->hasChannel(CPAP_CSR)) {
         int csrAvgMins = qRound(avgCsrMinutesPerNight);
         html += "<tr>"
@@ -2632,7 +2681,121 @@ void ComplianceReport::exportReport(QWidget *parent)
     html += "<div style='font-size: 8.5pt; color: #94a3b8; margin-top: 8pt; border-top: 1px solid #f1f5f9; padding-top: 4px;'>"
             + tr("Printed on %1 - OSCAR Sleep Insights Report - OSCAR %2").arg(QDateTime::currentDateTime().toString("MMM d, yyyy")).arg(getVersion().minimalString())
             + "</div>";
- 
+
+    // ==========================================
+    // DEVICE SETTINGS PAGE (both modes) — SleepHQ-style full settings dump,
+    // reading OSCAR's own ResMed setting channels. Each row appears only when the
+    // device actually reports that setting, so non-ResMed devices degrade cleanly.
+    // ==========================================
+    {
+        QList<QPair<QString, QString>> devRows;
+        auto addDev = [&](const QString& label, const QString& value) {
+            if (!value.trimmed().isEmpty()) devRows.append(qMakePair(label, value));
+        };
+        // Mirror OSCAR's Daily "Device Settings" formatting so each value reads
+        // exactly as it does there: LOOKUP -> option label (or integer + unit when
+        // a numeric option isn't defined, e.g. Humidity Level "4"); numeric
+        // settings -> whole integer when applicable (e.g. Temperature "28 ºC").
+        auto setStr = [&](ChannelID cid) -> QString {
+            if (!lastDay || !lastDay->settingExists(cid)) return QString();
+            schema::Channel& chan = schema::channel[cid];
+            const double val = lastDay->settings_wavg(cid);
+            const QString unit = chan.units();
+            QString out;
+            if (chan.datatype() == schema::LOOKUP) {
+                out = chan.option(qRound(val));
+                if (out.isEmpty())
+                    out = QString::number(qRound(val)) + (unit.isEmpty() ? "" : " " + unit);
+            } else {
+                const double rr = qRound(val);
+                const QString num = (qAbs(val - rr) < 0.05) ? QString::number(static_cast<int>(rr))
+                                                            : QString::number(val, 'f', 1);
+                out = num + (unit.isEmpty() ? "" : " " + unit);
+            }
+            return out.toHtmlEscaped();
+        };
+
+        addDev(tr("Model"), (brand + " " + model).trimmed());
+        addDev(tr("Mode"), modeStr);
+        if (p1IsCpap) {
+            addDev(tr("Pressure"), p1MinPresStr);
+        } else if (lastDay) {
+            addDev(tr("Min Pressure"), p1MinPresStr);
+            addDev(tr("Max Pressure"), p1MaxPresStr);
+        }
+        {   // EPR — reuse the relief string, stripping a redundant "EPR: " prefix.
+            QString epr = relief;
+            if (epr.startsWith("EPR: ", Qt::CaseInsensitive)) epr = epr.mid(5);
+            addDev(tr("EPR"), epr);
+        }
+        addDev(tr("Ramp"), setStr(RMS9_RampEnable));
+        // Ramp duration/start pressure, shown only when ramp is actually
+        // enabled. Gate on the numeric value: ResMed leaves CPAP_RampTime unset
+        // when off, but PRS1/IntelliPAP write 0, and the formatted string's unit
+        // ("Minutes") is localized — so a string compare is unreliable.
+        // addDev skips an empty ramp pressure.
+        if (lastDay && lastDay->settingExists(CPAP_RampTime)
+                && lastDay->settings_wavg(CPAP_RampTime) > 0) {
+            addDev(tr("Ramp Time"), rampTime);
+            addDev(tr("Ramp Pressure"), rampPres.toHtmlEscaped());
+        }
+        addDev(tr("Mask"), setStr(RMS9_Mask));
+        addDev(tr("Humidifier"), setStr(RMS9_HumidStatus));
+        addDev(tr("Humidity Level"), setStr(RMS9_HumidLevel));
+        addDev(tr("Climate Control"), setStr(RMS9_ClimateControl));
+        addDev(tr("Temperature"), setStr(RMS9_Temp));
+        addDev(tr("Temperature Enable"), setStr(RMS9_TempEnable));
+        addDev(tr("Response"), setStr(RMAS1x_Comfort));
+        addDev(tr("Antibacterial Filter"), setStr(RMS9_ABFilter));
+        addDev(tr("Smart Start"), setStr(RMS9_SmartStart));
+        addDev(tr("Patient View"), setStr(RMAS11_PtView));
+
+        if (!devRows.isEmpty()) {
+            QString setDateStr = (lastDay ? lastDay->date() : end).toString("MMM d, yyyy");
+            html += "<div style='page-break-before: always;'></div>";
+            html += makePageHeaderHtml(tr("Device Settings"), patientNameStr, pageSubInfo, logoBase64);
+            html += "<div style='font-size:11pt; font-weight:700; color:#1e1b4b; border-bottom:2px solid #e2e8f0; padding-bottom:3px; margin-top:4pt; margin-bottom:2pt;'>" + tr("Device Settings").toUpper() + "</div>";
+            html += "<div style='font-size:8.5pt; color:#64748b; margin-bottom:8pt;'>" + tr("Settings as on %1").arg(setDateStr) + "</div>";
+
+            // Right-padding on the value cells creates the visual gap between the
+            // two label/value column pairs (a separate spacer column squeezed the
+            // value cells too narrow and wrapped long values mid-word).
+            const QString dL = "style='padding:3px 8px 3px 0; color:#475569; font-size:9pt; border-bottom:1px solid #eef2f7;'";
+            const QString dV = "style='padding:3px 18px 3px 0; color:#0f172a; font-weight:700; font-size:9pt; border-bottom:1px solid #eef2f7;'";
+
+            html += "<table width='100%' cellpadding='0' cellspacing='0' style='border-collapse:collapse; page-break-inside:avoid;'>";
+
+            // Model spans the full width so the long device name (e.g.
+            // "ResMed AirSense11AutoSet") stays on one line instead of breaking
+            // mid-word. It is always devRows[0] (added first, never empty).
+            html += "<tr><td width='23%' " + dL + ">" + devRows[0].first + "</td>"
+                    "<td colspan='3' " + dV + ">" + devRows[0].second + "</td></tr>";
+
+            // Remaining settings in two balanced columns.
+            const QList<QPair<QString, QString>> rest = devRows.mid(1);
+            const int n = rest.size();
+            const int half = (n + 1) / 2;   // left column gets the (possibly larger) first half
+            for (int i = 0; i < half; ++i) {
+                html += "<tr>";
+                html += "<td width='23%' " + dL + ">" + rest[i].first + "</td>";
+                html += "<td width='27%' " + dV + ">" + rest[i].second + "</td>";
+                const int r = i + half;
+                if (r < n) {
+                    html += "<td width='23%' " + dL + ">" + rest[r].first + "</td>";
+                    html += "<td width='27%' " + dV + ">" + rest[r].second + "</td>";
+                } else {
+                    html += "<td width='23%' style='border:none;'></td><td width='27%' style='border:none;'></td>";
+                }
+                html += "</tr>";
+            }
+            html += "</table>";
+
+            html += "<div style='font-size: 8.5pt; color: #94a3b8; margin-top: 8pt; border-top: 1px solid #f1f5f9; padding-top: 4px;'>"
+                    + tr("Printed on %1 - OSCAR Sleep Insights Report - OSCAR %2").arg(QDateTime::currentDateTime().toString("MMM d, yyyy")).arg(getVersion().minimalString())
+                    + "</div>";
+        }
+    }
+
     // ==========================================
     // PAGE 2: TREND CHARTS
     // ==========================================
@@ -2702,7 +2865,9 @@ void ComplianceReport::exportReport(QWidget *parent)
         html += makeChartBlockHtml(pressChartUrl, pressStats, displayW, displayH, STATS_COL_W, chartRegistry);
     }
 
-    // Channel trend charts (Minute Vent, Resp Rate, Tidal Volume, etc.) — own page(s)
+    // Channel trend charts (Minute Vent, Resp Rate, Tidal Volume, etc.) — own page(s).
+    // In AirView mode chanCharts is pre-filtered to the three AirView respiratory
+    // channels, so this page renders in both modes.
     if (!chanCharts.isEmpty()) {
         html += "<div style='page-break-before: always;'></div>";
         html += makePageHeaderHtml(tr("Channel Trends"), patientNameStr, pageSubInfo, logoBase64);
@@ -2721,8 +2886,8 @@ void ComplianceReport::exportReport(QWidget *parent)
     // Overnight oxygen detail (summary + worst-night trace) — placed in the
     // channel-trends whitespace; oximetry-only, so non-oximetry reports are
     // unchanged. The desaturation/zone indices are computed in the later stats
-    // section, so derive the few we need here.
-    if (usedDaysOxi > 0) {
+    // section, so derive the few we need here. Omitted in AirView mode.
+    if (!airView && usedDaysOxi > 0) {
         double oximeterHrs = 0.0;
         for (Day* d : oxiDaysMap)
             for (Session* sess : d->getSessions(oxiSourceType))
@@ -2797,6 +2962,10 @@ void ComplianceReport::exportReport(QWidget *parent)
             + tr("Printed on %1 - OSCAR Sleep Insights Report - OSCAR %2").arg(QDateTime::currentDateTime().toString("MMM d, yyyy")).arg(getVersion().minimalString())
             + "</div>";
  
+    // Oximetry/sleep-stage statistics, the diagnostics page and the therapy-history
+    // log are all beyond an AirView report — skip the rest of the body in AirView mode.
+    if (!airView) {
+
     // ==========================================
     // PAGE 3: OXIMETRY & SLEEP STAGE LOG
     // ==========================================
@@ -3109,6 +3278,8 @@ void ComplianceReport::exportReport(QWidget *parent)
                 + tr("Printed on %1 - OSCAR Sleep Insights Report - OSCAR %2").arg(QDateTime::currentDateTime().toString("MMM d, yyyy")).arg(getVersion().minimalString())
                 + "</div>";
     }
+
+    }  // end if (!airView) — oximetry/sleep-stage, diagnostics & therapy-history pages
 
     html += "</body></html>";
 
