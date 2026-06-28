@@ -69,6 +69,7 @@ const QString STR_AS_LineCursorMode = "LineCursorMode";
 const QString STR_AS_CalendarVisible = "CalendarVisible";
 const QString STR_AS_RightSidebarVisible = "RightSidebarVisible";
 const QString STR_AS_RightSidebarPanel = "RightSidebarPanel";
+const QString STR_AS_LeftSideBarEnable = "LeftSideBarEnable";
 const QString STR_US_TooltipTimeout = "TooltipTimeout";
 const QString STR_US_ScrollDampening = "ScrollDampening";
 const QString STR_US_ShowDebug = "ShowDebug";
@@ -188,6 +189,10 @@ public:
   bool rightSidebarVisible() const { return getPref(STR_AS_RightSidebarVisible).toBool(); }
   //! \brief Index of the last-selected right sidebar panel (0=Navigation, 1=Bookmarks, 2=Records)
   int rightSidebarPanel() const { return getPref(STR_AS_RightSidebarPanel).toInt(); }
+  //! \brief Bitmask of enabled Daily left-sidebar sections (bit N = section enum value N).
+  int leftSideBarEnable() const { return getPref(STR_AS_LeftSideBarEnable).toInt(); }
+  //! \brief Save the enabled/disabled state of Daily left-sidebar sections.
+  void setLeftSideBarEnable(int bits) { setPref(STR_AS_LeftSideBarEnable, bits); }
   //! \brief Returns the type of overlay flags (which are displayed over the Flow Waveform)
   inline OverlayDisplayType overlayType() const { return m_odt; }
 #ifndef REMOVE_FITNESS

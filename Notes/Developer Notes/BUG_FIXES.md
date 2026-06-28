@@ -4,6 +4,76 @@ Notable bugs found and fixed during development/investigation.
 
 ---
 
+## 2026-06-25 — BMC legacy loader: session after circular-buffer boundary fails to import
+
+**File:** `oscar/SleepLib/loader_plugins/bmcDataParsing.cpp` — `FindValidSessions()`
+
+**Symptom:** When a BMC session follows a region of old circular-buffer data in the waveform
+file (i.e., the previous session ended and the write pointer left stale data at the next
+position), the following session fails to import at all. Reported as 6/23 truncation and
+6/24 showing no data on the Daily page.
+
+**Root cause:** `FindValidSessions()` selected a waveform crumb (a coarse seek position)
+that placed `ReadWaveforms` before the old-data boundary. `ReadWaveforms` hit the stale
+circular-buffer data (backward timestamp jump > 2 hours), correctly stopped, and never
+reached the current session's data which lay just past the boundary.
+
+Specifically: 6/23 ended at .010@pkt54083; .010@pkt54084 contained stale April data from
+the previous cycle; 6/24 data began at .010@pkt54085. The selected crumb was at pkt53248,
+so `ReadWaveforms` hit the old-data at pkt54084 and stopped before pkt54085.
+
+The IDX file already records the exact start packet for each session, but the crumb
+selection was ignoring it and relying on time-based crumb matching instead.
+
+**Fix:** When a valid IDX entry is found for a session and its start timestamp falls within
+the session's OSCAR-day window, construct `chosenCrumb` directly from the IDX entry's
+`StartOffsetPacket` / `StartFileIndex`.  This places `ReadWaveforms` exactly at the
+current cycle's data, bypassing any stale circular-buffer data that precedes it.
+
+A window guard is required because the IDX matching loop may assign the *next* day's IDX
+entry (via the `nextDay` condition) whose start timestamp lies outside the current session's
+window.  Without the guard, using that out-of-window position causes `ReadWaveforms` to
+stop immediately (EndTimestamp exceeded) and return no waveforms.
+
+The crumb-based fallback (including the OSCAR-day fallback added 2026-06-17) is retained
+for sessions where no IDX entry is available or the IDX start falls outside the window.
+
+**Enhancement:** When waveforms are truncated (circular-buffer boundary reached before the
+session ended), OSCAR now extends the session EndTimestamp to the full USR-reported duration
+(`actualStart + DurationMinutes`).  This causes respiratory events recorded throughout the
+night to be distributed to the session and displayed on the Daily page, matching PapLink's
+behaviour of showing the complete session with events even when the waveform graphs end early.
+
+---
+
+## 2026-06-24 — CSR shown in Daily left sidebar with no actual CSR events (AirSense 11)
+
+**File:** `oscar/SleepLib/loader_plugins/resmed_loader.cpp` — `ResmedLoader::LoadCSL()`
+
+**Symptom:** The Daily page left sidebar listed Cheyne-Stokes Respiration (CSR) for an
+AirSense 11 AutoSet profile even though no CSR ever occurred — nothing in the Statistics
+panel, Overview trend, the CSV respiratory export, or a direct database search. Other
+ResMed devices only showed the CSR sidebar item when at least one real CSR span existed
+in the profile history.
+
+**Root cause:** `LoadCSL()` ran for every session whose day contained a `*_CSL.edf` file
+(`CSLlist`, called per session at the EVE/CSL loop) and unconditionally created an empty
+CSR event list up front ("Always create CSR event list so that overview always finds
+something"). An event list with zero events still registers `CPAP_CSR` in the session's
+`m_availableChannels` (`session.cpp` summary rebuild), and the Daily sidebar unions
+`m_availableChannels` across the whole profile history (`daily.cpp`). The AirSense 11
+emits CSL.edf files even on nights with no "CSR Start"/"CSR End" annotations, so CSR was
+listed permanently. The code path is identical for all ResMed machines; the only variable
+is whether the card contains CSL.edf files.
+
+**Fix:** Create the CSR event list lazily — initialise `EventList *CSR = nullptr` and only
+call `sess->AddEventList(CPAP_CSR, EVL_Event)` when a valid, in-session CSR span is about
+to be added (restoring the original deferred-creation pattern that was present, commented
+out, in the "CSR End" branch). Days/profiles with no real CSR no longer register the
+channel, so the sidebar behaves consistently across all ResMed devices.
+
+---
+
 ## 2026-06-20 — Disabled sessions in OSCAR 1.7.1 become enabled after import into 2.0
 
 **Files:** `oscar/profileimporter.h`, `oscar/profileimporter.cpp`

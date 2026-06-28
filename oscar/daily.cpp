@@ -764,6 +764,10 @@ void Daily::Link_clicked(const QUrl &url)
         qDebug() << "Select graph " << data;
     } else if (code=="leftsidebarenable") {
         leftSideBarEnable.toggleBit(data.toInt());
+        int bits = 0;
+        for (int i = 0; i < leftSideBarEnable.size(); i++)
+            if (leftSideBarEnable.testBit(i)) bits |= (1 << i);
+        AppSetting->setLeftSideBarEnable(bits);
         LoadDate(previous_date);
     } else {
         qDebug() << "Clicked on" << code << data;
@@ -1463,9 +1467,9 @@ QString Daily::getOximeterInformation(Day * day)
             return html;
         }
         html+="<table cellpadding=0 cellspacing=0 border=0 width=100%>";
-        html+="<tr><td colspan=5 align=center>&nbsp;</td></tr>";
+//        html+="<tr><td colspan=5 align=center>&nbsp;</td></tr>";
         html+="<tr><td colspan=5 align=center>"+oxi->brand()+" "+oxi->model()+"</td></tr>\n";
-        html+="<tr><td colspan=5 align=center>&nbsp;</td></tr>";
+//        html+="<tr><td colspan=5 align=center>&nbsp;</td></tr>";
         // Include SpO2 and PC drops per hour of Oximetry data in case CPAP data is missing
         html+=QString("<tr><td colspan=5 align=center>%1: %2 (%3%) %4/h</td></tr>").arg(tr("SpO2 Desaturations")).arg(day->count(OXI_SPO2Drop)).arg((100.0/day->hours(MT_OXIMETER)) * (day->sum(OXI_SPO2Drop)/3600.0),0,'f',2).arg((day->count(OXI_SPO2Drop)/day->hours(MT_OXIMETER)),0,'f',2);
         html+=QString("<tr><td colspan=5 align=center>%1: %2 (%3%) %4/h</td></tr>").arg(tr("Pulse Change events")).arg(day->count(OXI_PulseChange)).arg((100.0/day->hours(MT_OXIMETER)) * (day->sum(OXI_PulseChange)/3600.0),0,'f',2).arg((day->count(OXI_PulseChange)/day->hours(MT_OXIMETER)),0,'f',2);
@@ -1833,8 +1837,9 @@ QString Daily::getIndices(Day * day, QHash<ChannelID, EventDataType>& values ) {
 
 void Daily::htmlLsbSectionHeaderInit (bool section) {
     if (!section) {
-        leftSideBarEnable.fill(true);  // turn all sections On
-        //leftSideBarEnable.fill(false);  // turn all sections off for testing
+        int bits = AppSetting->leftSideBarEnable();
+        for (int i = 0; i < leftSideBarEnable.size(); i++)
+            leftSideBarEnable.setBit(i, (bits >> i) & 1);
     }
     htmlLsbPrevSectionHeader = true;
 }

@@ -606,6 +606,15 @@ BmcDateSession BmcData::ReadDateSession(QDate aDate)
     if (lastPacketTimestamp.isValid() && !session->Waveforms.isEmpty()) {
         session->StartTimestamp = session->Waveforms.first().Timestamp;
         session->EndTimestamp = lastPacketTimestamp;
+        // When the waveform ring buffer was overwritten before the session ended (the
+        // device hit stale circular-buffer data and stopped), the USR-reported duration
+        // is longer than the available waveform span.  Extend the session window to the
+        // full USR duration so that respiratory events recorded throughout the night are
+        // distributed to this session and visible on the Daily page.
+        const QDateTime usrEnd = session->StartTimestamp.addSecs(
+            static_cast<qint64>(foundLink->UsrSession.DurationMinutes) * 60);
+        if (usrEnd > session->EndTimestamp)
+            session->EndTimestamp = usrEnd;
         dateSession.Sessions.append(session);
     } else {
         delete session;
@@ -991,27 +1000,42 @@ void BmcData::FindValidSessions()
                 break;
         }
 
-        // Pick the last crumb whose timestamp is strictly before the session start.
-        // ReadWaveforms reads forward from the crumb and filters to packets within
-        // the session window, so starting from just before the session is correct.
-        // (Picking the first crumb >= StartTimestamp would skip the opening minutes.)
+        // Use the IDX entry's exact start position as the crumb when it falls within
+        // this session's OSCAR-day window.  The IDX records where the current session's
+        // waveform data actually begins, allowing ReadWaveforms to start past any stale
+        // circular-buffer data that precedes the session.  A guard is required because
+        // the IDX matching loop may assign a next-day IDX entry (via the nextDay check)
+        // whose start position lies outside this session's window; using that position
+        // would cause ReadWaveforms to stop immediately on the EndTimestamp check.
         BmcWaveformCrumb chosenCrumb;
-        for (const auto &crumb : this->WaveformCrumbs) {
-            if (crumb.Timestamp < usrSession.StartTimestamp)
-                chosenCrumb = crumb;
-            else
-                break;
+        if (foundIdxEntry) {
+            const QDateTime& idxStart = foundIdxEntry->StartWaveformPacketTimestamp;
+            if (idxStart >= usrSession.StartTimestamp && idxStart <= usrSession.EndTimestamp) {
+                chosenCrumb.FileIndex  = foundIdxEntry->StartFileIndex;
+                chosenCrumb.ByteOffset = static_cast<quint64>(foundIdxEntry->StartOffsetPacket) * 0x100;
+                chosenCrumb.Filepath   = ChangeFileExtension(this->usrFilePath, foundIdxEntry->StartFileExtension());
+                chosenCrumb.Timestamp  = idxStart;
+            }
         }
-        // If no crumb precedes the session's noon start (e.g. the user went to bed
-        // after noon on the same calendar day), fall back to the first crumb within
-        // this OSCAR day (noon → next noon).
         if (!chosenCrumb.Timestamp.isValid()) {
-            const QDateTime oscarDayEnd(usrSession.StartTimestamp.date().addDays(1), QTime(12, 0, 0));
+            // Fall back to the last crumb strictly before the session's noon start.
             for (const auto &crumb : this->WaveformCrumbs) {
-                if (crumb.Timestamp >= usrSession.StartTimestamp &&
-                    crumb.Timestamp < oscarDayEnd) {
+                if (crumb.Timestamp < usrSession.StartTimestamp)
                     chosenCrumb = crumb;
+                else
                     break;
+            }
+            // If no crumb precedes the session's noon start (e.g. the user went to bed
+            // after noon on the same calendar day), fall back to the first crumb within
+            // this OSCAR day (noon → next noon).
+            if (!chosenCrumb.Timestamp.isValid()) {
+                const QDateTime oscarDayEnd(usrSession.StartTimestamp.date().addDays(1), QTime(12, 0, 0));
+                for (const auto &crumb : this->WaveformCrumbs) {
+                    if (crumb.Timestamp >= usrSession.StartTimestamp &&
+                        crumb.Timestamp < oscarDayEnd) {
+                        chosenCrumb = crumb;
+                        break;
+                    }
                 }
             }
         }

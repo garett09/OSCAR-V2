@@ -55,6 +55,7 @@ AppWideSetting::AppWideSetting(Preferences *pref) : PrefSettings(pref)
     m_lineCursorMode = initPref(STR_AS_LineCursorMode, true).toBool();
     initPref(STR_AS_RightSidebarVisible, false);
     initPref(STR_AS_RightSidebarPanel, 2);   // default to Records panel
+    initPref(STR_AS_LeftSideBarEnable, -1);  // -1 = all bits set = all sections enabled
     initPref(STR_CS_UserEventPieChart, false);
     initPref(STR_US_ShowSerialNumbers, false);
     initPref(STR_US_ShowPersonalData, true);

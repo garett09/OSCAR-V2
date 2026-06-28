@@ -54,6 +54,7 @@ const QString STR_ResMed_AirSense11 = "AirSense 11";
 const QString STR_ResMed_AirCurve10 = "AirCurve 10";
 const QString STR_ResMed_AirCurve11 = "AirCurve 11";
 const QString STR_ResMed_Sleepmate10 = "Sleepmate 10";
+const QString STR_ResMed_Lumis150 = "Lumis";
 const QString STR_ResMed_S9 = "S9";
 const QString STR_UnknownModel = "Resmed ???";
 
@@ -86,6 +87,7 @@ ResmedLoader::ResmedLoader() {
     const QString RM10_ICON = ":/icons/airsense10.png";
     const QString RM11_ICON = ":/icons/airsense11.png";
     const QString RM10C_ICON = ":/icons/aircurve.png";
+    const QString RM150_ICON = ":/icons/lumis150.png";
 
     m_pixmaps[STR_ResMed_S9] = QPixmap(RMS9_ICON);
     m_pixmap_paths[STR_ResMed_S9] = RMS9_ICON;
@@ -99,6 +101,8 @@ ResmedLoader::ResmedLoader() {
     m_pixmap_paths[STR_ResMed_AirCurve11] = RM11_ICON;
     m_pixmaps[STR_ResMed_Sleepmate10] = QPixmap(RM10_ICON);
     m_pixmap_paths[STR_ResMed_Sleepmate10] = RM10_ICON;
+    m_pixmaps[STR_ResMed_Lumis150] = QPixmap(RM150_ICON);
+    m_pixmap_paths[STR_ResMed_Lumis150] = RM150_ICON;
 #endif
     m_type = MT_CPAP;
 
@@ -2543,6 +2547,8 @@ QHash<QString, QString> parseIdentLine( const QString line, MachineInfo * info)
             } else if (value.contains(STR_ResMed_AirCurve10, Qt::CaseInsensitive)) {
         //      value.replace(STR_ResMed_AirCurve10, "");
                 info->series = STR_ResMed_AirCurve10;
+            } else if (value.contains(STR_ResMed_Lumis150, Qt::CaseInsensitive)) {
+                info->series = STR_ResMed_Lumis150;
             } else {    // it will be a Series 9, and might not contain (STR_ResMed_S9))
                 value.replace("("," ");     // might sometimes have a double space...
                 value.replace(")","");
@@ -3495,8 +3501,12 @@ bool ResmedLoader::LoadCSL(Session *sess, const QString & path)
     time.start();
 #endif
 
-    // Always create CSR event list so that overview always finds something
-    EventList *CSR = sess->AddEventList(CPAP_CSR, EVL_Event);
+    // Create the CSR event list lazily, only when an actual CSR span is found.
+    // Creating it unconditionally registered CPAP_CSR in the session's available
+    // channels even when the CSL.edf held no "CSR Start"/"CSR End" annotations,
+    // which made the Daily left sidebar list CSR for machines (e.g. AirSense 11)
+    // that emit empty CSL files. A nullptr here means "no CSR seen yet".
+    EventList *CSR = nullptr;
 
     // Allow for empty sessions..
     qint64 csr_starts = 0;
@@ -3514,11 +3524,11 @@ bool ResmedLoader::LoadCSL(Session *sess, const QString & path)
                 if (anno->text == "CSR Start") {
                     csr_starts = tt;
                 } else if (anno->text == "CSR End") {
-//                    if ( ! CSR) {
-//                        CSR = sess->AddEventList(CPAP_CSR, EVL_Event);
-//                    }
                     if (csr_starts > 0) {
                         if (sess->checkInside(csr_starts)) {
+                            if ( ! CSR) {
+                                CSR = sess->AddEventList(CPAP_CSR, EVL_Event);
+                            }
                             CSR->AddEvent(tt, double(tt - csr_starts) / 1000.0);
                         }
                         csr_starts = 0;
