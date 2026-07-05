@@ -291,9 +291,17 @@ void ProfileSelector::updateProfileList()
 ***/
 //    ui->profileView->setMinimumWidth(w);
 
-    if ( row == 0 ) {
-        ui->profileInfoLabel->setText(tr("You must create a profile"));
-    }
+    // Rebuilding the model always replaces the selection model, so any previously
+    // selected profile's info is no longer valid. Reset the panel and buttons to
+    // their no-selection defaults; on_selectionChanged() repopulates them if/when
+    // a row is (re)selected, and the currently-open profile's info is restored below.
+    ui->profileInfoLabel->setText(row == 0 ? tr("You must create a profile")
+                                            : tr("Please select or create a profile..."));
+    ui->profileInfoGroupBox->setTitle(tr("Profile: None"));
+    ui->diskSpaceInfo->setVisible(false);
+    ui->buttonOpenProfile->setEnabled(false);
+    ui->buttonEditProfile->setEnabled(false);
+
     proxy = new MySortFilterProxyModel2(this);
     proxy->setSourceModel(model);
     proxy->setSortCaseSensitivity(Qt::CaseInsensitive);
@@ -322,6 +330,11 @@ void ProfileSelector::updateProfileList()
     sm = ui->profileView->selectionModel();
     connect(sm, SIGNAL(currentRowChanged(QModelIndex,QModelIndex)), this, SLOT(on_selectionChanged(QModelIndex,QModelIndex)));
 
+    // The rebuild above left the panel/buttons at their no-selection defaults.
+    // If a profile is currently open, restore its info instead of leaving it blank.
+    if (p_profile) {
+        updateProfileHighlight(p_profile->user->userName());
+    }
 }
 
 void ProfileSelector::updateProfileHighlight(QString name)

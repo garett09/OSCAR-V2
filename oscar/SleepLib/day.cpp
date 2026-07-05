@@ -1664,25 +1664,22 @@ QString Day::getPressureSettings()
                 arg(validPressure(settings_min(CPAP_PSMax))).
                 arg(units);
     } else if (mode == MODE_AVAPS) {
-//      qDebug() << "AVAPS: EPAP" << settings_min(CPAP_EPAP) << "IPAP min" << settings_max(CPAP_IPAPLo) <<
-//                  "IPAP max" << settings_max(CPAP_IPAPHi);
-        QString retStr;
-        if (settings_min(CPAP_EPAPLo) == settings_max(CPAP_EPAPHi))
-            retStr = QObject::tr("EPAP %1 IPAP %2-%3 (%4)").
-                arg(validPressure(settings_min(CPAP_EPAP))).
-                arg(validPressure(settings_max(CPAP_IPAPLo))).
-                arg(validPressure(settings_max(CPAP_IPAPHi))).
-                arg(units);
-        else
-            retStr = QObject::tr("EPAP %1-%2 IPAP %3-%4 (%5)").
+        // iVAPS: IPAP is derived (EPAP + pressure support), so report EPAP and the PS range.
+        // EPAP is fixed when AutoEPAP is off, or a min/max range when AutoEPAP is on.
+        if (settingExists(CPAP_EPAPHi)) {       // AutoEPAP on: EPAP varies within a range
+            return QObject::tr("EPAP %1-%2 PS %3-%4 (%5)").
                 arg(validPressure(settings_min(CPAP_EPAPLo))).
-                arg(validPressure(settings_min(CPAP_EPAPHi))).
-                arg(validPressure(settings_max(CPAP_IPAPLo))).
-                arg(validPressure(settings_max(CPAP_IPAPHi))).
+                arg(validPressure(settings_max(CPAP_EPAPHi))).
+                arg(validPressure(settings_min(CPAP_PSMin))).
+                arg(validPressure(settings_max(CPAP_PSMax))).
                 arg(units);
-
-//      qDebug() << "AVAPS mode:" << retStr;
-        return retStr;
+        } else {                                // AutoEPAP off: fixed EPAP
+            return QObject::tr("EPAP %1 PS %2-%3 (%4)").
+                arg(validPressure(settings_min(CPAP_EPAP))).
+                arg(validPressure(settings_min(CPAP_PSMin))).
+                arg(validPressure(settings_max(CPAP_PSMax))).
+                arg(units);
+        }
     }
 
     return STR_TR_Unknown;

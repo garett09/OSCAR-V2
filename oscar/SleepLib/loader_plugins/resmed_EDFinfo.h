@@ -156,6 +156,15 @@ public:
         s_TiMax = -1;
         s_TiMin = -1;
 
+        s_iHeight = -1;
+        s_iAlvMinVent = -1;
+        s_iRespRate = -1;
+        s_RampDownEnable = -1;
+        s_iBR = -1;
+        s_BackupRate = -1;
+        s_RespRate = -1;
+        s_TgtRR = -1;
+
         date=QDate();
     }
     
@@ -248,6 +257,16 @@ public:
     int s_Trigger;
     EventDataType s_TiMax;
     EventDataType s_TiMin;
+
+    // iVAPS target settings (valid in iVAPS/AVAPS mode only)
+    EventDataType s_iHeight;
+    EventDataType s_iAlvMinVent;
+    EventDataType s_iRespRate;
+    EventDataType s_RampDownEnable;
+    EventDataType s_iBR;
+    EventDataType s_BackupRate;
+    EventDataType s_RespRate;
+    EventDataType s_TgtRR;      // bilevel target respiratory rate (S.BL.TgtRR, ST/iBR)
 
 };
 

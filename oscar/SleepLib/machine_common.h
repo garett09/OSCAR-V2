@@ -206,6 +206,9 @@ extern ChannelID POS_Orientation, POS_Inclination, POS_Movement;
 
 extern ChannelID BMC_PressureWave, BMC_FlowAbnormality, BMC_IE_Ratio;
 
+// ResMed bilevel/iVAPS ventilation waveforms (defined in resmed_loader.cpp; used by daily.cpp)
+extern ChannelID RMVENT_AlvMinVent, RMVENT_SpontCyc, RMVENT_SpontTrig;
+
 const QString GRP_CPAP = "CPAP";
 const QString GRP_POS = "POS";
 const QString GRP_OXI = "OXI";

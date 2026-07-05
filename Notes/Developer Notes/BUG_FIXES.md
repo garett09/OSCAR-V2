@@ -4,6 +4,154 @@ Notable bugs found and fixed during development/investigation.
 
 ---
 
+## 2026-07-03 — SelectProfiles page not cleaned up when last profile is deleted (#233)
+
+**Files:** `oscar/profileselector.cpp` — `ProfileSelector::updateProfileList()`,
+`oscar/mainwindow.cpp` — `MainWindow::CloseProfile()`
+
+**Symptom:** Deleting the last remaining profile from the Select Profile page left stale UI
+state behind: the profile info group box on the right still showed the deleted profile's
+name/details, the main window title bar still showed the deleted profile's name, and the
+Open/Edit Profile buttons remained enabled.
+
+**Root cause:** `updateProfileList()` deletes and recreates the model, proxy, and selection
+model on every call. A brand-new `QItemSelectionModel` starts with no current index, so no
+`currentRowChanged` signal ever fires when the list is rebuilt (there is no prior selection
+within that new object to transition from). Since `ProfileSelector::on_selectionChanged()` is
+the only place that updates the info panel, group box title, disk space info, and Open/Edit
+button enablement, none of those widgets ever got reset — they simply kept whatever they were
+last set to before the rebuild. Separately, `MainWindow::CloseProfile()` never reset the window
+title, so deleting the active profile (which calls `CloseProfile()`) left the old title in
+place; every other `CloseProfile()` call site is immediately followed by `OpenProfile()` (which
+sets the title unconditionally) or an app restart, so this had gone unnoticed.
+
+**Fix:** `updateProfileList()` now explicitly resets the info panel and buttons to their
+no-selection defaults right after rebuilding the model, then — if a profile is still open —
+restores that profile's info via the existing `updateProfileHighlight()` helper (the same
+mechanism `OpenProfile()` uses), so profiles opened independently of the currently rebuilt list
+aren't blanked out. `CloseProfile()` now resets the window title to its no-profile state; it is
+immediately overwritten by `OpenProfile()` when a new profile is opened right after.
+
+---
+
+## 2026-07-03 — machines.data_version never persisted after DataFormatError upgrade/reimport (#232)
+
+**Files:** `oscar/SleepLib/machine.cpp` — `Machine::setInfo()`
+
+**Symptom:** When a loader's data-format version constant is bumped, OSCAR correctly detects
+the mismatch on startup and prompts the user to upgrade (`Profile::DataFormatError()`). The
+user clicks Yes, data is purged and reimported — but the very next launch shows the exact
+same "OSCAR needs to upgrade its database" prompt again, indefinitely. Not loader-specific;
+reproduced with both the PRS1 and ResMed loaders.
+
+**Root cause:** Whichever code path updates an already-tracked `Machine` object's info after
+a version bump, it only ever updates the in-memory `MachineInfo` — nothing writes the new
+version back to the database. Two different idioms hit this, both funneling through
+`Machine::setInfo()`:
+- `Profile::CreateMachine()`'s reuse branches (matching an already-tracked machine by
+  loader+serial, or by machine id after a 1.x serial migration) call `setInfo()` on the
+  existing object (used by PRS1, Prisma, and most other loaders via
+  `ImportContext::CreateMachineFromInfo()`).
+- ResMed, BMC, and BMCG3X loaders instead call `Profile::lookupMachine()` then
+  `mach->setInfo(info)` directly, bypassing `Profile::CreateMachine()` entirely.
+
+In both cases the machine already has a database id, so `ImportContext::CreateMachineFromInfo()`
+and `Profile::storeMachinesToDatabase()` (called from `Profile::Save()`) skip saving it, and
+`Machine::SaveToDatabase()`'s existing-record update path doesn't refresh `dataVersion` either.
+The DB row keeps the pre-upgrade version forever, and the stale value is what gets reloaded on
+the next launch.
+
+An initial fix placed the persistence logic in `Profile::CreateMachine()` only; it did not
+help ResMed (or BMC/BMCG3X) since they never call that function for an already-known machine.
+
+**Fix:** Moved the persistence logic into `Machine::setInfo()` itself — the single function
+every one of these paths calls. It compares `info.version` before and after the merge; if it
+changed and the machine already has a database id (`m_database_id > 0`), it fetches the
+current `MachineData` row and writes the corrected `dataVersion` back via
+`MachineRepository::update()`. This covers every loader regardless of which idiom it uses.
+
+---
+
+## 2026-07-03 — First-run migration suggests Documents folder instead of OSCAR 1.x's actual data folder (#231)
+
+**Files:** `oscar/SleepLib/common.h`/`.cpp` (new `findLegacyOscarDataFolder()`),
+`oscar/main.cpp` — `migrateFromOSCAR()`, `oscar/importprofile.cpp` — `ImportProfile::getDefaultImportPath()`
+
+**Symptom:** When OSCAR is first run on a computer, it offers to migrate OSCAR 1.x data into
+the new database. The folder browser it opens always started at the Documents folder,
+forcing the user to manually locate their real OSCAR 1.x data folder, even though OSCAR 1.x
+already knows exactly where it is.
+
+**Root cause:** OSCAR 1.x records its active data folder on every launch under key
+`Settings/AppData` in the platform-native settings store (registry on Windows, plist on
+macOS, ini file on Linux), keyed by its own application name ("OSCAR"). OSCAR 2.0 uses the
+same organization name/domain but a distinct application name ("OSCAR 2.0") so the two
+versions' settings don't collide — but neither `migrateFromOSCAR()` (first-run flow) nor
+`ImportProfile::getDefaultImportPath()` (general Import Profile dialog) ever read 1.x's
+value; they only guessed a folder relative to the current OSCAR 2.0 location, or fell back
+to Documents/home.
+
+**Fix:** Added `findLegacyOscarDataFolder()`, which temporarily swaps
+`QCoreApplication::applicationName()` to OSCAR 1.x's name, reads `Settings/AppData` (falling
+back to the older `Settings/AppRoot` key) via `QSettings`, then restores the application
+name. Both call sites now use this as their preferred starting/default folder, falling back
+to their prior heuristics when 1.x has never been run on the machine.
+
+---
+
+## 2026-07-02 — ResMed: bilevel ramp start shown as CPAP "Ramp Pressure"
+
+**File:** `oscar/SleepLib/loader_plugins/resmed_loader.cpp` — `ResmedLoader::StoreSettings()`
+
+**Symptom:** In bilevel modes (S/ST/T, e.g. AirCurve 10 ST and Lumis in ST mode) the ramp
+start pressure was displayed in the Device Settings report under the CPAP-oriented label
+"Ramp Pressure" (`CPAP_RampPressure`), rather than "Ramp Start EPAP" (`RMVENT_StartEPAP`).
+
+**Root cause:** `R.s_RampPressure` is a single shared record field populated per mode from the
+appropriate `S.xx.StartPress` STR signal (bilevel reads `S.BL.StartPress`). Only iVAPS
+(`MODE_AVAPS`) routed it to `RMVENT_StartEPAP`; all other modes fell through the generic ramp
+block, which stored it unconditionally into `CPAP_RampPressure`. In bilevel therapy the ramp
+start pressure is applied to the EPAP baseline, so the CPAP label was wrong. The generic block
+was also mode-agnostic, so iVAPS (which also sets `RMVENT_StartEPAP` above) could write *both*
+channels when ramp was enabled — a latent double-store.
+
+**Fix:** Made the generic ramp-pressure store mode-aware: all EPAP-baseline modes
+(`MODE_BILEVEL_FIXED`, `MODE_BILEVEL_AUTO_FIXED_PS`, `MODE_BILEVEL_AUTO_VARIABLE_PS`,
+`MODE_ASV`, `MODE_ASV_VARIABLE_EPAP`, `MODE_AVAPS`) now write `RMVENT_StartEPAP`; CPAP/APAP
+keep `CPAP_RampPressure`. This also removes the iVAPS double-store.
+
+---
+
+## 2026-06-28 — ResMed: session-boundary zero in pressure waveform (#229)
+
+**File:** `oscar/SleepLib/loader_plugins/resmed_loader.cpp` — `ResmedLoader::ToTimeDelta()`
+
+**Symptom:** Daily graph showed a vertical line dropping to zero at a session boundary for
+Pressure/EPAP. On the Statistics page, Min Pressure and Min EPAP read correctly for short
+ranges but became 0 over longer ranges (6 months / 1 year).
+
+**Root cause:** ResMed EDF data ends each signal with a digital-minimum *sentinel* sample
+(end-of-data padding). For most signals the digital minimum is -1, which `ToTimeDelta`
+already neutralizes (`if (c == -1 && t_min>=0) c=last;`). But the PLD pressure signals
+`Press.2s` (CPAP_Pressure) and `EprPress.2s` (CPAP_EPAP) declare a digital minimum of 0, so
+their sentinel decodes to 0. That 0 is non-physiological but passes the range filter
+(0 >= physical_minimum 0), so it was stored as a real sample: a boundary drop-to-zero on the
+graph and a session `min_value` of 0. `Profile::calcMin` then propagated the 0 to the
+range minimum (worse over longer ranges, which include more boundary-zero sessions).
+
+Verified against real data: many CPAParazzo Lumis PLD files have exactly one trailing 0 on
+`Press.2s`/`EprPress.2s`; all other signals' trailing sentinel is raw -1 (already handled).
+
+**Fix:** Added `isPressure` (CPAP_Pressure/IPAP/EPAP/MaskPressure) and extended the existing
+null-sentinel handling to treat a raw 0 on these channels as null — both in the priming loop
+(leading 0) and the main loop (trailing/any 0), mirroring the -1 idiom. Pressure is never
+legitimately 0 during a recording, so this is safe.
+
+**Note:** existing imported sessions already have the 0 baked into stored event data; the
+affected ResMed data must be re-imported to clear historical boundary zeros.
+
+---
+
 ## 2026-06-25 — BMC legacy loader: session after circular-buffer boundary fails to import
 
 **File:** `oscar/SleepLib/loader_plugins/bmcDataParsing.cpp` — `FindValidSessions()`
@@ -259,6 +407,28 @@ the current view bounds.
 **Fix:** Introduced separate `selminx`/`selmaxx`/`seldur` variables in `paint()` that always
 read `g.min_x`/`g.max_x`. These are updated by `SetXBounds` when any graph in the group
 zooms. Flag drawing continues to use the `blockZoom`-aware full-day bounds.
+
+---
+
+## 2026-07-01 — V1 CSV export: date range ignored, only latest date exported
+
+**Files:** `exports/exportcsv.h`, `exports/exportcsv.cpp`
+
+**Symptom:** Regardless of the selected date range, the exported CSV contained only the
+most recent date.
+
+**Root cause:** The slot `on_quickRangeCombo_activated(const QString &)` relied on Qt's
+auto-connection via `connectSlotsByName`. In Qt 6, `QComboBox::activated(const QString&)`
+was removed (replaced by `textActivated(const QString&)`); only `activated(int)` remains.
+Auto-connection silently failed, so changing the combo never updated the date range.
+The dates remained at the constructor default (both set to "Most Recent Day").
+
+**Fix:** Changed slot signature to `on_quickRangeCombo_activated(int index)`, matching the
+`activated(int)` signal that exists in Qt 6 (consistent with all other combo slots in 2.0).
+Text is retrieved via `ui->quickRangeCombo->itemText(index)`. Constructor call updated
+to `on_quickRangeCombo_activated(0)` (index 0 = "Most Recent Day").
+
+**GitLab:** Closes #214 (original issue updated)
 
 ---
 

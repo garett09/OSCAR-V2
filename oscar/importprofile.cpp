@@ -13,6 +13,7 @@
 #include "ui_importprofile.h"
 #include "translation.h"
 #include "common_gui.h"
+#include "SleepLib/common.h"
 #include "SleepLib/preferences.h"
 #include "database/profile_repository.h"
 #include "database/app_preferences_repository.h"
@@ -60,7 +61,17 @@ QString ImportProfile::getDefaultImportPath()
     if (!m_lastImportPath.isEmpty() && QDir(m_lastImportPath).exists()) {
         return m_lastImportPath;
     }
-    
+
+    // Ask OSCAR 1.x's own settings where its data folder actually is, rather than
+    // guessing a relative path below -- the 1.x install may not be a sibling folder.
+    QString legacyDataPath = findLegacyOscarDataFolder();
+    if (!legacyDataPath.isEmpty()) {
+        QString legacyProfilesPath = legacyDataPath + "/Profiles";
+        if (QDir(legacyProfilesPath).exists()) {
+            return legacyProfilesPath;
+        }
+    }
+
     // Try ../OSCAR_Data/Profiles relative to current data directory
     QString appData = GetAppData();  // Current OSCAR20_Data location
     QDir currentDir(appData);

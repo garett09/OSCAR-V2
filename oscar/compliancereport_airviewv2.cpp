@@ -171,7 +171,10 @@ static void drawCard(QPainter& p, const QRectF& r, bool joinTop, double s) {
 }
 
 // label sans GREY1 12px left; value mono INK 12px right; bottom HAIR3 hairline;
-// optional 8px rounded swatch before the label.
+// optional 8px rounded swatch before the label. The value is shrunk-to-fit
+// (down to a floor) and elided only as a last resort, so a long label+value
+// pair (e.g. "Time < 90% (T90)" + "00:03:48" in a half-width column) never
+// collides.
 static void drawKVRow(QPainter& p, const QRectF& r, const QString& label, const QString& value,
                       double s, const QColor* leadingSwatch = nullptr) {
     double labelX = r.left();
@@ -182,13 +185,24 @@ static void drawKVRow(QPainter& p, const QRectF& r, const QString& label, const 
         p.fillPath(sp, *leadingSwatch);
         labelX = r.left() + d + 7*s;
     }
-    p.setFont(avSans(12*s, QFont::Normal));
+    const QFont lf = avSans(12*s, QFont::Normal);
+    p.setFont(lf);
     p.setPen(AV::GREY1);
     p.drawText(QRectF(labelX, r.top(), r.width() - (labelX - r.left()), r.height()),
                Qt::AlignVCenter | Qt::AlignLeft, label);
-    p.setFont(avMono(12*s, QFont::DemiBold));
+    const double availW = r.right() - labelX
+                          - QFontMetricsF(lf).horizontalAdvance(label) - 8*s;
+    double fpx = 12*s;
+    QFont vf = avMono(fpx, QFont::DemiBold);
+    QFontMetricsF fm(vf);
+    while (fm.horizontalAdvance(value) > availW && fpx > 9.0*s) {
+        fpx -= 0.5*s; vf = avMono(fpx, QFont::DemiBold); fm = QFontMetricsF(vf);
+    }
+    const QString shown = (fm.horizontalAdvance(value) > availW)
+        ? fm.elidedText(value, Qt::ElideRight, qMax(availW, 0.0)) : value;
+    p.setFont(vf);
     p.setPen(AV::INK);
-    p.drawText(r, Qt::AlignVCenter | Qt::AlignRight, value);
+    p.drawText(r, Qt::AlignVCenter | Qt::AlignRight, shown);
     p.setPen(QPen(AV::HAIR3, 1*s));
     p.drawLine(QPointF(r.left(), r.bottom()), QPointF(r.right(), r.bottom()));
 }
@@ -1578,7 +1592,7 @@ static void avPage1(QPainter& p, const QRectF& page, const ReportData& rd,
           QObject::tr("median %1").arg(hmm(rd.medianHoursUsed)), false },
         { AV::GREEN, QObject::tr("Leak 95th"),    QString::number(rd.p95Leak, 'f', 1), QStringLiteral("L/m"),
           QObject::tr("redline %1").arg(qRound(rd.leakRedline)), false },
-        { AV::AMBER, QObject::tr("O₂ nadir"),
+        { AV::AMBER, QObject::tr("Lowest SpO₂"),
           rd.minSpO2Set ? QString::number(qRound(rd.minSpO2)) : QStringLiteral("—"),
           rd.minSpO2Set ? QStringLiteral("%") : QString(),
           rd.minSpO2Set ? QObject::tr("T90 %1").arg(minsFromSecs(rd.t90Secs)) : QString(), true },
@@ -2479,7 +2493,7 @@ static bool avPage5(QPainter& p, const QRectF& page, const ReportData& rd,
         const double nadir = rd.minSpO2Set ? rd.minSpO2 : worstMin;
         const QVector<QPair<QString,QString>> kvs = {
             { QObject::tr("Date"),       dateStr },
-            { QObject::tr("Nadir SpO₂"),
+            { QObject::tr("Lowest SpO₂"),
               worstDate.isValid() ? QString::number(qRound(nadir)) + QStringLiteral("%") : QStringLiteral("—") },
             { QObject::tr("Night median"),
               worstDate.isValid() ? QString::number(qRound(worstMed)) + QStringLiteral("%") : QStringLiteral("—") },

@@ -49,7 +49,7 @@ protected:
     SummaryCalcItem* getCalc(ChannelID code, SummaryType type = ST_SETMAX);
     QString channelRange(ChannelID code, const QString & label);
     void addSlice(ChannelID code, SummaryType type = ST_SETMAX);
-    void addObservedIPAPMax();
+    void addObservedIPAPMax(const QString & label = QString());
     void sortSlices();
 
     QHash<ChannelID,QHash<SummaryType,int>> m_calcs;

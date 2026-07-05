@@ -190,12 +190,13 @@ void gPressureChart::sortSlices() {
     m_sort_slices.clear();
 }
 
-void gPressureChart::addObservedIPAPMax()
+void gPressureChart::addObservedIPAPMax(const QString & label)
 {
     // Use the observed peak pressure (combined waveform max stored in session
     // summary) instead of the machine's IPAPHi setting ceiling.
     // Try CPAP_Pressure first (combined waveform), then CPAP_IPAP (per-breath
     // peaks), then fall back to the setting if neither has data.
+    QString sliceLabel = label.isEmpty() ? schema::channel[CPAP_IPAPHi].label() : label;
     float value = m_day->Max(CPAP_Pressure);
     if (value <= 0) {
         value = m_day->Max(CPAP_IPAP);
@@ -207,7 +208,7 @@ void gPressureChart::addObservedIPAPMax()
     SummaryCalcItem* calc = getCalc(CPAP_IPAP, ST_SETMAX);
     QColor color = getCalc(CPAP_IPAPHi, ST_SETMAX)->color;
     m_sort_slices.insert(value, SummaryChartSlice(calc, value, 0,
-        schema::channel[CPAP_IPAPHi].label(), color));
+        sliceLabel, color));
 }
 
 
@@ -288,12 +289,18 @@ void gPressureChart::populate(Day * day, int idx)
         addObservedIPAPMax();
 
     } else if (mode == MODE_AVAPS) {
-        addSlice(CPAP_EPAP);
+        // iVAPS: IPAP is derived (EPAP + pressure support) and has no setting channel, but the
+        // patient still experiences pressure from EPAP up to the delivered peak. Show the full
+        // delivered span: EPAP floor -> delivered pressure (median/95%) -> observed peak. The
+        // top peak is the effective peak inspiratory pressure, labelled "Peak Pressure"
+        // (consistent with the "95% Pressure" slice below it).
+        // Floor is the configured EPAP Lo (AutoEPAP) or fixed EPAP (AutoEPAP off).
+        addSlice(day->settingExists(CPAP_EPAPHi) ? CPAP_EPAPLo : CPAP_EPAP);
         if (!day->summaryOnly()) {
-            addSlice(CPAP_IPAP, ST_MID);
-            addSlice(CPAP_IPAP, ST_90P);
+            addSlice(CPAP_Pressure, ST_MID);
+            addSlice(CPAP_Pressure, ST_90P);
         }
-        addObservedIPAPMax();
+        addObservedIPAPMax(QObject::tr("Peak Pressure"));
     }
     sortSlices();
 }

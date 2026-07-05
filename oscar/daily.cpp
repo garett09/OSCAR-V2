@@ -99,6 +99,7 @@ inline QString channelInfo(ChannelID code) {
 const QList<QString> standardGraphOrder = {
     STR_GRAPH_SleepFlags, STR_GRAPH_FlowRate, STR_GRAPH_Pressure, STR_GRAPH_PressureWave, STR_GRAPH_LeakRate, STR_GRAPH_FlowLimitation,
     STR_GRAPH_Snore, STR_GRAPH_IE_Ratio, STR_GRAPH_FlowAbnormality, STR_GRAPH_TidalVolume, STR_GRAPH_MaskPressure, STR_GRAPH_RespRate, STR_GRAPH_MinuteVent,
+    "RMVENT_AlvMinVent", "RMVENT_SpontCyc", "RMVENT_SpontTrig",   // ResMed ventilation (match channel codes)
     STR_GRAPH_PTB, STR_GRAPH_RespEvent, STR_GRAPH_Ti, STR_GRAPH_Te, STR_GRAPH_IE,
     STR_GRAPH_SleepStage, STR_GRAPH_Inclination, STR_GRAPH_Orientation, STR_GRAPH_Motion, STR_GRAPH_TestChan1,
     STR_GRAPH_Oxi_Pulse, STR_GRAPH_Oxi_SPO2, STR_GRAPH_Oxi_Perf, STR_GRAPH_Oxi_Plethy,
@@ -112,6 +113,7 @@ const QList<QString> standardGraphOrder = {
 // Advanced graph order
 const QList<QString> advancedGraphOrder = {
     STR_GRAPH_SleepFlags, STR_GRAPH_FlowRate, STR_GRAPH_PressureWave, STR_GRAPH_MaskPressure, STR_GRAPH_TidalVolume, STR_GRAPH_MinuteVent,
+    "RMVENT_AlvMinVent", "RMVENT_SpontCyc", "RMVENT_SpontTrig",   // ResMed ventilation (match channel codes)
     STR_GRAPH_Ti, STR_GRAPH_Te, STR_GRAPH_IE, STR_GRAPH_FlowLimitation, STR_GRAPH_FlowAbnormality, STR_GRAPH_Pressure, STR_GRAPH_LeakRate, STR_GRAPH_Snore,
     STR_GRAPH_IE_Ratio, STR_GRAPH_RespRate, STR_GRAPH_PTB, STR_GRAPH_RespEvent,
     STR_GRAPH_SleepStage, STR_GRAPH_Inclination, STR_GRAPH_Orientation, STR_GRAPH_Motion, STR_GRAPH_TestChan1,
@@ -305,6 +307,7 @@ Daily::Daily(QWidget *parent,gGraphView * shared)
         CPAP_IE, ZEO_SleepStage, POS_Inclination, POS_Orientation, POS_Movement, CPAP_Test1,
         Prisma_ObstructLevel, Prisma_rRMV, Prisma_rMVFluctuation, Prisma_PressureMeasured, Prisma_FlowFull
         ,  BMC_PressureWave, BMC_FlowAbnormality, BMC_IE_Ratio
+        ,  RMVENT_AlvMinVent, RMVENT_SpontCyc, RMVENT_SpontTrig
         #if defined(STEADY_BREATHING)
         ,    CPAP_SteadyBreathing
         #endif
@@ -513,6 +516,11 @@ Daily::Daily(QWidget *parent,gGraphView * shared)
     if (auto *g = graphlist.value(schema::channel[CPAP_Te].code())) g->AddLayer(lc=new gLineChart(CPAP_Te, false));
     if (auto *g = graphlist.value(schema::channel[CPAP_Ti].code())) g->AddLayer(lc=new gLineChart(CPAP_Ti, false));
     //lc->addPlot(CPAP_Test2,COLOR:DarkYellow,square);
+
+    // ResMed bilevel/iVAPS ventilation waveforms
+    if (auto *g = graphlist.value(schema::channel[RMVENT_AlvMinVent].code())) g->AddLayer(new gLineChart(RMVENT_AlvMinVent, square));
+    if (auto *g = graphlist.value(schema::channel[RMVENT_SpontCyc].code())) g->AddLayer(new gLineChart(RMVENT_SpontCyc, square));
+    if (auto *g = graphlist.value(schema::channel[RMVENT_SpontTrig].code())) g->AddLayer(new gLineChart(RMVENT_SpontTrig, square));
 
     if (auto *g = graphlist.value(schema::channel[ZEO_SleepStage].code())) {
         g->AddLayer(new gLineChart(ZEO_SleepStage, true));
@@ -1557,6 +1565,7 @@ QString Daily::getStatisticsInfo(Day * day)
         PRS1_PeakFlow,
         Prisma_ObstructLevel, Prisma_PressureMeasured, Prisma_rRMV, Prisma_rMVFluctuation,
         CPAP_MinuteVent, CPAP_RespRate, CPAP_RespEvent,CPAP_FLG,
+        RMVENT_AlvMinVent, RMVENT_SpontCyc, RMVENT_SpontTrig,
         CPAP_Leak, CPAP_LeakTotal, CPAP_Snore,  CPAP_IE,  CPAP_Ti,CPAP_Te, CPAP_TgMV,
         CPAP_TidalVolume, OXI_Pulse, OXI_SPO2, POS_Inclination, POS_Orientation, POS_Movement
         #if defined(STEADY_BREATHING)

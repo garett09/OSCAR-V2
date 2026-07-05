@@ -108,6 +108,28 @@ const QString getModifiedAppData()
     return appdata;
 }
 
+QString findLegacyOscarDataFolder()
+{
+    // OSCAR 1.x and OSCAR 2.0 share the same organization name and domain, but
+    // OSCAR 2.0 uses a distinct application name ("OSCAR 2.0" vs. STR_AppName)
+    // so the two versions' settings don't collide. Borrow 1.x's application name
+    // just long enough to read its settings from the same native store.
+    const QString currentAppName = QCoreApplication::applicationName();
+    QCoreApplication::setApplicationName(STR_AppName);
+
+    QSettings legacySettings;
+    QString path = legacySettings.value("Settings/AppData").toString();
+    if (path.isEmpty())
+        path = legacySettings.value("Settings/AppRoot").toString();
+
+    QCoreApplication::setApplicationName(currentAppName);
+
+    if (path.isEmpty() || !QDir(path).exists())
+        return QString();
+
+    return path;
+}
+
 bool gfxEgnineIsSupported(GFXEngine e)
 {
 #if defined(Q_OS_WIN32)

@@ -308,12 +308,32 @@ QString Welcome::GenerateCPAPHTML()
                         .arg(ipap)
                         .arg(schema::channel[pressChanID].units())
                         .arg(perc);
-            } else if (cpapmode == MODE_ASV || cpapmode == MODE_AVAPS){
+            } else if (cpapmode == MODE_ASV){
                 EventDataType ipap = day->percentile(pressChanID, perc/100.0);
                 EventDataType epap = qRound(10.0*day->settings_wavg(CPAP_EPAP))/10.0;
                 html += tr("Your EPAP pressure fixed at %1 %2.")
                         .arg(epap)
                         .arg(schema::channel[epapDataChanID].units())+"<br/>";
+                html += tr("Your IPAP pressure was under %1 %2 for %3% of the time.")
+                        .arg(ipap)
+                        .arg(schema::channel[pressChanID].units())
+                        .arg(perc);
+            } else if (cpapmode == MODE_AVAPS){
+                EventDataType ipap = day->percentile(pressChanID, perc/100.0);
+                // iVAPS: EPAP is fixed when AutoEPAP is off, or a min/max range when it is on.
+                if (day->settingExists(CPAP_EPAPHi)) {      // AutoEPAP on
+                    EventDataType epaplo = qRound(10.0*day->settings_min(CPAP_EPAPLo))/10.0;
+                    EventDataType epaphi = qRound(10.0*day->settings_max(CPAP_EPAPHi))/10.0;
+                    html += tr("Your EPAP pressure ranged from %1 to %2 %3.")
+                            .arg(epaplo)
+                            .arg(epaphi)
+                            .arg(schema::channel[epapDataChanID].units())+"<br/>";
+                } else {                                    // AutoEPAP off
+                    EventDataType epap = qRound(10.0*day->settings_wavg(CPAP_EPAP))/10.0;
+                    html += tr("Your EPAP pressure fixed at %1 %2.")
+                            .arg(epap)
+                            .arg(schema::channel[epapDataChanID].units())+"<br/>";
+                }
                 html += tr("Your IPAP pressure was under %1 %2 for %3% of the time.")
                         .arg(ipap)
                         .arg(schema::channel[pressChanID].units())

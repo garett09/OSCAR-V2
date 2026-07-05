@@ -868,6 +868,10 @@ void MainWindow::CloseProfile()
         p_profile = nullptr;
     }
 
+    // Reset the title bar to its no-profile state. OpenProfile() overwrites this
+    // immediately when switching to another profile.
+    setWindowTitle(getMainWindowTitle() + dbFolderSuffix());
+
     // Ensure any pending database transaction is committed before profile close
     // This prevents data loss when switching between profiles
     ensureCleanDatabaseState();

@@ -45,7 +45,7 @@ class ExportCSV : public QDialog
 
   private slots:
     void on_filenameBrowseButton_clicked();
-    void on_quickRangeCombo_activated(const QString &arg1);
+    void on_quickRangeCombo_activated(int index);
     void on_exportButton_clicked();
     void startDate_currentPageChanged(int year, int month);
     void endDate_currentPageChanged(int year, int month);

@@ -127,11 +127,21 @@ bool migrateFromOSCAR(QString destDir) {
         return success;
     }
 
+    // Suggest whatever data folder OSCAR 1.x itself has recorded as current on this
+    // computer, rather than defaulting to the Documents folder and making the user
+    // hunt for it.
+    QString startPath = homeDocs;
+    QString legacyDataPath = findLegacyOscarDataFolder();
+    if (!legacyDataPath.isEmpty()) {
+        qDebug() << "Suggesting OSCAR 1.x data folder from its settings:" << legacyDataPath;
+        startPath = legacyDataPath;
+    }
+
     while (selectingFolder) {
         sourcePath = QFileDialog::getExistingDirectory(nullptr,
                   QObject::tr("Choose the OSCAR 1.x data folder to migrate")+" "+
                   QObject::tr("or CANCEL to skip migration."),
-                  homeDocs, QFileDialog::ShowDirsOnly | nativeDialogOption());
+                  startPath, QFileDialog::ShowDirsOnly | nativeDialogOption());
         qDebug() << "Migration source folder selected: " + sourcePath;
         if (sourcePath.isEmpty()) {
             qDebug() << "No migration source directory selected";

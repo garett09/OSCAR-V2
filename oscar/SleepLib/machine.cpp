@@ -681,10 +681,30 @@ qint64 Machine::correctionMs(QDate night) const
 
 void Machine::setInfo(MachineInfo inf)
 {
+    int oldVersion = info.version;
+
     MachineInfo merged = inf;
     if (info.purgeDate.isValid()) merged.purgeDate = info.purgeDate;
     info = merged;
     m_loader = GetLoader(inf.loadername);
+
+    // Some loaders (ResMed, BMC, BMCG3X, ...) look up an already-loaded Machine and call
+    // setInfo() on it directly, bypassing Profile::CreateMachine(); others reuse an existing
+    // Machine object through CreateMachine()'s dedup branches. Either way, nothing else writes
+    // a version bump back to the database: ImportContext::CreateMachineFromInfo() and
+    // Profile::storeMachinesToDatabase() both skip machines that already have a database id.
+    // Without this, a stale DB data_version makes Profile::DataFormatError()'s "needs upgrade"
+    // prompt reappear on every subsequent launch even after the user has upgraded.
+    if (m_database_id > 0 && info.version != oldVersion) {
+        MachineRepository repo;
+        MachineData data = repo.findById(m_database_id);
+        if (data.id > 0 && data.dataVersion != info.version) {
+            data.dataVersion = info.version;
+            repo.update(data);
+            qDebug() << "Machine::setInfo(): Persisted version bump for" << info.loadername << info.serial
+                     << "from" << oldVersion << "to" << info.version;
+        }
+    }
 }
 
 QString toHexid(quint32 id) { return QString("%1").arg(id,8,16,QLatin1Char('0')); };

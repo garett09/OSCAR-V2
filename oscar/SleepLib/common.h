@@ -159,6 +159,18 @@ const QString getDeveloperName();
 const QString getDeveloperDomain();
 const QString getModifiedAppData();
 
+/*! \brief Look up the data folder OSCAR 1.x currently has configured on this computer.
+ *
+ * Reads the platform-native settings store (registry on Windows, plist on macOS,
+ * ini file on Linux) under OSCAR 1.x's own application name, using the same key
+ * ("Settings/AppData") that OSCAR 1.x itself writes on every launch. Falls back to
+ * the older "Settings/AppRoot" key for installations that pre-date that rename.
+ *
+ * \return The 1.x data folder path if one is recorded and the folder still exists;
+ *         otherwise an empty string.
+ */
+QString findLegacyOscarDataFolder();
+
 void validateAllFonts ();
 void validateFont (QString which, int size, bool bold, bool italic);
 void setApplicationFont ();

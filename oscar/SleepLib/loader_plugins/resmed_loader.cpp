@@ -49,6 +49,15 @@ ChannelID RMS9_EPR, RMS9_EPRLevel, RMS9_Mode, RMS9_SmartStart, RMS9_HumidStatus,
 
 ChannelID RMAS1x_EasyBreathe, RMAS1x_RiseEnable, RMAS1x_RiseTime, RMAS1x_Cycle, RMAS1x_Trigger, RMAS1x_TiMax, RMAS1x_TiMin;
 
+// ResMed bilevel/iVAPS ventilation waveforms (from PLD). Not Lumis-exclusive: these signals
+// also appear on other ResMed bilevel devices (e.g. model 28509); device-neutral RMVENT_ prefix.
+ChannelID RMVENT_AlvMinVent, RMVENT_SpontCyc, RMVENT_SpontTrig;
+
+// ResMed iVAPS target settings (valid in iVAPS/AVAPS mode only; also on other ResMed iVAPS devices)
+ChannelID RMVENT_iHeight, RMVENT_iAlvMinVent, RMVENT_iRespRate, RMVENT_AutoEPAP, RMVENT_RampDown, RMVENT_StartEPAP;
+// ResMed bilevel rate settings (ST/T/PAC modes)
+ChannelID RMVENT_iBR, RMVENT_BackupRate, RMVENT_RespRate;
+
 const QString STR_ResMed_AirSense10 = "AirSense 10";
 const QString STR_ResMed_AirSense11 = "AirSense 11";
 const QString STR_ResMed_AirCurve10 = "AirCurve 10";
@@ -261,12 +270,12 @@ void ResmedLoader::initChannels()
     chan->addOption(1, STR_TR_On);
 
     channel.add(GRP_CPAP, chan = new Channel(RMAS1x_RiseEnable = 0xe212, SETTING, MT_CPAP, SESSION,
-        "RMAS1x_RiseEnable", QObject::tr("RiseEnable"), QObject::tr("RiseEnable"), QObject::tr("RiseEnable"), "", LOOKUP, Qt::black));
+        "RMAS1x_RiseEnable", QObject::tr("Rise Time Enable"), QObject::tr("Rise Time Enable"), QObject::tr("Rise Time Enable"), "", LOOKUP, Qt::black));
     chan->addOption(0, STR_TR_Off);
     chan->addOption(1, "Enabled");
 
     channel.add(GRP_CPAP, chan = new Channel(RMAS1x_RiseTime = 0xe213, SETTING, MT_CPAP, SESSION,
-        "RMAS1x_RiseTime", QObject::tr("RiseTime"), QObject::tr("RiseTime"), QObject::tr("RiseTime"), STR_UNIT_milliSeconds, INTEGER, Qt::black));
+        "RMAS1x_RiseTime", QObject::tr("Rise Time"), QObject::tr("Rise Time"), QObject::tr("Rise Time"), STR_UNIT_milliSeconds, INTEGER, Qt::black));
 
     channel.add(GRP_CPAP, chan = new Channel(RMAS1x_Cycle = 0xe214, SETTING, MT_CPAP, SESSION,
         "RMAS1x_Cycle", QObject::tr("Cycle"), QObject::tr("Cycle"), QObject::tr("Cycle"), "", LOOKUP, Qt::black));
@@ -285,12 +294,71 @@ void ResmedLoader::initChannels()
     chan->addOption(4, "Very High");
 
     channel.add(GRP_CPAP, chan = new Channel(RMAS1x_TiMax = 0xe216, SETTING, MT_CPAP, SESSION,
-        "RMAS1x_TiMax", QObject::tr("TiMax"), QObject::tr("TiMax"), QObject::tr("TiMax"), STR_UNIT_Seconds, DOUBLE, Qt::black));
+        "RMAS1x_TiMax", QObject::tr("Ti Max"), QObject::tr("Ti Max"), QObject::tr("Ti Max"), STR_UNIT_Seconds, DOUBLE, Qt::black));
     chan->addOption(0, "0");
 
     channel.add(GRP_CPAP, chan = new Channel(RMAS1x_TiMin = 0xe217, SETTING, MT_CPAP, SESSION,
-        "RMAS1x_TiMin", QObject::tr("TiMin"), QObject::tr("TiMin"), QObject::tr("TiMin"), STR_UNIT_Seconds, DOUBLE, Qt::black));
+        "RMAS1x_TiMin", QObject::tr("Ti Min"), QObject::tr("Ti Min"), QObject::tr("Ti Min"), STR_UNIT_Seconds, DOUBLE, Qt::black));
     chan->addOption(0, "0");
+
+    // ResMed bilevel/iVAPS ventilation waveforms (decoded from the PLD file)
+    channel.add(GRP_CPAP, new Channel(RMVENT_AlvMinVent = 0xe218, WAVEFORM, MT_CPAP, SESSION,
+        "RMVENT_AlvMinVent", QObject::tr("Alv. Min. Vent."), QObject::tr("Alveolar Minute Ventilation"),
+        QObject::tr("Alv MV"), "L/min", DOUBLE, Qt::darkGray));
+
+    channel.add(GRP_CPAP, new Channel(RMVENT_SpontCyc = 0xe219, WAVEFORM, MT_CPAP, SESSION,
+        "RMVENT_SpontCyc", QObject::tr("Spont. Cycle%"), QObject::tr("Spontaneous Cycle Percentage"),
+        QObject::tr("Spont Cyc%"), "%", DOUBLE, Qt::blue));
+
+    channel.add(GRP_CPAP, new Channel(RMVENT_SpontTrig = 0xe21a, WAVEFORM, MT_CPAP, SESSION,
+        "RMVENT_SpontTrig", QObject::tr("Spont. Trig%"), QObject::tr("Spontaneous Trigger Percentage"),
+        QObject::tr("Spont Trig%"), "%", DOUBLE, Qt::darkGreen));
+
+    // ResMed iVAPS target settings (shown in Device Settings; valid in iVAPS/AVAPS mode)
+    channel.add(GRP_CPAP, new Channel(RMVENT_iHeight = 0xe22c, SETTING, MT_CPAP, SESSION,
+        "RMVENT_iHeight", QObject::tr("iVAPS Height"), QObject::tr("Patient Height (iVAPS)"),
+        QObject::tr("Height"), "cm", DOUBLE, Qt::black));
+
+    channel.add(GRP_CPAP, new Channel(RMVENT_iAlvMinVent = 0xe22d, SETTING, MT_CPAP, SESSION,
+        "RMVENT_iAlvMinVent", QObject::tr("iVAPS Target Va"), QObject::tr("Target Alveolar Ventilation (iVAPS)"),
+        QObject::tr("Target Va"), "L/min", DOUBLE, Qt::cyan));
+
+    // Target respiratory rate. Shared across iVAPS (S.i.RespRate, target patient rate)
+    // and bilevel ST (S.BL.TgtRR, iBR target rate) — only one mode applies per session.
+    channel.add(GRP_CPAP, new Channel(RMVENT_iRespRate = 0xe22e, SETTING, MT_CPAP, SESSION,
+        "RMVENT_iRespRate", QObject::tr("Target Rate"), QObject::tr("Target Respiratory Rate"),
+        QObject::tr("Target Rate"), "breaths/min", DOUBLE, Qt::green));
+
+    channel.add(GRP_CPAP, chan = new Channel(RMVENT_AutoEPAP = 0xe22f, SETTING, MT_CPAP, SESSION,
+        "RMVENT_AutoEPAP", QObject::tr("Auto EPAP"), QObject::tr("Auto EPAP Enable (iVAPS)"),
+        QObject::tr("AutoEPAP"), "", LOOKUP, Qt::black));
+    chan->addOption(0, QObject::tr("Off"));
+    chan->addOption(1, QObject::tr("On"));
+
+    channel.add(GRP_CPAP, chan = new Channel(RMVENT_RampDown = 0xe230, SETTING, MT_CPAP, SESSION,
+        "RMVENT_RampDown", QObject::tr("Ramp Down"), QObject::tr("Ramp Down Enable"),
+        QObject::tr("Ramp Down"), "", LOOKUP, Qt::black));
+    chan->addOption(0, QObject::tr("Off"));
+    chan->addOption(1, QObject::tr("On"));
+
+    channel.add(GRP_CPAP, new Channel(RMVENT_StartEPAP = 0xe231, SETTING, MT_CPAP, SESSION,
+        "RMVENT_StartEPAP", QObject::tr("Ramp Start EPAP"), QObject::tr("Ramp Start EPAP (iVAPS)"),
+        QObject::tr("Ramp Start EPAP"), STR_UNIT_CMH2O, DOUBLE, Qt::black));
+
+    // ResMed bilevel rate settings (ST/T/PAC modes)
+    channel.add(GRP_CPAP, chan = new Channel(RMVENT_iBR = 0xe232, SETTING, MT_CPAP, SESSION,
+        "RMVENT_iBR", QObject::tr("iBR"), QObject::tr("Intelligent Backup Rate"),
+        QObject::tr("iBR"), "", LOOKUP, Qt::black));
+    chan->addOption(0, QObject::tr("Off"));
+    chan->addOption(1, QObject::tr("On"));
+
+    channel.add(GRP_CPAP, new Channel(RMVENT_BackupRate = 0xe233, SETTING, MT_CPAP, SESSION,
+        "RMVENT_BackupRate", QObject::tr("Backup Rate"), QObject::tr("Backup Respiratory Rate"),
+        QObject::tr("Backup Rate"), "breaths/min", DOUBLE, Qt::darkGreen));
+
+    channel.add(GRP_CPAP, new Channel(RMVENT_RespRate = 0xe234, SETTING, MT_CPAP, SESSION,
+        "RMVENT_RespRate", QObject::tr("Resp. Rate"), QObject::tr("Set Respiratory Rate (T mode)"),
+        QObject::tr("Resp Rate"), "breaths/min", DOUBLE, Qt::green));
 
     // Setup ResMeds signal name translation map
     setupResMedTranslationMap();
@@ -1999,6 +2067,16 @@ bool ResmedLoader::ProcessSTRfiles(Machine *mach, QMap<QDate, STRFile> & STRmap,
                 if ((sig = str.lookupLabel("S.i.MaxPS"))) {
                     R.max_ps = EventDataType(sig->dataArray[rec]) * sig->gain + sig->offset;
                 }
+                // iVAPS target settings (Target Va, Target Patient Rate, Height)
+                if ((sig = str.lookupLabel("S.i.Height"))) {
+                    R.s_iHeight = EventDataType(sig->dataArray[rec]) * sig->gain + sig->offset;
+                }
+                if ((sig = str.lookupLabel("S.i.AlvMinVent"))) {
+                    R.s_iAlvMinVent = EventDataType(sig->dataArray[rec]) * sig->gain + sig->offset;
+                }
+                if ((sig = str.lookupLabel("S.i.RespRate"))) {
+                    R.s_iRespRate = EventDataType(sig->dataArray[rec]) * sig->gain + sig->offset;
+                }
                 if ( (R.epap >= 0) && (R.epapAuto == 0) ) {
                     R.max_ipap = R.epap + R.max_ps;
                     R.min_ipap = R.epap + R.min_ps;
@@ -2187,6 +2265,21 @@ bool ResmedLoader::ProcessSTRfiles(Machine *mach, QMap<QDate, STRFile> & STRmap,
                 if ( AS_eleven ) R.s_RampEnable--;
                 if ( R.s_RampEnable == 2 ) R.s_RampTime = -1;
             }
+            if ((sig = str.lookupLabel("S.RampDownEnable"))) {
+                R.s_RampDownEnable = EventDataType(sig->dataArray[rec]) * sig->gain + sig->offset;
+            }
+            if ((sig = str.lookupLabel("S.BL.IBR"))) {
+                R.s_iBR = EventDataType(sig->dataArray[rec]) * sig->gain + sig->offset;
+            }
+            if ((sig = str.lookupLabel("S.BL.TgtRR"))) {
+                R.s_TgtRR = EventDataType(sig->dataArray[rec]) * sig->gain + sig->offset;
+            }
+            if ((sig = str.lookupLabel("S.BL.BackupRate"))) {
+                R.s_BackupRate = EventDataType(sig->dataArray[rec]) * sig->gain + sig->offset;
+            }
+            if ((sig = str.lookupLabel("S.BL.RespRate"))) {
+                R.s_RespRate = EventDataType(sig->dataArray[rec]) * sig->gain + sig->offset;
+            }
             if ((sig = str.lookupLabel("S.EPR.ClinEnable"))) {
                 R.s_EPR_ClinEnable = EventDataType(sig->dataArray[rec]) * sig->gain + sig->offset;
                 if ( AS_eleven ) R.s_EPR_ClinEnable--;
@@ -2299,6 +2392,37 @@ bool ResmedLoader::ProcessSTRfiles(Machine *mach, QMap<QDate, STRFile> & STRmap,
                 QString sigprefix("S.") ;
                 if ( AS_eleven ) sigprefix.append("VA.");
                 QString signame =QString("%1%2").arg(sigprefix).arg("Cycle");
+                if ((sig = str.lookupLabel(signame))) {
+                    R.s_Cycle = EventDataType(sig->dataArray[rec]) * sig->gain + sig->offset;
+                    if ( AS_eleven ) --R.s_Cycle;
+                }
+                signame =QString("%1%2").arg(sigprefix).arg("Trigger");
+                if ((sig = str.lookupLabel(signame))) {
+                    R.s_Trigger = EventDataType(sig->dataArray[rec]) * sig->gain + sig->offset;
+                    if ( AS_eleven ) --R.s_Trigger;
+                }
+                signame =QString("%1%2").arg(sigprefix).arg("TiMax");
+                if ((sig = str.lookupLabel(signame))) {
+                    R.s_TiMax = EventDataType(sig->dataArray[rec]) * sig->gain + sig->offset;
+                }
+                signame =QString("%1%2").arg(sigprefix).arg("TiMin");
+                if ((sig = str.lookupLabel(signame))) {
+                    R.s_TiMin = EventDataType(sig->dataArray[rec]) * sig->gain + sig->offset;
+                }
+            }
+            if (R.rms9_mode == 9) {     // iVAPS mode — shared "S." comfort/timing settings
+                QString sigprefix("S.") ;
+                if ( AS_eleven ) sigprefix.append("S.");
+                QString signame =QString("%1%2").arg(sigprefix).arg("RiseEnable");
+                if ((sig = str.lookupLabel(signame))) {
+                    R.s_RiseEnable = EventDataType(sig->dataArray[rec]) * sig->gain + sig->offset;
+                    if ( AS_eleven ) --R.s_RiseEnable;
+                }
+                signame =QString("%1%2").arg(sigprefix).arg("RiseTime");
+                if ((sig = str.lookupLabel(signame))) {
+                    R.s_RiseTime = EventDataType(sig->dataArray[rec]) * sig->gain + sig->offset;
+                }
+                signame =QString("%1%2").arg(sigprefix).arg("Cycle");
                 if ((sig = str.lookupLabel(signame))) {
                     R.s_Cycle = EventDataType(sig->dataArray[rec]) * sig->gain + sig->offset;
                     if ( AS_eleven ) --R.s_Cycle;
@@ -2864,6 +2988,20 @@ void StoreSettings(Session * sess, STRRecord & R)
             if (R.min_ipap >= 0) sess->settings[CPAP_IPAPLo] = R.min_ipap;
             if (R.min_ps >= 0) sess->settings[CPAP_PSMin] = R.min_ps;
             if (R.max_ps >= 0) sess->settings[CPAP_PSMax] = R.max_ps;
+        } else if (R.mode == MODE_AVAPS) {
+            // iVAPS: IPAP is derived (EPAP + pressure support), not a user setting — do not store it.
+            // Pressure / PressureMin / PressureMax are CPAP/APAP concepts and do not apply here.
+            // With AutoEPAP on, EPAP varies between min/max; with it off, EPAP is fixed.
+            // Only show the settings relevant to the active EPAP mode.
+            if (R.epapAuto == 0) {
+                if (R.epap > 0) sess->settings[CPAP_EPAP] = R.epap;
+            } else {
+                if (R.max_epap > 0) sess->settings[CPAP_EPAPHi] = R.max_epap;
+                if (R.min_epap > 0) sess->settings[CPAP_EPAPLo] = R.min_epap;
+            }
+            if (R.min_ps > 0) sess->settings[CPAP_PSMin] = R.min_ps;
+            if (R.max_ps > 0) sess->settings[CPAP_PSMax] = R.max_ps;
+            if (R.ps > 0) sess->settings[CPAP_PS] = R.ps;
         } else {
             qDebug() << "Setting session pressures for R.mode" << R.mode;
             if (R.set_pressure > 0) sess->settings[CPAP_Pressure] = R.set_pressure;
@@ -2880,6 +3018,40 @@ void StoreSettings(Session * sess, STRRecord & R)
             if (R.ipap > 0) sess->settings[CPAP_IPAP] = R.ipap;
         }
     }
+
+    // iVAPS target settings (only meaningful in iVAPS/AVAPS mode)
+    if (R.mode == MODE_AVAPS) {
+        if (R.s_iHeight >= 0)     sess->settings[RMVENT_iHeight]     = R.s_iHeight;
+        if (R.s_iAlvMinVent >= 0) sess->settings[RMVENT_iAlvMinVent] = R.s_iAlvMinVent;
+        if (R.s_iRespRate >= 0)   sess->settings[RMVENT_iRespRate]   = R.s_iRespRate;
+        if (R.s_TiMax >= 0)       sess->settings[RMAS1x_TiMax]       = R.s_TiMax;
+        if (R.s_TiMin >= 0)       sess->settings[RMAS1x_TiMin]       = R.s_TiMin;
+        if (R.s_RiseEnable >= 0)  sess->settings[RMAS1x_RiseEnable]  = R.s_RiseEnable;
+        if (R.s_RiseTime >= 0)    sess->settings[RMAS1x_RiseTime]    = R.s_RiseTime;
+        if (R.s_Cycle >= 0)       sess->settings[RMAS1x_Cycle]       = R.s_Cycle;
+        if (R.s_Trigger >= 0)     sess->settings[RMAS1x_Trigger]     = R.s_Trigger;
+        if (R.epapAuto >= 0)      sess->settings[RMVENT_AutoEPAP]    = (R.epapAuto != 0) ? 1 : 0;
+        if (R.s_RampPressure >= 0) sess->settings[RMVENT_StartEPAP]  = R.s_RampPressure;
+    }
+
+    // Bilevel rate settings, gated per device mode (ST=4, T=2, PAC=10). iBR not shown for
+    // iVAPS: S.BL.IBR reads Off there though the guide says it's always enabled in iVAPS.
+    //
+    // NOTE: S.BL.IBR, S.BL.TgtRR and S.RampDownEnable are recorded only by the ST-A /
+    // iVAPS-class devices (e.g. AirCurve 10 ST-A, Lumis 150; MID 40). The plain bilevel
+    // AirCurve 10 ST (MID 36) has no iVAPS bank and does not write these signals, so iBR,
+    // Target Rate and Ramp Down legitimately never appear for it — the reads above simply
+    // leave the fields at -1. Do not assume these signals exist on every ResMed bilevel card.
+    if (R.s_iBR >= 0 && R.rms9_mode == 4)
+        sess->settings[RMVENT_iBR] = R.s_iBR;
+    // Bilevel target respiratory rate (paired with iBR); shares the "Target Rate"
+    // channel with the iVAPS target patient rate (only one mode applies per session).
+    if (R.s_TgtRR >= 0 && R.rms9_mode == 4)
+        sess->settings[RMVENT_iRespRate] = R.s_TgtRR;
+    if (R.s_BackupRate >= 0 && (R.rms9_mode == 4 || R.rms9_mode == 10))
+        sess->settings[RMVENT_BackupRate] = R.s_BackupRate;
+    if (R.s_RespRate >= 0 && R.rms9_mode == 2)
+        sess->settings[RMVENT_RespRate] = R.s_RespRate;
 
     if (R.epr >= 0) {
         sess->settings[RMS9_EPR] = (int)R.epr;
@@ -2898,9 +3070,27 @@ void StoreSettings(Session * sess, STRRecord & R)
                 sess->settings[CPAP_RampTime] = R.s_RampTime;
             }
             if (R.s_RampPressure >= 0) {
-                sess->settings[CPAP_RampPressure] = R.s_RampPressure;
+                // In bilevel, ASV and iVAPS therapy the ramp start pressure is applied to
+                // the EPAP baseline, so surface it as "Ramp Start EPAP". CPAP and APAP
+                // keep the generic "Ramp Pressure" field. (iVAPS also sets this above,
+                // unconditionally, so it still appears when ramp is disabled.)
+                bool bilevel = (R.mode == MODE_BILEVEL_FIXED)
+                            || (R.mode == MODE_BILEVEL_AUTO_FIXED_PS)
+                            || (R.mode == MODE_BILEVEL_AUTO_VARIABLE_PS)
+                            || (R.mode == MODE_ASV)
+                            || (R.mode == MODE_ASV_VARIABLE_EPAP)
+                            || (R.mode == MODE_AVAPS);
+                if (bilevel) {
+                    sess->settings[RMVENT_StartEPAP] = R.s_RampPressure;
+                } else {
+                    sess->settings[CPAP_RampPressure] = R.s_RampPressure;
+                }
             }
         }
+    }
+
+    if (R.s_RampDownEnable >= 0) {
+        sess->settings[RMVENT_RampDown] = R.s_RampDownEnable;
     }
 
     if (R.s_SmartStart >= 0) {
@@ -4003,12 +4193,15 @@ bool ResmedLoader::LoadPLD(Session *sess, const QString & path)
             ToTimeDelta(sess,edf,es, code,samples,duration,0,0, square);
         } else if (es.label == "Va") {  // Signal used in 36039... What to do with it???
             a = nullptr;                // We'll skip it for now
-        } else if (es.label == "AlvMinVent.2s") {  // Signal used in 28509... What to do with it???
-            a = nullptr;                // We'll skip it for now
-        } else if (es.label == "CLRatio.2s") {  // Signal used in 28509... What to do with it???
-            a = nullptr;                // We'll skip it for now
-        } else if (es.label == "TRRatio.2s") {  // Signal used in 28509... What to do with it???
-            a = nullptr;                // We'll skip it for now
+        } else if (matchSignal(RMVENT_AlvMinVent, es.label)) {  // AlvMinVent.2s
+            code = RMVENT_AlvMinVent;
+            ToTimeDelta(sess, edf, es, code, samples, duration, 0, 0, square);
+        } else if (matchSignal(RMVENT_SpontCyc, es.label)) {    // CLRatio.2s = spontaneous cycle %
+            code = RMVENT_SpontCyc;
+            ToTimeDelta(sess, edf, es, code, samples, duration, 0, 0, square);
+        } else if (matchSignal(RMVENT_SpontTrig, es.label)) {   // TRRatio.2s = spontaneous trigger %
+            code = RMVENT_SpontTrig;
+            ToTimeDelta(sess, edf, es, code, samples, duration, 0, 0, square);
         } else if (es.label == "") { // What the hell resmed??
         // these empty lables should be changed in resmed_EDFInfo to something unique
             if (emptycnt == 0) {
@@ -4079,6 +4272,15 @@ void ResmedLoader::ToTimeDelta(Session *sess, ResMedEDFInfo &edf, EDFSignal &es,
 
     int startpos = 0;
 
+    // Pressure is never legitimately 0 during a recording. ResMed PLD pressure signals
+    // (Press.2s, EprPress.2s) use a digital_minimum of 0, so the EDF end-of-data sentinel
+    // sample decodes to 0 (rather than the -1 sentinel used by other signals). That stray 0
+    // otherwise lands as a real sample: a vertical drop to zero at the session boundary on
+    // the graph, and a session minimum of 0 (which collapses long-range Min statistics).
+    // Treat a 0 on these channels as a null value, exactly like the -1 handling below.
+    bool isPressure = (code == CPAP_Pressure) || (code == CPAP_IPAP) ||
+                      (code == CPAP_EPAP) || (code == CPAP_MaskPressure);
+
 //  There's no reason to skip the first 40 seconds of slow data
 //  Reduce that to 10 seconds, to allow presssures to stabilise
     if ((code == CPAP_Pressure) || (code == CPAP_IPAP) || (code == CPAP_EPAP)) {
@@ -4110,7 +4312,7 @@ void ResmedLoader::ToTimeDelta(Session *sess, ResMedEDFInfo &edf, EDFSignal &es,
             last = *sptr++;
             sampleCounter++;
             tmp = EventDataType(last) * es.gain;
-            if ((tmp >= t_min) && (tmp <= t_max)) {
+            if ((tmp >= t_min) && (tmp <= t_max) && !(isPressure && last == 0)) {
                 min = tmp;
                 max = tmp;
                 el = sess->AddEventList(code, EVL_Event, es.gain, es.offset, 0, 0);
@@ -4146,8 +4348,9 @@ void ResmedLoader::ToTimeDelta(Session *sess, ResMedEDFInfo &edf, EDFSignal &es,
         for (; sptr < eptr; sptr++) {
             sampleCounter++;
             c = *sptr;
-            if (c == -1  && t_min>=0 ) {
-                // -1 is Null value
+            if ((c == -1 || (isPressure && c == 0)) && t_min>=0 ) {
+                // -1 is the Null value sentinel for most signals; pressure signals use 0
+                // (digital_minimum 0). Either way it is end-of-data padding, not a reading.
                 //DEBUGCI NAME(code) Q(last) Q(c) QQ(cnt,sampleCounter) QQ(max,samples) O((sampleCounter == samples)) DATETIME((qint64)tt);
                 Q_UNUSED(sampleCounter);
                 c=last; //reset the current sample to the last one to skip over using it.
@@ -4344,6 +4547,11 @@ void setupResMedTranslationMap()
     resmed_codes[CPAP_PressureMin] = QStringList { "Min Pressure", "Min. Druck", "Min druk", "\xE6\x9C\x80\xE5\xB0\x8F\xE5\x8E\x8B\xE5\x8A\x9B", "Pression min.", "Min tryck", "S.AS.MinPress", "S.A.MinPress", "Min Basınç" };
 
     //resmed_codes[RMS9_EPR].push_back("S.EPR.EPRType");
+
+    // ResMed bilevel/iVAPS ventilation waveforms (PLD signal names)
+    resmed_codes[RMVENT_AlvMinVent] = QStringList { "AlvMinVent.2s" };
+    resmed_codes[RMVENT_SpontCyc]   = QStringList { "CLRatio.2s" };
+    resmed_codes[RMVENT_SpontTrig]  = QStringList { "TRRatio.2s" };
 }
 
 

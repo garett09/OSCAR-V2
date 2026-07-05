@@ -61,7 +61,7 @@ ExportCSV::ExportCSV(QWidget *parent) :
     connect(ui->endDate->calendarWidget(), SIGNAL(currentPageChanged(int, int)),
             SLOT(endDate_currentPageChanged(int, int)));
 
-    on_quickRangeCombo_activated(tr("Most Recent Day"));
+    on_quickRangeCombo_activated(0);  // 0 = "Most Recent Day" (first item)
     ui->rb1_details->clearFocus();
     ui->quickRangeCombo->setFocus();
     ui->exportButton->setEnabled(false);
@@ -107,8 +107,9 @@ void ExportCSV::on_filenameBrowseButton_clicked()
     mainwin->saveProfilePath(STR_PREF_LastExportCsvPath, folder);
 }
 
-void ExportCSV::on_quickRangeCombo_activated(const QString &arg1)
+void ExportCSV::on_quickRangeCombo_activated(int index)
 {
+    const QString arg1 = ui->quickRangeCombo->itemText(index);
     QDate first = p_profile->FirstDay();
     QDate last = p_profile->LastDay();
 
