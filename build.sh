@@ -40,5 +40,8 @@ else
     exit 1
 fi
 
-echo "Done. Opening app..."
-/usr/bin/open "$APP_PATH"
+echo "Done. Launching built app directly (bypasses LaunchServices)..."
+# Launch the inner Mach-O directly so macOS can't redirect to another
+# OSCAR20.app sharing the same bundle id (org.oscar-team.OSCAR20).
+APP_EXEC="$APP_PATH/Contents/MacOS/$(basename "$APP_PATH" .app)"
+"$APP_EXEC" >/dev/null 2>&1 &

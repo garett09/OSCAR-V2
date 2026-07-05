@@ -302,6 +302,7 @@ SOURCES += \
     aboutdialog.cpp \
     checkupdates.cpp \
     compliancereport.cpp \
+    compliancereport_airviewv2.cpp \
     common_gui.cpp \
     cprogressbar.cpp \
     csv.cpp \
@@ -482,6 +483,8 @@ HEADERS  += \
     SleepLib/performance_timer.h \
     checkupdates.h \
     compliancereport.h \
+    compliancereport_airviewv2.h \
+    compliancereport_internal.h \
     database/reports_initializer.h \
     notifyMessageBox.h \
     dailySearchTab.h \

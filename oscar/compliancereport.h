@@ -83,9 +83,12 @@ public:
     QDate lastSettingsChangeStartDate() const;
     QList<SelectedChannel> selectedChannels() const;
     bool airViewFormat() const;
+    enum ReportStyle { Classic, AirViewV2 };
+    ReportStyle reportStyle() const;
 
 private slots:
     void onRangeChanged(int index);
+    void onStyleChanged(int);
 
 private:
     QComboBox *m_rangeCombo;
@@ -95,13 +98,19 @@ private:
     QLabel *m_endLabel;
     QListWidget *m_channelsListWidget;
     QCheckBox *m_airViewCheck;
+    QComboBox *m_styleCombo;
 };
+
+struct ReportData;
 
 class ComplianceReport
 {
     Q_DECLARE_TR_FUNCTIONS(ComplianceReport)
 public:
     static void exportReport(QWidget *parent);
+    // Gather every statistic the report needs into a reusable struct so the
+    // Classic and AirView V2 renderers share byte-identical numbers.
+    static ReportData gatherReportData(QDate start, QDate end);
 };
 
 #endif // COMPLIANCEREPORT_H

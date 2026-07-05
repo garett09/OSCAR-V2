@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  body { margin:0; background:#CDD5DB; }
+  * { box-sizing:border-box; }
+  .num { font-family:'IBM Plex Mono'; font-feature-settings:'tnum' 1; }
+  .band { display:flex; align-items:center; gap:9px; background:#0B3D74; color:#fff; padding:9px 15px; font:700 11.5px 'IBM Plex Sans'; letter-spacing:.14em; text-transform:uppercase; }
+  .band .s { margin-left:auto; font:500 9.5px 'IBM Plex Sans'; letter-spacing:.03em; text-transform:none; color:#AFC6DD; }
+  .kv { display:flex; justify-content:space-between; align-items:baseline; padding:9.5px 0; border-bottom:1px solid #E6ECF1; }
+  .kvl { font:400 12px 'IBM Plex Sans'; color:#54616B; }
+  .kvv { font:600 12px 'IBM Plex Mono'; color:#1A2733; }
+  .ic { padding:12px 14px; border-right:1px solid #DCE4EA; }
+  .icl { font:600 8.5px 'IBM Plex Sans'; letter-spacing:.1em; text-transform:uppercase; color:#8693A0; }
+  .icv { font:600 13.5px 'IBM Plex Sans'; color:#1A2733; margin-top:4px; }
+  .rt { width:100%; border-collapse:collapse; }
+  .rt th { background:#EAF2F9; font:600 9.5px 'IBM Plex Sans'; letter-spacing:.07em; text-transform:uppercase; color:#0B3D74; padding:9px 11px; text-align:left; }
+  .rt td { font:400 11px 'IBM Plex Sans'; color:#38454F; padding:8.5px 11px; border-bottom:1px solid #ECF1F4; }
+</style>
+</helmet>
+
+<div style="min-height:100vh; background:#CDD5DB; padding:30px 0 70px; display:flex; flex-direction:column; align-items:center; gap:28px; font-family:'IBM Plex Sans'; color:#1A2733;">
+
+  <!-- ====================== PAGE 1 — COMPLIANCE SUMMARY ====================== -->
+  <section data-screen-label="Page 1 — Compliance Summary" style="width:794px; min-height:1123px; background:#fff; box-shadow:0 1px 3px rgba(20,40,50,.12), 0 18px 48px -24px rgba(20,40,50,.32); display:flex; flex-direction:column; overflow:hidden;">
+    <!-- masthead -->
+    <div style="display:flex; justify-content:space-between; align-items:center; padding:20px 34px 14px; border-bottom:2px solid #0B3D74;">
+      <div style="display:flex; align-items:center; gap:11px;">
+        <svg width="28" height="15" viewBox="0 0 28 15" fill="none"><path d="M1 7.5 Q4.3 1 7.6 7.5 T14.2 7.5 T20.8 7.5 T27.4 7.5" stroke="#1F6FB2" stroke-width="2" stroke-linecap="round"/></svg>
+        <div>
+          <div style="font:700 21px 'IBM Plex Sans'; letter-spacing:.04em; color:#0B3D74;">OSCAR</div>
+          <div style="font:500 8px 'IBM Plex Sans'; letter-spacing:.2em; text-transform:uppercase; color:#8693A0; margin-top:1px;">Sleep Therapy Insights</div>
+        </div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font:700 15px 'IBM Plex Sans'; letter-spacing:.16em; text-transform:uppercase; color:#0B3D74;">Compliance Report</div>
+        <div class="num" style="font-size:10px; color:#8693A0; margin-top:3px;">Generated Jun 28, 2026 · OSCAR 2.0.2-beta-1</div>
+      </div>
+    </div>
+
+    <div style="padding:16px 34px 0; flex:1; display:flex; flex-direction:column;">
+      <!-- patient/device box -->
+      <div style="border:1px solid #C7D2DA; border-radius:3px; overflow:hidden;">
+        <div style="display:grid; grid-template-columns:1.7fr 1fr 0.6fr 1.2fr 0.7fr;">
+          <div class="ic"><div class="icl">Patient</div><div class="icv">Sian, Adrian Garett</div></div>
+          <div class="ic"><div class="icl">Date of birth</div><div class="icv">Aug 3, 2000</div></div>
+          <div class="ic"><div class="icl">Age</div><div class="icv">25 yrs</div></div>
+          <div class="ic"><div class="icl">Report period</div><div class="icv">May 24 – Jun 22, 2026</div></div>
+          <div class="ic" style="border-right:none;"><div class="icl">Nights</div><div class="icv">30</div></div>
+        </div>
+        <div style="display:grid; grid-template-columns:1.7fr 1fr 0.6fr 1.2fr 0.7fr; border-top:1px solid #DCE4EA;">
+          <div class="ic"><div class="icl">Device</div><div class="icv">ResMed AirSense 11 AutoSet</div></div>
+          <div class="ic"><div class="icl">Serial no.</div><div class="icv">23231819378</div></div>
+          <div class="ic"><div class="icl">Mode</div><div class="icv">CPAP</div></div>
+          <div class="ic"><div class="icl">Pressure</div><div class="icv">10.6 cmH₂O · EPR Off</div></div>
+          <div class="ic" style="border-right:none;"><div class="icl">Mask</div><div class="icv">AirFit F40</div></div>
+        </div>
+      </div>
+
+      <!-- scorecard strip -->
+      <div style="display:grid; grid-template-columns:repeat(6,1fr); border:1px solid #C7D2DA; border-top:none; border-radius:0 0 3px 3px; overflow:hidden; margin-top:-1px;">
+        <div style="padding:14px 13px; border-right:1px solid #DCE4EA; background:#F7FAFC;">
+          <div style="display:flex; align-items:center; gap:6px;"><span style="width:8px; height:8px; border-radius:50%; background:#2E8B57;"></span><span style="font:600 8px 'IBM Plex Sans'; letter-spacing:.08em; text-transform:uppercase; color:#8693A0;">Adherence</span></div>
+          <div class="num" style="font:600 25px 'IBM Plex Mono'; margin-top:7px; color:#1A2733;">97<span style="font-size:10px; color:#8693A0;"> %</span></div>
+          <div style="font:400 8.5px 'IBM Plex Sans'; color:#6B7884; margin-top:1px;">29/30 ≥ 4 h</div>
+        </div>
+        <div style="padding:14px 13px; border-right:1px solid #DCE4EA; background:#F7FAFC;">
+          <div style="display:flex; align-items:center; gap:6px;"><span style="width:8px; height:8px; border-radius:50%; background:#2E8B57;"></span><span style="font:600 8px 'IBM Plex Sans'; letter-spacing:.08em; text-transform:uppercase; color:#8693A0;">Residual AHI</span></div>
+          <div class="num" style="font:600 25px 'IBM Plex Mono'; margin-top:7px; color:#1A2733;">0.6<span style="font-size:10px; color:#8693A0;"> /h</span></div>
+          <div style="font:400 8.5px 'IBM Plex Sans'; color:#6B7884; margin-top:1px;">−99% baseline</div>
+        </div>
+        <div style="padding:14px 13px; border-right:1px solid #DCE4EA; background:#F7FAFC;">
+          <div style="display:flex; align-items:center; gap:6px;"><span style="width:8px; height:8px; border-radius:50%; background:#2E8B57;"></span><span style="font:600 8px 'IBM Plex Sans'; letter-spacing:.08em; text-transform:uppercase; color:#8693A0;">Avg usage</span></div>
+          <div class="num" style="font:600 25px 'IBM Plex Mono'; margin-top:7px; color:#1A2733;">7:09<span style="font-size:10px; color:#8693A0;"> h</span></div>
+          <div style="font:400 8.5px 'IBM Plex Sans'; color:#6B7884; margin-top:1px;">median 7:09</div>
+        </div>
+        <div style="padding:14px 13px; border-right:1px solid #DCE4EA; background:#F7FAFC;">
+          <div style="display:flex; align-items:center; gap:6px;"><span style="width:8px; height:8px; border-radius:50%; background:#2E8B57;"></span><span style="font:600 8px 'IBM Plex Sans'; letter-spacing:.08em; text-transform:uppercase; color:#8693A0;">Leak 95th</span></div>
+          <div class="num" style="font:600 25px 'IBM Plex Mono'; margin-top:7px; color:#1A2733;">8.5<span style="font-size:10px; color:#8693A0;"> L/m</span></div>
+          <div style="font:400 8.5px 'IBM Plex Sans'; color:#6B7884; margin-top:1px;">redline 24</div>
+        </div>
+        <div style="padding:14px 13px; border-right:1px solid #DCE4EA; background:#FCF8F0;">
+          <div style="display:flex; align-items:center; gap:6px;"><span style="width:8px; height:8px; border-radius:50%; background:#C9881F;"></span><span style="font:600 8px 'IBM Plex Sans'; letter-spacing:.08em; text-transform:uppercase; color:#8693A0;">O₂ nadir</span></div>
+          <div class="num" style="font:600 25px 'IBM Plex Mono'; margin-top:7px; color:#1A2733;">86<span style="font-size:10px; color:#8693A0;"> %</span></div>
+          <div style="font:400 8.5px 'IBM Plex Sans'; color:#6B7884; margin-top:1px;">T90 20 min</div>
+        </div>
+        <div style="padding:14px 13px; background:#FCF8F0;">
+          <div style="display:flex; align-items:center; gap:6px;"><span style="width:8px; height:8px; border-radius:50%; background:#C9881F;"></span><span style="font:600 8px 'IBM Plex Sans'; letter-spacing:.08em; text-transform:uppercase; color:#8693A0;">Central idx</span></div>
+          <div class="num" style="font:600 25px 'IBM Plex Mono'; margin-top:7px; color:#1A2733;">0.27<span style="font-size:10px; color:#8693A0;"> /h</span></div>
+          <div style="font:400 8.5px 'IBM Plex Sans'; color:#6B7884; margin-top:1px;">CSR 0%</div>
+        </div>
+      </div>
+
+      <!-- USAGE section -->
+      <div class="band" style="margin-top:22px;">Usage<span class="s">Daily therapy hours · compliance threshold 4 h</span></div>
+      <div style="border:1px solid #C7D2DA; border-top:none; padding:14px 16px 10px;">
+        <div style="display:flex; gap:9px;">
+          <div style="width:18px; position:relative; height:230px; flex:none;">
+            <span class="num" style="position:absolute; top:-5px; right:0; font-size:8.5px; color:#8693A0;">12</span>
+            <span class="num" style="position:absolute; top:72px; right:0; font-size:8.5px; color:#8693A0;">8</span>
+            <span class="num" style="position:absolute; top:148px; right:0; font-size:8.5px; color:#2E8B57;">4</span>
+            <span class="num" style="position:absolute; bottom:-4px; right:0; font-size:8.5px; color:#8693A0;">0</span>
+          </div>
+          <div style="flex:1; position:relative; height:230px; border-bottom:1px solid #C7D2DA;">
+            <div style="position:absolute; left:0; right:0; bottom:76.7px; border-top:1.5px dashed #2E8B57;"></div>
+            <span style="position:absolute; right:1px; bottom:79px; font:600 9px 'IBM Plex Sans'; color:#2E8B57; background:#fff; padding:0 3px;">4 h compliance threshold</span>
+            <div style="position:absolute; inset:0; display:flex; align-items:flex-end; gap:3px;">
+              <sc-for list="{{ usageBars }}" as="ub" hint-placeholder-count="30">
+                <div style="flex:1; height:{{ ub.hPx }}; background:{{ ub.bg }}; border-radius:1.5px 1.5px 0 0;"></div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex; justify-content:space-between; margin:6px 0 0 25px;"><span class="num" style="font-size:8px; color:#8693A0;">May 24</span><span class="num" style="font-size:8px; color:#8693A0;">May 29</span><span class="num" style="font-size:8px; color:#8693A0;">Jun 3</span><span class="num" style="font-size:8px; color:#8693A0;">Jun 8</span><span class="num" style="font-size:8px; color:#8693A0;">Jun 13</span><span class="num" style="font-size:8px; color:#8693A0;">Jun 18</span><span class="num" style="font-size:8px; color:#8693A0;">Jun 22</span></div>
+      </div>
+      <!-- compliance summary cells -->
+      <div style="display:grid; grid-template-columns:repeat(6,1fr); border:1px solid #C7D2DA; border-top:none; overflow:hidden;">
+        <div style="padding:12px 13px; border-right:1px solid #DCE4EA;"><div style="font:600 8.5px 'IBM Plex Sans'; letter-spacing:.08em; text-transform:uppercase; color:#8693A0;">Usage days</div><div class="num" style="font:600 13px 'IBM Plex Mono'; margin-top:4px;">30/30 <span style="font-size:10px; color:#2E8B57;">100%</span></div></div>
+        <div style="padding:12px 13px; border-right:1px solid #DCE4EA;"><div style="font:600 8.5px 'IBM Plex Sans'; letter-spacing:.08em; text-transform:uppercase; color:#8693A0;">≥ 4 hours</div><div class="num" style="font:600 16px 'IBM Plex Mono'; margin-top:4px;">29 <span style="font-size:9px; color:#2E8B57;">97%</span></div></div>
+        <div style="padding:12px 13px; border-right:1px solid #DCE4EA;"><div style="font:600 8.5px 'IBM Plex Sans'; letter-spacing:.08em; text-transform:uppercase; color:#8693A0;">&lt; 4 hours</div><div class="num" style="font:600 16px 'IBM Plex Mono'; margin-top:4px;">1 <span style="font-size:9px; color:#8693A0;">3%</span></div></div>
+        <div style="padding:12px 13px; border-right:1px solid #DCE4EA;"><div style="font:600 8.5px 'IBM Plex Sans'; letter-spacing:.08em; text-transform:uppercase; color:#8693A0;">Usage hours</div><div class="num" style="font:600 16px 'IBM Plex Mono'; margin-top:4px;">214:17</div></div>
+        <div style="padding:12px 13px; border-right:1px solid #DCE4EA;"><div style="font:600 8.5px 'IBM Plex Sans'; letter-spacing:.08em; text-transform:uppercase; color:#8693A0;">Avg / day</div><div class="num" style="font:600 16px 'IBM Plex Mono'; margin-top:4px;">7:09</div></div>
+        <div style="padding:8px 11px;"><div style="font:600 8px 'IBM Plex Sans'; letter-spacing:.08em; text-transform:uppercase; color:#8693A0;">Median</div><div class="num" style="font:600 16px 'IBM Plex Mono'; margin-top:4px;">7:09</div></div>
+      </div>
+
+      <!-- MASK & SEAL + EVENT BREAKDOWN -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-top:22px;">
+        <!-- mask & seal -->
+        <div>
+          <div class="band">Mask &amp; Seal<span class="s">AirFit F40 · full face</span></div>
+          <div style="border:1px solid #C7D2DA; border-top:none; padding:13px 16px;">
+            <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:7px;"><span style="font:600 10px 'IBM Plex Sans'; letter-spacing:.06em; text-transform:uppercase; color:#0B3D74;">Unintentional leak</span><span style="font:400 10px 'IBM Plex Sans'; color:#2E8B57;">1.1% over redline</span></div>
+            <div style="position:relative; height:16px; background:#EEF2F5; border-radius:3px; overflow:hidden;">
+              <div style="position:absolute; left:0; top:0; bottom:0; width:35.4%; background:#2FA37A;"></div>
+              <div style="position:absolute; left:80%; top:0; bottom:0; width:2px; background:#C0392B;"></div>
+              <div style="position:absolute; left:2.5%; top:0; bottom:0; width:2px; background:#17684C;"></div>
+            </div>
+            <div style="display:flex; justify-content:space-between; margin-top:4px;"><span class="num" style="font-size:8px; color:#8693A0;">0</span><span class="num" style="font-size:8px; color:#C0392B;">redline 24</span><span class="num" style="font-size:8px; color:#8693A0;">30 L/m</span></div>
+            <div class="kv" style="margin-top:6px;"><span class="kvl">Median leak</span><span class="kvv">0.6 L/min</span></div>
+            <div class="kv"><span class="kvl">95th percentile</span><span class="kvv">8.5 L/min</span></div>
+            <div class="kv"><span class="kvl">Maximum</span><span class="kvv">17.6 L/min</span></div>
+            <div class="kv" style="border-bottom:none;"><span class="kvl">Time over redline</span><span class="kvv">02:16:32 · 1.1%</span></div>
+          </div>
+        </div>
+        <!-- event breakdown -->
+        <div>
+          <div class="band">Respiratory Events<span class="s">AHI 0.6 /h</span></div>
+          <div style="border:1px solid #C7D2DA; border-top:none; padding:13px 16px;">
+            <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:7px;"><span style="font:600 10px 'IBM Plex Sans'; letter-spacing:.06em; text-transform:uppercase; color:#0B3D74;">Residual AHI vs target</span><span style="font:400 10px 'IBM Plex Sans'; color:#2E8B57;">well controlled</span></div>
+            <div style="position:relative; height:16px; background:#EEF2F5; border-radius:3px; overflow:hidden;">
+              <div style="position:absolute; left:0; top:0; bottom:0; width:6%; background:#6E6FE6;"></div>
+              <div style="position:absolute; left:50%; top:0; bottom:0; width:2px; background:#C9881F;"></div>
+            </div>
+            <div style="display:flex; justify-content:space-between; margin-top:4px;"><span class="num" style="font-size:8px; color:#8693A0;">0</span><span class="num" style="font-size:8px; color:#C9881F;">target 5 /h</span><span class="num" style="font-size:8px; color:#8693A0;">10 /h</span></div>
+            <div class="kv" style="margin-top:6px;"><span class="kvl"><span style="display:inline-block; width:8px; height:8px; border-radius:2px; background:#6E6FE6; vertical-align:middle; margin-right:7px;"></span>Central apnea (CAI)</span><span class="kvv">0.27 /h</span></div>
+            <div class="kv"><span class="kvl"><span style="display:inline-block; width:8px; height:8px; border-radius:2px; background:#AEB0F2; vertical-align:middle; margin-right:7px;"></span>Hypopnea (HI)</span><span class="kvv">0.30 /h</span></div>
+            <div class="kv"><span class="kvl"><span style="display:inline-block; width:8px; height:8px; border-radius:2px; background:#312E81; vertical-align:middle; margin-right:7px;"></span>Obstructive apnea (OAI)</span><span class="kvv">0.02 /h</span></div>
+            <div class="kv"><span class="kvl">Respiratory effort arousals (RERA)</span><span class="kvv">0.2 /h</span></div>
+            <div class="kv" style="border-bottom:none;"><span class="kvl">Cheyne–Stokes respiration</span><span class="kvv">0 min · 0%</span></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+    <div style="padding:9px 34px 14px; border-top:1px solid #E6ECF1; display:flex; justify-content:space-between; align-items:center;">
+      <span style="font:400 8.5px 'IBM Plex Sans'; color:#9AA6B0;">OSCAR 2.0.2-beta-1 · open-source CPAP report software · device-estimated indices, not a diagnostic polysomnogram</span>
+      <span class="num" style="font-size:8.5px; color:#9AA6B0;">1 / 7</span>
+    </div>
+  </section>
+
+  <!-- ====================== PAGE 2 — THERAPY & DEVICE SETTINGS ====================== -->
+  <section data-screen-label="Page 2 — Therapy &amp; Settings" style="width:794px; min-height:1123px; background:#fff; box-shadow:0 1px 3px rgba(20,40,50,.12), 0 18px 48px -24px rgba(20,40,50,.32); display:flex; flex-direction:column; overflow:hidden;">
+    <div style="display:flex; justify-content:space-between; align-items:center; padding:18px 34px 11px; border-bottom:1px solid #C7D2DA;">
+      <div style="display:flex; align-items:center; gap:9px;">
+        <svg width="22" height="12" viewBox="0 0 28 15" fill="none"><path d="M1 7.5 Q4.3 1 7.6 7.5 T14.2 7.5 T20.8 7.5 T27.4 7.5" stroke="#1F6FB2" stroke-width="2" stroke-linecap="round"/></svg>
+        <span style="font:700 13px 'IBM Plex Sans'; color:#0B3D74; letter-spacing:.03em;">OSCAR</span>
+        <span style="font:500 8px 'IBM Plex Sans'; letter-spacing:.16em; text-transform:uppercase; color:#9AA6B0; border-left:1px solid #C7D2DA; padding-left:9px;">Sleep Therapy Insights</span>
+      </div>
+      <div style="text-align:right;"><div style="font:600 11px 'IBM Plex Sans'; letter-spacing:.14em; text-transform:uppercase; color:#0B3D74;">Therapy &amp; Device Settings</div><div class="num" style="font-size:9px; color:#9AA6B0; margin-top:2px;">Adrian Sian · May 24–Jun 22, 2026</div></div>
+    </div>
+
+    <div style="padding:18px 34px 0; flex:1;">
+      <div style="display:grid; grid-template-columns:1fr; gap:7px;">
+        <div>
+          <div class="band">Therapy</div>
+          <div style="border:1px solid #C7D2DA; border-top:none; padding:4px 14px 8px;">
+            <div class="kv"><span class="kvl">Leak rate (median · 95th · max)</span><span class="kvv">0.6 · 8.5 · 17.6 L/min</span></div>
+            <div class="kv"><span class="kvl">Apnea–Hypopnea Index (AHI)</span><span class="kvv" style="color:#2E8B57;">0.6 /h</span></div>
+            <div class="kv"><span class="kvl">Apnea Index · Hypopnea Index</span><span class="kvv">0.3 · 0.3 /h</span></div>
+            <div class="kv"><span class="kvl">Apneas by type</span><span class="kvv">Central 0.3 · Obstructive 0.0 · Unknown 0.0</span></div>
+            <div class="kv"><span class="kvl">Respiratory Effort–Related Arousals (RERA)</span><span class="kvv">0.2 /h</span></div>
+            <div class="kv"><span class="kvl">Respiratory Disturbance Index (RDI)</span><span class="kvv">0.74 /h</span></div>
+            <div class="kv"><span class="kvl">Flow limitation (95th percentile)</span><span class="kvv">0.08</span></div>
+            <div class="kv" style="border-bottom:none;"><span class="kvl">Cheyne–Stokes respiration</span><span class="kvv">0 min (0%)</span></div>
+          </div>
+        </div>
+        <div>
+          <div class="band">Usage Detail</div>
+          <div style="border:1px solid #C7D2DA; border-top:none; padding:4px 14px 8px;">
+            <div class="kv"><span class="kvl">Days used</span><span class="kvv">30 / 30 <span style="color:#2E8B57;">(100%)</span></span></div>
+            <div class="kv"><span class="kvl">Nights ≥ 4 h</span><span class="kvv">29 (97%)</span></div>
+            <div class="kv"><span class="kvl">Nights &lt; 4 h</span><span class="kvv">1 (3%)</span></div>
+            <div class="kv"><span class="kvl">Total therapy hours</span><span class="kvv">214 h 17 m</span></div>
+            <div class="kv"><span class="kvl">Average (all · used)</span><span class="kvv">7:09 · 7:09</span></div>
+            <div class="kv"><span class="kvl">Median per night</span><span class="kvv">7:09</span></div>
+            <div class="kv" style="border-bottom:none;"><span class="kvl">Interquartile range</span><span class="kvv">{{ q1 }} – {{ q3 }} h</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="band" style="margin-top:18px;">Device Settings<span class="s">as on Jun 22, 2026</span></div>
+      <div style="border:1px solid #C7D2DA; border-top:none; padding:4px 14px 8px; display:grid; grid-template-columns:1fr 1fr; gap:0 28px;">
+        <div class="kv"><span class="kvl">Model</span><span class="kvv">AirSense 11 AutoSet</span></div>
+        <div class="kv"><span class="kvl">Climate control</span><span class="kvv">Auto</span></div>
+        <div class="kv"><span class="kvl">Mode</span><span class="kvv">CPAP</span></div>
+        <div class="kv"><span class="kvl">Temperature</span><span class="kvv">28 ºC</span></div>
+        <div class="kv"><span class="kvl">Set pressure</span><span class="kvv">10.6 cmH₂O</span></div>
+        <div class="kv"><span class="kvl">Temperature enable</span><span class="kvv">Auto</span></div>
+        <div class="kv"><span class="kvl">EPR</span><span class="kvv">Off</span></div>
+        <div class="kv"><span class="kvl">Response</span><span class="kvv">Standard</span></div>
+        <div class="kv"><span class="kvl">Ramp</span><span class="kvv">Off</span></div>
+        <div class="kv"><span class="kvl">Antibacterial filter</span><span class="kvv">No</span></div>
+        <div class="kv"><span class="kvl">Mask</span><span class="kvv">Pillows</span></div>
+        <div class="kv"><span class="kvl">Smart start</span><span class="kvv">On</span></div>
+        <div class="kv" style="border-bottom:none;"><span class="kvl">Humidifier</span><span class="kvv">On · level 4</span></div>
+        <div class="kv" style="border-bottom:none;"><span class="kvl">Patient view</span><span class="kvv">Off</span></div>
+      </div>
+
+      <div style="margin-top:9px; border:1px solid #C7D2DA; border-left:3px solid #1F6FB2; background:#F4F8FB; padding:9px 16px; display:flex; gap:11px; align-items:flex-start;">
+        <span style="font:700 12px 'IBM Plex Mono'; color:#1F6FB2;">i</span>
+        <div style="font:400 10.5px/1.5 'IBM Plex Sans'; color:#454F58;">Fixed-pressure CPAP at 10.6 cmH₂O with expiratory pressure relief off — unchanged for the full reporting period. With EPR off, residual flow limitation (95% FL 0.08) and the central-predominant residual are worth monitoring should symptoms recur.</div>
+      </div>
+    </div>
+
+    <div style="margin-top:auto; padding:9px 34px 14px; border-top:1px solid #E6ECF1; display:flex; justify-content:space-between; align-items:center;">
+      <span style="font:400 8.5px 'IBM Plex Sans'; color:#9AA6B0;">OSCAR 2.0.2-beta-1 · open-source CPAP report software · device-estimated indices, not a diagnostic polysomnogram</span>
+      <span class="num" style="font-size:8.5px; color:#9AA6B0;">2 / 7</span>
+    </div>
+  </section>
+
+  <!-- ====================== PAGE 3 — EFFICACY TRENDS ====================== -->
+  <section data-screen-label="Page 3 — Efficacy Trends" style="width:794px; min-height:1123px; background:#fff; box-shadow:0 1px 3px rgba(20,40,50,.12), 0 18px 48px -24px rgba(20,40,50,.32); display:flex; flex-direction:column; overflow:hidden;">
+    <div style="display:flex; justify-content:space-between; align-items:center; padding:18px 34px 11px; border-bottom:1px solid #C7D2DA;">
+      <div style="display:flex; align-items:center; gap:9px;">
+        <svg width="22" height="12" viewBox="0 0 28 15" fill="none"><path d="M1 7.5 Q4.3 1 7.6 7.5 T14.2 7.5 T20.8 7.5 T27.4 7.5" stroke="#1F6FB2" stroke-width="2" stroke-linecap="round"/></svg>
+        <span style="font:700 13px 'IBM Plex Sans'; color:#0B3D74; letter-spacing:.03em;">OSCAR</span>
+        <span style="font:500 8px 'IBM Plex Sans'; letter-spacing:.16em; text-transform:uppercase; color:#9AA6B0; border-left:1px solid #C7D2DA; padding-left:9px;">Sleep Therapy Insights</span>
+      </div>
+      <div style="text-align:right;"><div style="font:600 11px 'IBM Plex Sans'; letter-spacing:.14em; text-transform:uppercase; color:#0B3D74;">Efficacy Trends</div><div class="num" style="font-size:9px; color:#9AA6B0; margin-top:2px;">Adrian Sian · May 24–Jun 22, 2026</div></div>
+    </div>
+
+    <div style="padding:18px 34px 0; flex:1;">
+      <div class="band">Efficacy Trends<span class="s">nightly events, leak &amp; pressure</span></div>
+
+      <!-- AHI stacked bars -->
+      <div style="border:1px solid #C7D2DA; border-top:none;">
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 14px; background:#F4F8FB; border-bottom:1px solid #DCE4EA;">
+          <span style="font:700 10px 'IBM Plex Sans'; letter-spacing:.09em; text-transform:uppercase; color:#0B3D74;">Residual AHI — events / hour</span>
+          <span style="font:400 9.5px 'IBM Plex Sans'; color:#454F58;">AHI <b class="num" style="color:#2E8B57;">0.58</b> · ↓ 99% from baseline 91.3</span>
+        </div>
+        <div style="padding:12px 16px 10px;">
+          <svg viewBox="0 0 700 230" style="width:100%; height:auto; display:block;">
+            <line x1="40" y1="167.2" x2="692" y2="167.2" stroke="#EEF0F5"/>
+            <line x1="40" y1="129.4" x2="692" y2="129.4" stroke="#EEF0F5"/>
+            <line x1="40" y1="91.6" x2="692" y2="91.6" stroke="#EEF0F5"/>
+            <line x1="40" y1="53.8" x2="692" y2="53.8" stroke="#EEF0F5"/>
+            <line x1="40" y1="16" x2="692" y2="16" stroke="#EEF0F5"/>
+            <line x1="40" y1="205" x2="692" y2="205" stroke="#C7D2DA"/>
+            <sc-for list="{{ ahiRects }}" as="r" hint-placeholder-count="60">
+              <rect x="{{ r.x }}" y="{{ r.y }}" width="{{ r.w }}" height="{{ r.h }}" fill="{{ r.fill }}"></rect>
+            </sc-for>
+            <line x1="40" y1="150.1" x2="692" y2="150.1" stroke="#312E81" stroke-width="0.9" stroke-dasharray="4 4" opacity="0.55"/>
+            <text x="34" y="208" text-anchor="end" font-family="IBM Plex Mono" font-size="8.5" fill="#9AA6B0">0.0</text>
+            <text x="34" y="170.2" text-anchor="end" font-family="IBM Plex Mono" font-size="8.5" fill="#9AA6B0">0.4</text>
+            <text x="34" y="132.4" text-anchor="end" font-family="IBM Plex Mono" font-size="8.5" fill="#9AA6B0">0.8</text>
+            <text x="34" y="94.6" text-anchor="end" font-family="IBM Plex Mono" font-size="8.5" fill="#9AA6B0">1.2</text>
+            <text x="34" y="56.8" text-anchor="end" font-family="IBM Plex Mono" font-size="8.5" fill="#9AA6B0">1.6</text>
+            <text x="34" y="19" text-anchor="end" font-family="IBM Plex Mono" font-size="8.5" fill="#9AA6B0">2.0</text>
+            <line x1="50.9" y1="205" x2="50.9" y2="208.5" stroke="#C7D2DA"></line><line x1="116.1" y1="205" x2="116.1" y2="208.5" stroke="#C7D2DA"></line><line x1="181.3" y1="205" x2="181.3" y2="208.5" stroke="#C7D2DA"></line><line x1="246.5" y1="205" x2="246.5" y2="208.5" stroke="#C7D2DA"></line><line x1="311.7" y1="205" x2="311.7" y2="208.5" stroke="#C7D2DA"></line><line x1="376.9" y1="205" x2="376.9" y2="208.5" stroke="#C7D2DA"></line><line x1="442.1" y1="205" x2="442.1" y2="208.5" stroke="#C7D2DA"></line><line x1="507.3" y1="205" x2="507.3" y2="208.5" stroke="#C7D2DA"></line><line x1="572.5" y1="205" x2="572.5" y2="208.5" stroke="#C7D2DA"></line><line x1="637.7" y1="205" x2="637.7" y2="208.5" stroke="#C7D2DA"></line><line x1="681.1" y1="205" x2="681.1" y2="208.5" stroke="#C7D2DA"></line>
+            <text x="50.9" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">May 24</text><text x="116.1" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">27</text><text x="181.3" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">30</text><text x="246.5" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">Jun 2</text><text x="311.7" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">5</text><text x="376.9" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">8</text><text x="442.1" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">11</text><text x="507.3" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">14</text><text x="572.5" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">17</text><text x="637.7" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">20</text><text x="681.1" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">22</text>
+          </svg>
+          <div style="display:flex; gap:14px; margin-top:4px; flex-wrap:wrap;">
+            <span style="font:400 9px 'IBM Plex Sans'; color:#6B7884;"><span style="display:inline-block; width:9px; height:9px; border-radius:2px; background:#AEB0F2; vertical-align:middle;"></span> Hypopnea</span>
+            <span style="font:400 9px 'IBM Plex Sans'; color:#6B7884;"><span style="display:inline-block; width:9px; height:9px; border-radius:2px; background:#6E6FE6; vertical-align:middle;"></span> Central apnea</span>
+            <span style="font:400 9px 'IBM Plex Sans'; color:#6B7884;"><span style="display:inline-block; width:9px; height:9px; border-radius:2px; background:#312E81; vertical-align:middle;"></span> Obstructive</span>
+            <span style="font:400 9px 'IBM Plex Sans'; color:#6B7884;"><span style="display:inline-block; width:9px; height:9px; border-radius:2px; background:#C5C9D4; vertical-align:middle;"></span> Unknown</span>
+            <span style="font:400 9px 'IBM Plex Sans'; color:#6B7884;"><span style="display:inline-block; width:14px; border-top:1px dashed #312E81; vertical-align:middle;"></span> mean 0.58</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Leak -->
+      <div style="border:1px solid #C7D2DA; border-top:none;">
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 14px; background:#F4F8FB; border-bottom:1px solid #DCE4EA;">
+          <span style="font:700 10px 'IBM Plex Sans'; letter-spacing:.09em; text-transform:uppercase; color:#0B3D74;">Mask Leak Rate — L / min</span>
+          <span style="font:400 9.5px 'IBM Plex Sans'; color:#454F58;">Median <b class="num">0.6</b> · 95th <b class="num">8.5</b> · Max <b class="num">17.6</b> · <span style="color:#2E8B57;">1.1% over redline</span></span>
+        </div>
+        <div style="padding:12px 16px 10px;">
+          <svg viewBox="0 0 700 230" style="width:100%; height:auto; display:block;">
+            <defs><linearGradient id="g_leak" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1F6FB2" stop-opacity="0.16"/><stop offset="1" stop-color="#1F6FB2" stop-opacity="0.015"/></linearGradient></defs>
+            <line x1="40" y1="205" x2="692" y2="205" stroke="#C7D2DA"/>
+            <line x1="40" y1="173.5" x2="692" y2="173.5" stroke="#EEF0F5"/>
+            <line x1="40" y1="142" x2="692" y2="142" stroke="#EEF0F5"/>
+            <line x1="40" y1="110.5" x2="692" y2="110.5" stroke="#EEF0F5"/>
+            <line x1="40" y1="79" x2="692" y2="79" stroke="#EEF0F5"/>
+            <line x1="40" y1="47.5" x2="692" y2="47.5" stroke="#EEF0F5"/>
+            <line x1="40" y1="16" x2="692" y2="16" stroke="#EEF0F5"/>
+            <sc-for list="{{ leakCols }}" as="r" hint-placeholder-count="90"><rect x="{{ r.x }}" y="{{ r.y }}" width="{{ r.w }}" height="{{ r.h }}" fill="{{ r.fill }}"></rect></sc-for>
+            <line x1="40" y1="53.8" x2="692" y2="53.8" stroke="#C0392B" stroke-width="1" stroke-dasharray="5 4" opacity="0.9"/>
+            <text x="34" y="208" text-anchor="end" font-family="IBM Plex Mono" font-size="8.5" fill="#9AA6B0">0</text>
+            <text x="34" y="176.5" text-anchor="end" font-family="IBM Plex Mono" font-size="8.5" fill="#9AA6B0">5</text>
+            <text x="34" y="145" text-anchor="end" font-family="IBM Plex Mono" font-size="8.5" fill="#9AA6B0">10</text>
+            <text x="34" y="113.5" text-anchor="end" font-family="IBM Plex Mono" font-size="8.5" fill="#9AA6B0">15</text>
+            <text x="34" y="82" text-anchor="end" font-family="IBM Plex Mono" font-size="8.5" fill="#9AA6B0">20</text>
+            <text x="34" y="50.5" text-anchor="end" font-family="IBM Plex Mono" font-size="8.5" fill="#9AA6B0">25</text>
+            <text x="34" y="19" text-anchor="end" font-family="IBM Plex Mono" font-size="8.5" fill="#9AA6B0">30</text>
+            <text x="700" y="51" font-family="IBM Plex Sans" font-size="8.5" fill="#C0392B" text-anchor="end">redline 24</text>
+            <line x1="50.9" y1="205" x2="50.9" y2="208.5" stroke="#C7D2DA"></line><line x1="116.1" y1="205" x2="116.1" y2="208.5" stroke="#C7D2DA"></line><line x1="181.3" y1="205" x2="181.3" y2="208.5" stroke="#C7D2DA"></line><line x1="246.5" y1="205" x2="246.5" y2="208.5" stroke="#C7D2DA"></line><line x1="311.7" y1="205" x2="311.7" y2="208.5" stroke="#C7D2DA"></line><line x1="376.9" y1="205" x2="376.9" y2="208.5" stroke="#C7D2DA"></line><line x1="442.1" y1="205" x2="442.1" y2="208.5" stroke="#C7D2DA"></line><line x1="507.3" y1="205" x2="507.3" y2="208.5" stroke="#C7D2DA"></line><line x1="572.5" y1="205" x2="572.5" y2="208.5" stroke="#C7D2DA"></line><line x1="637.7" y1="205" x2="637.7" y2="208.5" stroke="#C7D2DA"></line><line x1="681.1" y1="205" x2="681.1" y2="208.5" stroke="#C7D2DA"></line>
+            <text x="50.9" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">May 24</text><text x="116.1" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">27</text><text x="181.3" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">30</text><text x="246.5" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">Jun 2</text><text x="311.7" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">5</text><text x="376.9" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">8</text><text x="442.1" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">11</text><text x="507.3" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">14</text><text x="572.5" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">17</text><text x="637.7" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">20</text><text x="681.1" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">22</text>
+          </svg>
+          <div style="display:flex; gap:13px; margin-top:4px; flex-wrap:wrap;"><span style="font:400 9px 'IBM Plex Sans'; color:#6B7884;"><span style="display:inline-block; width:7px; height:11px; background:#DDE2E6; border:1px solid #C5CCD2; vertical-align:middle;"></span> nightly min–max</span><span style="font:400 9px 'IBM Plex Sans'; color:#6B7884;"><span style="display:inline-block; width:8px; height:8px; background:#97A2AD; vertical-align:middle;"></span> median–95th</span><span style="font:400 9px 'IBM Plex Sans'; color:#6B7884;"><span style="display:inline-block; width:11px; height:2px; background:#54616B; vertical-align:middle;"></span> median</span><span style="font:400 9px 'IBM Plex Sans'; color:#6B7884;"><span style="display:inline-block; width:14px; border-top:1px dashed #C0392B; vertical-align:middle;"></span> redline 24</span></div>
+        </div>
+      </div>
+
+      <!-- Pressure -->
+      <div style="border:1px solid #C7D2DA; border-top:none;">
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 14px; background:#F4F8FB; border-bottom:1px solid #DCE4EA;">
+          <span style="font:700 10px 'IBM Plex Sans'; letter-spacing:.09em; text-transform:uppercase; color:#0B3D74;">Mask Pressure — cmH₂O</span>
+          <span style="font:400 9.5px 'IBM Plex Sans'; color:#454F58;">Fixed CPAP <b class="num">10.6</b> · EPR Off · no auto-adjustment</span>
+        </div>
+        <div style="padding:12px 16px 10px;">
+          <svg viewBox="0 0 700 110" style="width:100%; height:auto; display:block;">
+            <line x1="40" y1="92" x2="692" y2="92" stroke="#C7D2DA"/>
+            <line x1="40" y1="58.9" x2="692" y2="58.9" stroke="#ECF1F4" stroke-dasharray="2 3"/>
+            <line x1="40" y1="21" x2="692" y2="21" stroke="#ECF1F4" stroke-dasharray="2 3"/>
+            <polyline points="40,43.9 692,43.9" fill="none" stroke="#0B3D74" stroke-width="2"/>
+            <text x="34" y="95" text-anchor="end" font-family="IBM Plex Mono" font-size="9" fill="#9AA6B0">8</text>
+            <text x="34" y="62" text-anchor="end" font-family="IBM Plex Mono" font-size="9" fill="#9AA6B0">10</text>
+            <text x="34" y="24" text-anchor="end" font-family="IBM Plex Mono" font-size="9" fill="#9AA6B0">12</text>
+            <text x="700" y="40" text-anchor="end" font-family="IBM Plex Sans" font-size="8.5" fill="#0B3D74">10.6 fixed</text>
+            <line x1="50.9" y1="92" x2="50.9" y2="95" stroke="#C7D2DA"></line><line x1="116.1" y1="92" x2="116.1" y2="95" stroke="#C7D2DA"></line><line x1="181.3" y1="92" x2="181.3" y2="95" stroke="#C7D2DA"></line><line x1="246.5" y1="92" x2="246.5" y2="95" stroke="#C7D2DA"></line><line x1="311.7" y1="92" x2="311.7" y2="95" stroke="#C7D2DA"></line><line x1="376.9" y1="92" x2="376.9" y2="95" stroke="#C7D2DA"></line><line x1="442.1" y1="92" x2="442.1" y2="95" stroke="#C7D2DA"></line><line x1="507.3" y1="92" x2="507.3" y2="95" stroke="#C7D2DA"></line><line x1="572.5" y1="92" x2="572.5" y2="95" stroke="#C7D2DA"></line><line x1="637.7" y1="92" x2="637.7" y2="95" stroke="#C7D2DA"></line><line x1="681.1" y1="92" x2="681.1" y2="95" stroke="#C7D2DA"></line>
+            <text x="50.9" y="104" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">May 24</text><text x="116.1" y="104" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">27</text><text x="181.3" y="104" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">30</text><text x="246.5" y="104" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">Jun 2</text><text x="311.7" y="104" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">5</text><text x="376.9" y="104" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">8</text><text x="442.1" y="104" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">11</text><text x="507.3" y="104" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">14</text><text x="572.5" y="104" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">17</text><text x="637.7" y="104" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">20</text><text x="681.1" y="104" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">22</text>
+          </svg>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top:auto; padding:9px 34px 14px; border-top:1px solid #E6ECF1; display:flex; justify-content:space-between; align-items:center;">
+      <span style="font:400 8.5px 'IBM Plex Sans'; color:#9AA6B0;">OSCAR 2.0.2-beta-1 · open-source CPAP report software · device-estimated indices, not a diagnostic polysomnogram</span>
+      <span class="num" style="font-size:8.5px; color:#9AA6B0;">3 / 7</span>
+    </div>
+  </section>
+
+  <!-- ====================== PAGE 4 — RESPIRATORY CHANNEL TRENDS ====================== -->
+  <section data-screen-label="Page 4 — Respiratory Channels" style="width:794px; min-height:1123px; background:#fff; box-shadow:0 1px 3px rgba(20,40,50,.12), 0 18px 48px -24px rgba(20,40,50,.32); display:flex; flex-direction:column; overflow:hidden;">
+    <div style="display:flex; justify-content:space-between; align-items:center; padding:18px 34px 11px; border-bottom:1px solid #C7D2DA;">
+      <div style="display:flex; align-items:center; gap:9px;">
+        <svg width="22" height="12" viewBox="0 0 28 15" fill="none"><path d="M1 7.5 Q4.3 1 7.6 7.5 T14.2 7.5 T20.8 7.5 T27.4 7.5" stroke="#1F6FB2" stroke-width="2" stroke-linecap="round"/></svg>
+        <span style="font:700 13px 'IBM Plex Sans'; color:#0B3D74; letter-spacing:.03em;">OSCAR</span>
+        <span style="font:500 8px 'IBM Plex Sans'; letter-spacing:.16em; text-transform:uppercase; color:#9AA6B0; border-left:1px solid #C7D2DA; padding-left:9px;">Sleep Therapy Insights</span>
+      </div>
+      <div style="text-align:right;"><div style="font:600 11px 'IBM Plex Sans'; letter-spacing:.14em; text-transform:uppercase; color:#0B3D74;">Respiratory Channels</div><div class="num" style="font-size:9px; color:#9AA6B0; margin-top:2px;">Adrian Sian · May 24–Jun 22, 2026</div></div>
+    </div>
+
+    <div style="padding:18px 34px 0; flex:1;">
+      <div class="band">Respiratory Channel Trends<span class="s">nightly 95th percentile &amp; median</span></div>
+
+      <!-- Minute Vent -->
+      <div style="border:1px solid #C7D2DA; border-top:none;">
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 14px; background:#F4F8FB; border-bottom:1px solid #DCE4EA;">
+          <span style="font:700 10px 'IBM Plex Sans'; letter-spacing:.09em; text-transform:uppercase; color:#0B3D74;">Minute Ventilation — L / min</span>
+          <span style="font:400 9.5px 'IBM Plex Sans'; color:#454F58;">Median <b class="num">6.0</b> · 95th <b class="num">8.1</b> · Max <b class="num">13.0</b></span>
+        </div>
+        <div style="padding:12px 16px 10px;">
+          <svg viewBox="0 0 700 230" style="width:100%; height:auto; display:block;">
+            <defs><linearGradient id="g_mv" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1F6FB2" stop-opacity="0.15"/><stop offset="1" stop-color="#1F6FB2" stop-opacity="0.015"/></linearGradient></defs>
+            <line x1="40" y1="205" x2="692" y2="205" stroke="#C7D2DA"/>
+            <line x1="40" y1="110.5" x2="692" y2="110.5" stroke="#ECF1F4" stroke-dasharray="2 3"/>
+            <line x1="40" y1="178" x2="692" y2="178" stroke="#EEF0F5"/><line x1="40" y1="151" x2="692" y2="151" stroke="#EEF0F5"/><line x1="40" y1="124" x2="692" y2="124" stroke="#EEF0F5"/><line x1="40" y1="97" x2="692" y2="97" stroke="#EEF0F5"/><line x1="40" y1="70" x2="692" y2="70" stroke="#EEF0F5"/><line x1="40" y1="43" x2="692" y2="43" stroke="#EEF0F5"/><line x1="40" y1="16" x2="692" y2="16" stroke="#EEF0F5"/>
+            <sc-for list="{{ mvCols }}" as="r" hint-placeholder-count="90"><rect x="{{ r.x }}" y="{{ r.y }}" width="{{ r.w }}" height="{{ r.h }}" fill="{{ r.fill }}"></rect></sc-for>
+            <text x="34" y="208" text-anchor="end" font-family="IBM Plex Mono" font-size="8.5" fill="#9AA6B0">0</text>
+            <text x="34" y="181" text-anchor="end" font-family="IBM Plex Mono" font-size="8.5" fill="#9AA6B0">2</text>
+            <text x="34" y="154" text-anchor="end" font-family="IBM Plex Mono" font-size="8.5" fill="#9AA6B0">4</text>
+            <text x="34" y="127" text-anchor="end" font-family="IBM Plex Mono" font-size="8.5" fill="#9AA6B0">6</text>
+            <text x="34" y="100" text-anchor="end" font-family="IBM Plex Mono" font-size="8.5" fill="#9AA6B0">8</text>
+            <text x="34" y="73" text-anchor="end" font-family="IBM Plex Mono" font-size="8.5" fill="#9AA6B0">10</text>
+            <text x="34" y="46" text-anchor="end" font-family="IBM Plex Mono" font-size="8.5" fill="#9AA6B0">12</text>
+            <text x="34" y="19" text-anchor="end" font-family="IBM Plex Mono" font-size="8.5" fill="#9AA6B0">14</text>
+            <line x1="50.9" y1="205" x2="50.9" y2="208.5" stroke="#C7D2DA"></line><line x1="116.1" y1="205" x2="116.1" y2="208.5" stroke="#C7D2DA"></line><line x1="181.3" y1="205" x2="181.3" y2="208.5" stroke="#C7D2DA"></line><line x1="246.5" y1="205" x2="246.5" y2="208.5" stroke="#C7D2DA"></line><line x1="311.7" y1="205" x2="311.7" y2="208.5" stroke="#C7D2DA"></line><line x1="376.9" y1="205" x2="376.9" y2="208.5" stroke="#C7D2DA"></line><line x1="442.1" y1="205" x2="442.1" y2="208.5" stroke="#C7D2DA"></line><line x1="507.3" y1="205" x2="507.3" y2="208.5" stroke="#C7D2DA"></line><line x1="572.5" y1="205" x2="572.5" y2="208.5" stroke="#C7D2DA"></line><line x1="637.7" y1="205" x2="637.7" y2="208.5" stroke="#C7D2DA"></line><line x1="681.1" y1="205" x2="681.1" y2="208.5" stroke="#C7D2DA"></line>
+            <text x="50.9" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">May 24</text><text x="116.1" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">27</text><text x="181.3" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">30</text><text x="246.5" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">Jun 2</text><text x="311.7" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">5</text><text x="376.9" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">8</text><text x="442.1" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">11</text><text x="507.3" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">14</text><text x="572.5" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">17</text><text x="637.7" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">20</text><text x="681.1" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">22</text>
+          </svg>
+          <div style="display:flex; gap:13px; margin-top:4px; flex-wrap:wrap;"><span style="font:400 9px 'IBM Plex Sans'; color:#6B7884;"><span style="display:inline-block; width:7px; height:11px; background:#DDE2E6; border:1px solid #C5CCD2; vertical-align:middle;"></span> nightly min–max</span><span style="font:400 9px 'IBM Plex Sans'; color:#6B7884;"><span style="display:inline-block; width:8px; height:8px; background:#97A2AD; vertical-align:middle;"></span> median–95th</span><span style="font:400 9px 'IBM Plex Sans'; color:#6B7884;"><span style="display:inline-block; width:11px; height:2px; background:#54616B; vertical-align:middle;"></span> median tick</span></div>
+        </div>
+      </div>
+
+      <!-- Resp Rate -->
+      <div style="border:1px solid #C7D2DA; border-top:none;">
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 14px; background:#F4F8FB; border-bottom:1px solid #DCE4EA;">
+          <span style="font:700 10px 'IBM Plex Sans'; letter-spacing:.09em; text-transform:uppercase; color:#0B3D74;">Respiratory Rate — breaths / min</span>
+          <span style="font:400 9.5px 'IBM Plex Sans'; color:#454F58;">Median <b class="num">16.6</b> · 95th <b class="num">21.2</b> · Max <b class="num">31.2</b> · <span style="color:#2E8B57;">median normal</span></span>
+        </div>
+        <div style="padding:12px 16px 10px;">
+          <svg viewBox="0 0 700 230" style="width:100%; height:auto; display:block;">
+            <defs><linearGradient id="g_rr" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1F6FB2" stop-opacity="0.15"/><stop offset="1" stop-color="#1F6FB2" stop-opacity="0.015"/></linearGradient></defs>
+            <rect x="40" y="86.875" width="652" height="47.25" fill="#2E8B57" opacity="0.08"/>
+            <line x1="40" y1="205" x2="692" y2="205" stroke="#C7D2DA"/>
+            <line x1="40" y1="157.75" x2="692" y2="157.75" stroke="#EEF0F5"/><line x1="40" y1="110.5" x2="692" y2="110.5" stroke="#EEF0F5"/><line x1="40" y1="63.25" x2="692" y2="63.25" stroke="#EEF0F5"/><line x1="40" y1="16" x2="692" y2="16" stroke="#EEF0F5"/>
+            <sc-for list="{{ rrCols }}" as="r" hint-placeholder-count="90"><rect x="{{ r.x }}" y="{{ r.y }}" width="{{ r.w }}" height="{{ r.h }}" fill="{{ r.fill }}"></rect></sc-for>
+            <text x="34" y="208" text-anchor="end" font-family="IBM Plex Mono" font-size="8.5" fill="#9AA6B0">0</text>
+            <text x="34" y="160.75" text-anchor="end" font-family="IBM Plex Mono" font-size="8.5" fill="#9AA6B0">8</text>
+            <text x="34" y="113.5" text-anchor="end" font-family="IBM Plex Mono" font-size="8.5" fill="#9AA6B0">16</text>
+            <text x="34" y="66.25" text-anchor="end" font-family="IBM Plex Mono" font-size="8.5" fill="#9AA6B0">24</text>
+            <text x="34" y="19" text-anchor="end" font-family="IBM Plex Mono" font-size="8.5" fill="#9AA6B0">32</text>
+            <line x1="50.9" y1="205" x2="50.9" y2="208.5" stroke="#C7D2DA"></line><line x1="116.1" y1="205" x2="116.1" y2="208.5" stroke="#C7D2DA"></line><line x1="181.3" y1="205" x2="181.3" y2="208.5" stroke="#C7D2DA"></line><line x1="246.5" y1="205" x2="246.5" y2="208.5" stroke="#C7D2DA"></line><line x1="311.7" y1="205" x2="311.7" y2="208.5" stroke="#C7D2DA"></line><line x1="376.9" y1="205" x2="376.9" y2="208.5" stroke="#C7D2DA"></line><line x1="442.1" y1="205" x2="442.1" y2="208.5" stroke="#C7D2DA"></line><line x1="507.3" y1="205" x2="507.3" y2="208.5" stroke="#C7D2DA"></line><line x1="572.5" y1="205" x2="572.5" y2="208.5" stroke="#C7D2DA"></line><line x1="637.7" y1="205" x2="637.7" y2="208.5" stroke="#C7D2DA"></line><line x1="681.1" y1="205" x2="681.1" y2="208.5" stroke="#C7D2DA"></line>
+            <text x="50.9" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">May 24</text><text x="116.1" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">27</text><text x="181.3" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">30</text><text x="246.5" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">Jun 2</text><text x="311.7" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">5</text><text x="376.9" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">8</text><text x="442.1" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">11</text><text x="507.3" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">14</text><text x="572.5" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">17</text><text x="637.7" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">20</text><text x="681.1" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">22</text>
+          </svg>
+          <div style="display:flex; gap:13px; margin-top:4px; flex-wrap:wrap;"><span style="font:400 9px 'IBM Plex Sans'; color:#6B7884;"><span style="display:inline-block; width:7px; height:11px; background:#DDE2E6; border:1px solid #C5CCD2; vertical-align:middle;"></span> nightly min–max</span><span style="font:400 9px 'IBM Plex Sans'; color:#6B7884;"><span style="display:inline-block; width:8px; height:8px; background:#97A2AD; vertical-align:middle;"></span> median–95th</span><span style="font:400 9px 'IBM Plex Sans'; color:#6B7884;"><span style="display:inline-block; width:11px; height:2px; background:#54616B; vertical-align:middle;"></span> median</span><span style="font:400 9px 'IBM Plex Sans'; color:#6B7884;"><span style="display:inline-block; width:10px; height:8px; background:#2E8B57; opacity:.3; vertical-align:middle;"></span> normal 12–20</span></div>
+        </div>
+      </div>
+
+      <!-- Tidal Volume -->
+      <div style="border:1px solid #C7D2DA; border-top:none;">
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 14px; background:#F4F8FB; border-bottom:1px solid #DCE4EA;">
+          <span style="font:700 10px 'IBM Plex Sans'; letter-spacing:.09em; text-transform:uppercase; color:#0B3D74;">Tidal Volume — mL</span>
+          <span style="font:400 9.5px 'IBM Plex Sans'; color:#454F58;">Median <b class="num">358</b> · 95th <b class="num">486</b> · Max <b class="num">705</b></span>
+        </div>
+        <div style="padding:12px 16px 10px;">
+          <svg viewBox="0 0 700 230" style="width:100%; height:auto; display:block;">
+            <defs><linearGradient id="g_tv" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1F6FB2" stop-opacity="0.15"/><stop offset="1" stop-color="#1F6FB2" stop-opacity="0.015"/></linearGradient></defs>
+            <line x1="40" y1="205" x2="692" y2="205" stroke="#C7D2DA"/>
+            <line x1="40" y1="110.5" x2="692" y2="110.5" stroke="#ECF1F4" stroke-dasharray="2 3"/>
+            <line x1="40" y1="157.75" x2="692" y2="157.75" stroke="#EEF0F5"/><line x1="40" y1="110.5" x2="692" y2="110.5" stroke="#EEF0F5"/><line x1="40" y1="63.25" x2="692" y2="63.25" stroke="#EEF0F5"/><line x1="40" y1="16" x2="692" y2="16" stroke="#EEF0F5"/>
+            <sc-for list="{{ tvCols }}" as="r" hint-placeholder-count="90"><rect x="{{ r.x }}" y="{{ r.y }}" width="{{ r.w }}" height="{{ r.h }}" fill="{{ r.fill }}"></rect></sc-for>
+            <text x="34" y="208" text-anchor="end" font-family="IBM Plex Mono" font-size="8.5" fill="#9AA6B0">0</text>
+            <text x="34" y="160.75" text-anchor="end" font-family="IBM Plex Mono" font-size="8.5" fill="#9AA6B0">200</text>
+            <text x="34" y="113.5" text-anchor="end" font-family="IBM Plex Mono" font-size="8.5" fill="#9AA6B0">400</text>
+            <text x="34" y="66.25" text-anchor="end" font-family="IBM Plex Mono" font-size="8.5" fill="#9AA6B0">600</text>
+            <text x="34" y="19" text-anchor="end" font-family="IBM Plex Mono" font-size="8.5" fill="#9AA6B0">800</text>
+            <line x1="50.9" y1="205" x2="50.9" y2="208.5" stroke="#C7D2DA"></line><line x1="116.1" y1="205" x2="116.1" y2="208.5" stroke="#C7D2DA"></line><line x1="181.3" y1="205" x2="181.3" y2="208.5" stroke="#C7D2DA"></line><line x1="246.5" y1="205" x2="246.5" y2="208.5" stroke="#C7D2DA"></line><line x1="311.7" y1="205" x2="311.7" y2="208.5" stroke="#C7D2DA"></line><line x1="376.9" y1="205" x2="376.9" y2="208.5" stroke="#C7D2DA"></line><line x1="442.1" y1="205" x2="442.1" y2="208.5" stroke="#C7D2DA"></line><line x1="507.3" y1="205" x2="507.3" y2="208.5" stroke="#C7D2DA"></line><line x1="572.5" y1="205" x2="572.5" y2="208.5" stroke="#C7D2DA"></line><line x1="637.7" y1="205" x2="637.7" y2="208.5" stroke="#C7D2DA"></line><line x1="681.1" y1="205" x2="681.1" y2="208.5" stroke="#C7D2DA"></line>
+            <text x="50.9" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">May 24</text><text x="116.1" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">27</text><text x="181.3" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">30</text><text x="246.5" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">Jun 2</text><text x="311.7" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">5</text><text x="376.9" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">8</text><text x="442.1" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">11</text><text x="507.3" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">14</text><text x="572.5" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">17</text><text x="637.7" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">20</text><text x="681.1" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">22</text>
+          </svg>
+          <div style="display:flex; gap:13px; margin-top:4px; flex-wrap:wrap;"><span style="font:400 9px 'IBM Plex Sans'; color:#6B7884;"><span style="display:inline-block; width:7px; height:11px; background:#DDE2E6; border:1px solid #C5CCD2; vertical-align:middle;"></span> nightly min–max</span><span style="font:400 9px 'IBM Plex Sans'; color:#6B7884;"><span style="display:inline-block; width:8px; height:8px; background:#97A2AD; vertical-align:middle;"></span> median–95th</span><span style="font:400 9px 'IBM Plex Sans'; color:#6B7884;"><span style="display:inline-block; width:11px; height:2px; background:#54616B; vertical-align:middle;"></span> median tick</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top:auto; padding:9px 34px 14px; border-top:1px solid #E6ECF1; display:flex; justify-content:space-between; align-items:center;">
+      <span style="font:400 8.5px 'IBM Plex Sans'; color:#9AA6B0;">OSCAR 2.0.2-beta-1 · open-source CPAP report software · device-estimated indices, not a diagnostic polysomnogram</span>
+      <span class="num" style="font-size:8.5px; color:#9AA6B0;">4 / 7</span>
+    </div>
+  </section>
+
+  <!-- ====================== PAGE 5 — OXIMETRY & OXYGENATION ====================== -->
+  <section data-screen-label="Page 5 — Oximetry" style="width:794px; min-height:1123px; background:#fff; box-shadow:0 1px 3px rgba(20,40,50,.12), 0 18px 48px -24px rgba(20,40,50,.32); display:flex; flex-direction:column; overflow:hidden;">
+    <div style="display:flex; justify-content:space-between; align-items:center; padding:18px 34px 11px; border-bottom:1px solid #C7D2DA;">
+      <div style="display:flex; align-items:center; gap:9px;">
+        <svg width="22" height="12" viewBox="0 0 28 15" fill="none"><path d="M1 7.5 Q4.3 1 7.6 7.5 T14.2 7.5 T20.8 7.5 T27.4 7.5" stroke="#1F6FB2" stroke-width="2" stroke-linecap="round"/></svg>
+        <span style="font:700 13px 'IBM Plex Sans'; color:#0B3D74; letter-spacing:.03em;">OSCAR</span>
+        <span style="font:500 8px 'IBM Plex Sans'; letter-spacing:.16em; text-transform:uppercase; color:#9AA6B0; border-left:1px solid #C7D2DA; padding-left:9px;">Sleep Therapy Insights</span>
+      </div>
+      <div style="text-align:right;"><div style="font:600 11px 'IBM Plex Sans'; letter-spacing:.14em; text-transform:uppercase; color:#0B3D74;">Oximetry &amp; Oxygenation</div><div class="num" style="font-size:9px; color:#9AA6B0; margin-top:2px;">Viatom · device 25B2301721</div></div>
+    </div>
+
+    <div style="padding:18px 34px 0; flex:1;">
+      <div class="band">Oximetry &amp; Oxygenation<span class="s">pulse, saturation &amp; desaturation</span></div>
+
+      <!-- Pulse -->
+      <div style="border:1px solid #C7D2DA; border-top:none;">
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 14px; background:#F4F8FB; border-bottom:1px solid #DCE4EA;">
+          <span style="font:700 10px 'IBM Plex Sans'; letter-spacing:.09em; text-transform:uppercase; color:#0B3D74;">Pulse Rate — bpm</span>
+          <span style="font:400 9.5px 'IBM Plex Sans'; color:#454F58;">Median <b class="num">53.7</b> · 95th <b class="num">61.4</b> · Max <b class="num">73.1</b> · low <b class="num">47</b></span>
+        </div>
+        <div style="padding:12px 16px 10px;">
+          <svg viewBox="0 0 700 230" style="width:100%; height:auto; display:block;">
+            <defs><linearGradient id="g_pulse" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1F6FB2" stop-opacity="0.13"/><stop offset="1" stop-color="#1F6FB2" stop-opacity="0.015"/></linearGradient></defs>
+            <line x1="40" y1="205" x2="692" y2="205" stroke="#C7D2DA"/>
+            <line x1="40" y1="110.5" x2="692" y2="110.5" stroke="#ECF1F4" stroke-dasharray="2 3"/>
+            <line x1="40" y1="157.75" x2="692" y2="157.75" stroke="#EEF0F5"/><line x1="40" y1="110.5" x2="692" y2="110.5" stroke="#EEF0F5"/><line x1="40" y1="63.25" x2="692" y2="63.25" stroke="#EEF0F5"/><line x1="40" y1="16" x2="692" y2="16" stroke="#EEF0F5"/>
+            <sc-for list="{{ pulseCols }}" as="r" hint-placeholder-count="90"><rect x="{{ r.x }}" y="{{ r.y }}" width="{{ r.w }}" height="{{ r.h }}" fill="{{ r.fill }}"></rect></sc-for>
+            <text x="34" y="208" text-anchor="end" font-family="IBM Plex Mono" font-size="8.5" fill="#9AA6B0">40</text>
+            <text x="34" y="160.75" text-anchor="end" font-family="IBM Plex Mono" font-size="8.5" fill="#9AA6B0">50</text>
+            <text x="34" y="113.5" text-anchor="end" font-family="IBM Plex Mono" font-size="8.5" fill="#9AA6B0">60</text>
+            <text x="34" y="66.25" text-anchor="end" font-family="IBM Plex Mono" font-size="8.5" fill="#9AA6B0">70</text>
+            <text x="34" y="19" text-anchor="end" font-family="IBM Plex Mono" font-size="8.5" fill="#9AA6B0">80</text>
+            <line x1="50.9" y1="205" x2="50.9" y2="208.5" stroke="#C7D2DA"></line><line x1="116.1" y1="205" x2="116.1" y2="208.5" stroke="#C7D2DA"></line><line x1="181.3" y1="205" x2="181.3" y2="208.5" stroke="#C7D2DA"></line><line x1="246.5" y1="205" x2="246.5" y2="208.5" stroke="#C7D2DA"></line><line x1="311.7" y1="205" x2="311.7" y2="208.5" stroke="#C7D2DA"></line><line x1="376.9" y1="205" x2="376.9" y2="208.5" stroke="#C7D2DA"></line><line x1="442.1" y1="205" x2="442.1" y2="208.5" stroke="#C7D2DA"></line><line x1="507.3" y1="205" x2="507.3" y2="208.5" stroke="#C7D2DA"></line><line x1="572.5" y1="205" x2="572.5" y2="208.5" stroke="#C7D2DA"></line><line x1="637.7" y1="205" x2="637.7" y2="208.5" stroke="#C7D2DA"></line><line x1="681.1" y1="205" x2="681.1" y2="208.5" stroke="#C7D2DA"></line>
+            <text x="50.9" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">May 24</text><text x="116.1" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">27</text><text x="181.3" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">30</text><text x="246.5" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">Jun 2</text><text x="311.7" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">5</text><text x="376.9" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">8</text><text x="442.1" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">11</text><text x="507.3" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">14</text><text x="572.5" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">17</text><text x="637.7" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">20</text><text x="681.1" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">22</text>
+          </svg>
+          <div style="display:flex; gap:13px; margin-top:4px; flex-wrap:wrap;"><span style="font:400 9px 'IBM Plex Sans'; color:#6B7884;"><span style="display:inline-block; width:7px; height:11px; background:#DDE2E6; border:1px solid #C5CCD2; vertical-align:middle;"></span> nightly min–max</span><span style="font:400 9px 'IBM Plex Sans'; color:#6B7884;"><span style="display:inline-block; width:8px; height:8px; background:#97A2AD; vertical-align:middle;"></span> median–95th</span><span style="font:400 9px 'IBM Plex Sans'; color:#6B7884;"><span style="display:inline-block; width:11px; height:2px; background:#54616B; vertical-align:middle;"></span> median tick</span></div>
+        </div>
+      </div>
+
+      <!-- SpO2 -->
+      <div style="border:1px solid #C7D2DA; border-top:none;">
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 14px; background:#F4F8FB; border-bottom:1px solid #DCE4EA;">
+          <span style="font:700 10px 'IBM Plex Sans'; letter-spacing:.09em; text-transform:uppercase; color:#0B3D74;">Oxygen Saturation (SpO₂) — %</span>
+          <span style="font:400 9.5px 'IBM Plex Sans'; color:#454F58;">Nightly median <b class="num">97</b> · low avg <b class="num">95.5</b> · <span style="color:#9A6F1A;">period low 86 (Jun 22)</span></span>
+        </div>
+        <div style="padding:12px 16px 10px;">
+          <svg viewBox="0 0 700 230" style="width:100%; height:auto; display:block;">
+            <line x1="40" y1="205" x2="692" y2="205" stroke="#C7D2DA"/>
+            <line x1="40" y1="79" x2="692" y2="79" stroke="#ECF1F4" stroke-dasharray="2 3"/>
+            <line x1="40" y1="142" x2="692" y2="142" stroke="#C9881F" stroke-width="0.9" stroke-dasharray="5 4" opacity="0.7"/>
+            <line x1="40" y1="167.2" x2="692" y2="167.2" stroke="#C0392B" stroke-width="0.9" stroke-dasharray="5 4" opacity="0.6"/>
+            <sc-for list="{{ spo2Cols }}" as="r" hint-placeholder-count="60"><rect x="{{ r.x }}" y="{{ r.y }}" width="{{ r.w }}" height="{{ r.h }}" fill="{{ r.fill }}"></rect></sc-for>
+            <text x="690" y="189" text-anchor="end" font-family="IBM Plex Sans" font-size="8.5" fill="#C0392B" font-weight="600">86%</text>
+            <text x="34" y="208" text-anchor="end" font-family="IBM Plex Mono" font-size="9" fill="#9AA6B0">85</text>
+            <text x="34" y="145" text-anchor="end" font-family="IBM Plex Mono" font-size="9" fill="#C9881F">90</text>
+            <text x="34" y="82" text-anchor="end" font-family="IBM Plex Mono" font-size="9" fill="#9AA6B0">95</text>
+            <text x="34" y="19" text-anchor="end" font-family="IBM Plex Mono" font-size="9" fill="#9AA6B0">100</text>
+            <text x="688" y="164" text-anchor="end" font-family="IBM Plex Sans" font-size="8" fill="#C0392B">88</text>
+            <line x1="50.9" y1="205" x2="50.9" y2="208.5" stroke="#C7D2DA"></line><line x1="116.1" y1="205" x2="116.1" y2="208.5" stroke="#C7D2DA"></line><line x1="181.3" y1="205" x2="181.3" y2="208.5" stroke="#C7D2DA"></line><line x1="246.5" y1="205" x2="246.5" y2="208.5" stroke="#C7D2DA"></line><line x1="311.7" y1="205" x2="311.7" y2="208.5" stroke="#C7D2DA"></line><line x1="376.9" y1="205" x2="376.9" y2="208.5" stroke="#C7D2DA"></line><line x1="442.1" y1="205" x2="442.1" y2="208.5" stroke="#C7D2DA"></line><line x1="507.3" y1="205" x2="507.3" y2="208.5" stroke="#C7D2DA"></line><line x1="572.5" y1="205" x2="572.5" y2="208.5" stroke="#C7D2DA"></line><line x1="637.7" y1="205" x2="637.7" y2="208.5" stroke="#C7D2DA"></line><line x1="681.1" y1="205" x2="681.1" y2="208.5" stroke="#C7D2DA"></line>
+            <text x="50.9" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">May 24</text><text x="116.1" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">27</text><text x="181.3" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">30</text><text x="246.5" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">Jun 2</text><text x="311.7" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">5</text><text x="376.9" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">8</text><text x="442.1" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">11</text><text x="507.3" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">14</text><text x="572.5" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">17</text><text x="637.7" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">20</text><text x="681.1" y="219" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#54616B">22</text>
+          </svg>
+          <div style="display:flex; gap:13px; margin-top:4px; flex-wrap:wrap;"><span style="font:400 9px 'IBM Plex Sans'; color:#6B7884;"><span style="display:inline-block; width:7px; height:11px; background:#DDE2E6; border:1px solid #C5CCD2; vertical-align:middle;"></span> nightly range (low–high)</span><span style="font:400 9px 'IBM Plex Sans'; color:#6B7884;"><span style="display:inline-block; width:11px; height:2px; background:#54616B; vertical-align:middle;"></span> median</span><span style="font:400 9px 'IBM Plex Sans'; color:#6B7884;"><span style="display:inline-block; width:8px; height:8px; background:#F0D2CB; vertical-align:middle;"></span> &lt; 88% night</span><span style="font:400 9px 'IBM Plex Sans'; color:#6B7884;"><span style="display:inline-block; width:14px; border-top:1px dashed #C9881F; vertical-align:middle;"></span> 90 / 88 thresholds</span></div>
+        </div>
+      </div>
+
+      <!-- two-up -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:14px;">
+        <div style="border:1px solid #C7D2DA;">
+          <div style="padding:8px 14px; background:#F4F8FB; border-bottom:1px solid #DCE4EA;"><span style="font:700 10px 'IBM Plex Sans'; letter-spacing:.09em; text-transform:uppercase; color:#0B3D74;">Overnight Oxygen Summary</span></div>
+          <div style="padding:12px 15px;">
+            <div style="display:flex; height:20px; border-radius:3px; overflow:hidden;">
+              <div style="width:99%; background:#2E8B57;"></div>
+              <div style="width:1%; background:#C9881F;"></div>
+            </div>
+            <div style="display:flex; gap:12px; margin-top:8px;"><span style="font:400 9.5px 'IBM Plex Sans'; color:#454F58;"><span style="display:inline-block; width:8px; height:8px; border-radius:2px; background:#2E8B57; vertical-align:middle;"></span> ≥95% <b class="num">99%</b></span><span style="font:400 9.5px 'IBM Plex Sans'; color:#454F58;"><span style="display:inline-block; width:8px; height:8px; border-radius:2px; background:#C9881F; vertical-align:middle;"></span> 90–95% <b class="num">1%</b></span><span style="font:400 9.5px 'IBM Plex Sans'; color:#454F58;"><span style="display:inline-block; width:8px; height:8px; border-radius:2px; background:#C0392B; vertical-align:middle;"></span> &lt;90% <b class="num">0%</b></span></div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:0 16px; margin-top:11px;">
+              <div class="kv"><span class="kvl">ODI₃ <span style="color:#9AA6B0;">≥3% dip, ≥8 s</span></span><span class="kvv">2.6 /hr</span></div>
+              <div class="kv"><span class="kvl">Lowest SpO₂</span><span class="kvv" style="color:#9A6F1A;">86%</span></div>
+              <div class="kv"><span class="kvl">Average SpO₂</span><span class="kvv">97%</span></div>
+              <div class="kv"><span class="kvl">Time &lt; 90% (T90)</span><span class="kvv">20 min</span></div>
+              <div class="kv" style="border-bottom:none;"><span class="kvl">Time &lt; 88%</span><span class="kvv">10 min</span></div>
+              <div class="kv" style="border-bottom:none;"><span class="kvl">% time in desat</span><span class="kvv">1.8%</span></div>
+            </div>
+          </div>
+        </div>
+        <div style="border:1px solid #C7D2DA;">
+          <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 14px; background:#F4F8FB; border-bottom:1px solid #DCE4EA;"><span style="font:700 10px 'IBM Plex Sans'; letter-spacing:.09em; text-transform:uppercase; color:#0B3D74;">Lowest-Oxygen Night</span><span style="font:400 9px 'IBM Plex Sans'; color:#6B7884;">Jun 22</span></div>
+          <div style="padding:12px 15px;">
+            <svg viewBox="0 0 700 230" style="width:100%; height:auto; display:block;">
+              <line x1="40" y1="205" x2="692" y2="205" stroke="#C7D2DA"/>
+              <line x1="40" y1="115.5" x2="692" y2="115.5" stroke="#C9881F" stroke-width="0.9" stroke-dasharray="5 4" opacity="0.7"/>
+              <line x1="40" y1="135.4" x2="692" y2="135.4" stroke="#C0392B" stroke-width="0.9" stroke-dasharray="5 4" opacity="0.6"/>
+              <polyline points="{{ lowNightPts }}" fill="none" stroke="#0B3D74" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"/>
+              <text x="34" y="208" text-anchor="end" font-family="IBM Plex Mono" font-size="9" fill="#9AA6B0">81</text>
+              <text x="34" y="118.5" text-anchor="end" font-family="IBM Plex Mono" font-size="9" fill="#C9881F">90</text>
+              <text x="34" y="19" text-anchor="end" font-family="IBM Plex Mono" font-size="9" fill="#9AA6B0">100</text>
+              <text x="688" y="138" text-anchor="end" font-family="IBM Plex Sans" font-size="8" fill="#C0392B">88</text>
+            </svg>
+            <div style="font:400 9px 'IBM Plex Sans'; color:#9AA6B0; margin-top:4px;">single nadir to 86% — brief, isolated · ~7 h trace</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top:auto; padding:9px 34px 14px; border-top:1px solid #E6ECF1; display:flex; justify-content:space-between; align-items:center;">
+      <span style="font:400 8.5px 'IBM Plex Sans'; color:#9AA6B0;">OSCAR 2.0.2-beta-1 · open-source CPAP report software · device-estimated indices, not a diagnostic polysomnogram</span>
+      <span class="num" style="font-size:8.5px; color:#9AA6B0;">5 / 7</span>
+    </div>
+  </section>
+
+  <!-- ====================== PAGE 6 — SLEEP ARCHITECTURE & OXIMETER STATS ====================== -->
+  <section data-screen-label="Page 6 — Sleep &amp; Oximeter Stats" style="width:794px; min-height:1123px; background:#fff; box-shadow:0 1px 3px rgba(20,40,50,.12), 0 18px 48px -24px rgba(20,40,50,.32); display:flex; flex-direction:column; overflow:hidden;">
+    <div style="display:flex; justify-content:space-between; align-items:center; padding:18px 34px 11px; border-bottom:1px solid #C7D2DA;">
+      <div style="display:flex; align-items:center; gap:9px;">
+        <svg width="22" height="12" viewBox="0 0 28 15" fill="none"><path d="M1 7.5 Q4.3 1 7.6 7.5 T14.2 7.5 T20.8 7.5 T27.4 7.5" stroke="#1F6FB2" stroke-width="2" stroke-linecap="round"/></svg>
+        <span style="font:700 13px 'IBM Plex Sans'; color:#0B3D74; letter-spacing:.03em;">OSCAR</span>
+        <span style="font:500 8px 'IBM Plex Sans'; letter-spacing:.16em; text-transform:uppercase; color:#9AA6B0; border-left:1px solid #C7D2DA; padding-left:9px;">Sleep Therapy Insights</span>
+      </div>
+      <div style="text-align:right;"><div style="font:600 11px 'IBM Plex Sans'; letter-spacing:.14em; text-transform:uppercase; color:#0B3D74;">Sleep Architecture &amp; Oximeter</div><div class="num" style="font-size:9px; color:#9AA6B0; margin-top:2px;">Adrian Sian · May 24–Jun 22, 2026</div></div>
+    </div>
+
+    <div style="padding:18px 34px 0; flex:1;">
+      <div class="band">Sleep Architecture<span class="s">averaged per night across 19 nights</span></div>
+      <div style="border:1px solid #C7D2DA; border-top:none; padding:15px 16px;">
+        <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:9px;"><span style="font:500 10px 'IBM Plex Sans'; color:#54616B;">Stage distribution · % of night</span><span style="font:400 10px 'IBM Plex Sans'; color:#454F58;">Total sleep time <b class="num" style="color:#1A2733;">6 h 44 m</b></span></div>
+        <div style="display:flex; height:28px; border-radius:3px; overflow:hidden;">
+          <div style="width:16.1%; background:#0B3D74;"></div>
+          <div style="width:52.8%; background:#5E93C4;"></div>
+          <div style="width:25.1%; background:#C9881F;"></div>
+          <div style="width:6.0%; background:#C2CDD6;"></div>
+        </div>
+        <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-top:13px;">
+          <div><div style="display:flex; align-items:center; gap:6px;"><span style="width:9px; height:9px; border-radius:2px; background:#0B3D74;"></span><span style="font:600 9px 'IBM Plex Sans'; letter-spacing:.08em; text-transform:uppercase; color:#8693A0;">Deep</span></div><div class="num" style="font:600 17px 'IBM Plex Mono'; margin-top:4px;">16.1<span style="font-size:10px; color:#9AA6B0;">%</span></div><div style="font:400 9.5px 'IBM Plex Sans'; color:#6B7884;">1 h 09 m</div></div>
+          <div><div style="display:flex; align-items:center; gap:6px;"><span style="width:9px; height:9px; border-radius:2px; background:#5E93C4;"></span><span style="font:600 9px 'IBM Plex Sans'; letter-spacing:.08em; text-transform:uppercase; color:#8693A0;">Light</span></div><div class="num" style="font:600 17px 'IBM Plex Mono'; margin-top:4px;">52.8<span style="font-size:10px; color:#9AA6B0;">%</span></div><div style="font:400 9.5px 'IBM Plex Sans'; color:#6B7884;">3 h 47 m</div></div>
+          <div><div style="display:flex; align-items:center; gap:6px;"><span style="width:9px; height:9px; border-radius:2px; background:#C9881F;"></span><span style="font:600 9px 'IBM Plex Sans'; letter-spacing:.08em; text-transform:uppercase; color:#8693A0;">REM</span></div><div class="num" style="font:600 17px 'IBM Plex Mono'; margin-top:4px;">25.1<span style="font-size:10px; color:#9AA6B0;">%</span></div><div style="font:400 9.5px 'IBM Plex Sans'; color:#6B7884;">1 h 48 m</div></div>
+          <div><div style="display:flex; align-items:center; gap:6px;"><span style="width:9px; height:9px; border-radius:2px; background:#C2CDD6;"></span><span style="font:600 9px 'IBM Plex Sans'; letter-spacing:.08em; text-transform:uppercase; color:#8693A0;">Awake</span></div><div class="num" style="font:600 17px 'IBM Plex Mono'; margin-top:4px;">6.0<span style="font-size:10px; color:#9AA6B0;">%</span></div><div style="font:400 9.5px 'IBM Plex Sans'; color:#6B7884;">0 h 25 m</div></div>
+        </div>
+        <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:0 18px; margin-top:13px; padding-top:11px; border-top:1px solid #ECF1F4;">
+          <div class="kv" style="border-bottom:none; padding:3px 0;"><span class="kvl">Avg bedtime</span><span class="kvv">12:55 am</span></div>
+          <div class="kv" style="border-bottom:none; padding:3px 0;"><span class="kvl">Sleep latency</span><span class="kvv">0 h 07 m</span></div>
+          <div class="kv" style="border-bottom:none; padding:3px 0;"><span class="kvl">Avg wake</span><span class="kvv">8:17 am</span></div>
+          <div class="kv" style="border-bottom:none; padding:3px 0;"><span class="kvl">REM of TST</span><span class="kvv">25.1%</span></div>
+        </div>
+      </div>
+
+      <div class="band" style="margin-top:20px;">Oximeter Statistics<span class="s">Viatom · 25B2301721</span></div>
+      <div style="border:1px solid #C7D2DA; border-top:none; padding:6px 16px 10px; display:grid; grid-template-columns:1fr 1fr; gap:0 28px;">
+        <div>
+          <div style="font:600 8.5px 'IBM Plex Sans'; letter-spacing:.1em; text-transform:uppercase; color:#1F6FB2; margin:6px 0 2px;">Usage &amp; saturation</div>
+          <div class="kv"><span class="kvl">Total / used days</span><span class="kvv">30 / 30</span></div>
+          <div class="kv"><span class="kvl">Days not used</span><span class="kvv">0</span></div>
+          <div class="kv"><span class="kvl">Average hours / night</span><span class="kvv">6 h 51 m</span></div>
+          <div class="kv"><span class="kvl">Average SpO₂</span><span class="kvv">96.94%</span></div>
+          <div class="kv"><span class="kvl">Minimum SpO₂</span><span class="kvv" style="color:#9A6F1A;">86%</span></div>
+          <div class="kv" style="border-bottom:none;"><span class="kvl">Desaturation drop index</span><span class="kvv">2.64 /hr</span></div>
+        </div>
+        <div>
+          <div style="font:600 8.5px 'IBM Plex Sans'; letter-spacing:.1em; text-transform:uppercase; color:#1F6FB2; margin:6px 0 2px;">Pulse &amp; desaturation</div>
+          <div class="kv"><span class="kvl">% of time in SpO₂ drop</span><span class="kvv">1.80%</span></div>
+          <div class="kv"><span class="kvl">Average pulse rate</span><span class="kvv">54.64 bpm</span></div>
+          <div class="kv"><span class="kvl">Min / max pulse</span><span class="kvv">47.0 / 162.0</span></div>
+          <div class="kv"><span class="kvl">Pulse change index</span><span class="kvv">45.79 /hr</span></div>
+          <div class="kv"><span class="kvl">Recording (avg/night)</span><span class="kvv">6 h 51 m</span></div>
+          <div class="kv" style="border-bottom:none;"><span class="kvl">Sleep-stage nights</span><span class="kvv">19</span></div>
+        </div>
+      </div>
+
+      <div style="margin-top:18px; border:1px solid #C7D2DA; border-left:3px solid #1F6FB2; background:#F4F8FB; padding:12px 16px; display:flex; gap:11px; align-items:flex-start;">
+        <span style="font:700 12px 'IBM Plex Mono'; color:#1F6FB2;">i</span>
+        <div style="font:400 10.5px/1.55 'IBM Plex Sans'; color:#454F58;">Oximetry was recorded on a separate Viatom device. The max pulse of 162 bpm is a brief, isolated artifact typical of finger-clip movement and is not reflected in the median (53.7) or 95th-percentile (61.4) values used clinically.</div>
+      </div>
+    </div>
+
+    <div style="margin-top:auto; padding:9px 34px 14px; border-top:1px solid #E6ECF1; display:flex; justify-content:space-between; align-items:center;">
+      <span style="font:400 8.5px 'IBM Plex Sans'; color:#9AA6B0;">OSCAR 2.0.2-beta-1 · open-source CPAP report software · device-estimated indices, not a diagnostic polysomnogram</span>
+      <span class="num" style="font-size:8.5px; color:#9AA6B0;">6 / 7</span>
+    </div>
+  </section>
+
+  <!-- ====================== PAGE 7 — DIAGNOSTICS & HISTORY ====================== -->
+  <section data-screen-label="Page 7 — Diagnostics &amp; History" style="width:794px; min-height:1123px; background:#fff; box-shadow:0 1px 3px rgba(20,40,50,.12), 0 18px 48px -24px rgba(20,40,50,.32); display:flex; flex-direction:column; overflow:hidden;">
+    <div style="display:flex; justify-content:space-between; align-items:center; padding:18px 34px 11px; border-bottom:1px solid #C7D2DA;">
+      <div style="display:flex; align-items:center; gap:9px;">
+        <svg width="22" height="12" viewBox="0 0 28 15" fill="none"><path d="M1 7.5 Q4.3 1 7.6 7.5 T14.2 7.5 T20.8 7.5 T27.4 7.5" stroke="#1F6FB2" stroke-width="2" stroke-linecap="round"/></svg>
+        <span style="font:700 13px 'IBM Plex Sans'; color:#0B3D74; letter-spacing:.03em;">OSCAR</span>
+        <span style="font:500 8px 'IBM Plex Sans'; letter-spacing:.16em; text-transform:uppercase; color:#9AA6B0; border-left:1px solid #C7D2DA; padding-left:9px;">Sleep Therapy Insights</span>
+      </div>
+      <div style="text-align:right;"><div style="font:600 11px 'IBM Plex Sans'; letter-spacing:.14em; text-transform:uppercase; color:#0B3D74;">Diagnostics &amp; History</div><div class="num" style="font-size:9px; color:#9AA6B0; margin-top:2px;">Adrian Sian · May 24–Jun 22, 2026</div></div>
+    </div>
+
+    <div style="padding:18px 34px 0; flex:1;">
+      <div class="band">Detailed Channel Statistics</div>
+      <table class="rt" style="border:1px solid #C7D2DA; border-top:none;">
+        <thead><tr>
+          <th>Channel</th><th style="color:#8693A0;">Unit</th>
+          <th style="text-align:right; color:#8693A0;">Min</th><th style="text-align:right;">Median</th><th style="text-align:right; color:#8693A0;">95th</th><th style="text-align:right; color:#8693A0;">Max</th>
+        </tr></thead>
+        <tbody>
+          <tr><td>Pressure</td><td style="color:#9AA6B0;">cmH₂O</td><td class="num" style="text-align:right;">10.60</td><td class="num" style="text-align:right; color:#1A2733; font-weight:600;">10.60</td><td class="num" style="text-align:right;">10.60</td><td class="num" style="text-align:right;">10.60</td></tr>
+          <tr style="background:#F7FAFC;"><td>Minute ventilation</td><td style="color:#9AA6B0;">L/min</td><td class="num" style="text-align:right;">1.38</td><td class="num" style="text-align:right; color:#1A2733; font-weight:600;">5.98</td><td class="num" style="text-align:right;">8.10</td><td class="num" style="text-align:right;">13.00</td></tr>
+          <tr><td>Respiratory Rate</td><td style="color:#9AA6B0;">br/min</td><td class="num" style="text-align:right;">3.00</td><td class="num" style="text-align:right; color:#1A2733; font-weight:600;">16.61</td><td class="num" style="text-align:right;">21.25</td><td class="num" style="text-align:right;">31.15</td></tr>
+          <tr style="background:#F7FAFC;"><td>Leak Rate</td><td style="color:#9AA6B0;">L/min</td><td class="num" style="text-align:right;">0.00</td><td class="num" style="text-align:right; color:#1A2733; font-weight:600;">0.64</td><td class="num" style="text-align:right;">8.48</td><td class="num" style="text-align:right;">17.56</td></tr>
+          <tr><td>Snore</td><td style="color:#9AA6B0;">—</td><td class="num" style="text-align:right;">0.00</td><td class="num" style="text-align:right; color:#1A2733; font-weight:600;">0.00</td><td class="num" style="text-align:right;">0.00</td><td class="num" style="text-align:right;">0.07</td></tr>
+          <tr style="background:#F7FAFC;"><td>Inspiratory time</td><td style="color:#9AA6B0;">s</td><td class="num" style="text-align:right;">0.08</td><td class="num" style="text-align:right; color:#1A2733; font-weight:600;">1.69</td><td class="num" style="text-align:right;">2.58</td><td class="num" style="text-align:right;">3.28</td></tr>
+          <tr><td>Expiratory time</td><td style="color:#9AA6B0;">s</td><td class="num" style="text-align:right;">0.04</td><td class="num" style="text-align:right; color:#1A2733; font-weight:600;">1.90</td><td class="num" style="text-align:right;">2.48</td><td class="num" style="text-align:right;">3.01</td></tr>
+          <tr style="background:#F7FAFC;"><td>Tidal Volume</td><td style="color:#9AA6B0;">mL</td><td class="num" style="text-align:right;">60.00</td><td class="num" style="text-align:right; color:#1A2733; font-weight:600;">358.00</td><td class="num" style="text-align:right;">486.00</td><td class="num" style="text-align:right;">705.17</td></tr>
+          <tr><td>Pulse Rate</td><td style="color:#9AA6B0;">bpm</td><td class="num" style="text-align:right;">47.00</td><td class="num" style="text-align:right; color:#1A2733; font-weight:600;">53.73</td><td class="num" style="text-align:right;">61.37</td><td class="num" style="text-align:right;">73.09</td></tr>
+          <tr style="background:#F7FAFC;"><td style="border-bottom:none;">SpO₂</td><td style="color:#9AA6B0; border-bottom:none;">%</td><td class="num" style="text-align:right; color:#9A6F1A; border-bottom:none;">86.00</td><td class="num" style="text-align:right; color:#1A2733; font-weight:600; border-bottom:none;">97.03</td><td class="num" style="text-align:right; border-bottom:none;">98.03</td><td class="num" style="text-align:right; border-bottom:none;">98.63</td></tr>
+        </tbody>
+      </table>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:28px; margin-top:18px;">
+        <div>
+          <div class="band">Additional Indices</div>
+          <div style="border:1px solid #C7D2DA; border-top:none; padding:4px 14px 8px;">
+            <div class="kv"><span class="kvl">Cumulative time in apnea</span><span class="kvv">00:13:47</span></div>
+            <div class="kv"><span class="kvl">Time in Cheyne–Stokes</span><span class="kvv">00:00:00</span></div>
+            <div class="kv"><span class="kvl">Over leak redline (24)</span><span class="kvv">02:16:32 <span style="color:#9AA6B0; font-weight:400;">1.06%</span></span></div>
+            <div class="kv"><span class="kvl">Total therapy hours</span><span class="kvv">214 h 17 m</span></div>
+            <div class="kv"><span class="kvl">Minimum SpO₂</span><span class="kvv" style="color:#9A6F1A;">86%</span></div>
+            <div class="kv"><span class="kvl">Time SpO₂ &lt; 90%</span><span class="kvv">00:20:27</span></div>
+            <div class="kv" style="border-bottom:none;"><span class="kvl">95% flow limitation</span><span class="kvv">0.08</span></div>
+          </div>
+        </div>
+        <div>
+          <div class="band">Glossary</div>
+          <div style="border:1px solid #C7D2DA; border-top:none; padding:10px 14px; font:400 9.5px/1.7 'IBM Plex Sans'; color:#54616B;"><b style="color:#1A2733;">AHI</b> apnea–hypopnea index · <b style="color:#1A2733;">AI/HI</b> apnea/hypopnea index · <b style="color:#1A2733;">CAI/OAI</b> central/obstructive apnea · <b style="color:#1A2733;">RERA</b> resp. effort-related arousal · <b style="color:#1A2733;">RDI</b> resp. disturbance index · <b style="color:#1A2733;">ODI₃</b> O₂ desaturation index (≥3%/h) · <b style="color:#1A2733;">T90</b> time SpO₂ &lt; 90% · <b style="color:#1A2733;">CSR</b> Cheyne–Stokes resp. · <b style="color:#1A2733;">EPR</b> expiratory pressure relief · <b style="color:#1A2733;">FL</b> flow limitation.</div>
+        </div>
+      </div>
+
+      <div class="band" style="margin-top:18px;">Therapy History — Setting Changes &amp; Outcomes</div>
+      <table class="rt" style="border:1px solid #C7D2DA; border-top:none;">
+        <thead><tr>
+          <th>Period</th><th style="text-align:right; color:#8693A0;">Days</th><th>Mode / Pressure</th>
+          <th style="text-align:right;">AHI</th><th style="text-align:right; color:#8693A0;">Δ vs base</th><th style="text-align:right; color:#8693A0;">95th Leak</th><th style="text-align:right; color:#8693A0;">Min SpO₂</th>
+        </tr></thead>
+        <tbody>
+          <tr>
+            <td style="border-bottom:none;">May 24 – Jun 22, 2026</td>
+            <td class="num" style="text-align:right; border-bottom:none;">30</td>
+            <td style="border-bottom:none;">CPAP 10.6 fixed · EPR Off</td>
+            <td class="num" style="text-align:right; color:#2E8B57; font-weight:600; border-bottom:none;">0.58</td>
+            <td class="num" style="text-align:right; color:#1F6FB2; border-bottom:none;">−99%</td>
+            <td class="num" style="text-align:right; border-bottom:none;">8.5</td>
+            <td class="num" style="text-align:right; color:#9A6F1A; border-bottom:none;">86%</td>
+          </tr>
+        </tbody>
+      </table>
+      <div style="font:400 9.5px/1.5 'IBM Plex Sans'; color:#6B7884; margin-top:8px;">No device-setting changes during this period — therapy stable. The Δ columns (ΔAHI / Δleak / Δusage) populate automatically for each future change, so a pressure or EPR adjustment can be read against its outcome at a glance.</div>
+    </div>
+
+    <div style="margin-top:auto; padding:11px 34px 14px; border-top:1px solid #E6ECF1;">
+      <div style="font:400 8.5px/1.5 'IBM Plex Sans'; color:#9AA6B0; margin-bottom:6px;"><b style="color:#7A8794;">Methodology.</b> Aggregate statistics (median, 95th percentile, maximum, and all indices) are computed directly from the device's recorded data. Nightly trend lines on pages 3–5 are representative summaries. Device-estimated AHI and oximetry indices are screening measures and are not equivalent to attended polysomnography.</div>
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <span style="font:400 8.5px 'IBM Plex Sans'; color:#9AA6B0;">OSCAR 2.0.2-beta-1 · open-source CPAP report software</span>
+        <span class="num" style="font-size:8.5px; color:#9AA6B0;">7 / 7</span>
+      </div>
+    </div>
+  </section>
+
+  <!--PAGES-END-->
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    const X0 = 40, X1 = 692, YT = 16, YB = 205, N = 30;
+    const xs = i => X0 + (X1 - X0) * i / (N - 1);
+    const yv = (v, lo, hi) => { let y = YB - (v - lo) / (hi - lo) * (YB - YT); return Math.max(YT - 2, Math.min(YB, y)); };
+    const toPts = (a, lo, hi) => a.map((v, i) => xs(i).toFixed(1) + ',' + yv(v, lo, hi).toFixed(1)).join(' ');
+    const toArea = (a, lo, hi) => 'M' + X0 + ',' + YB + ' L ' + a.map((v, i) => xs(i).toFixed(1) + ',' + yv(v, lo, hi).toFixed(1)).join(' L ') + ' L' + X1 + ',' + YB + ' Z';
+    const toPtsN = (a, lo, hi) => { const m = a.length; return a.map((v, i) => (X0 + (X1 - X0) * i / (m - 1)).toFixed(1) + ',' + yv(v, lo, hi).toFixed(1)).join(' '); };
+
+    let s = 987654321;
+    const rnd = () => { s = s + 0x6D2B79F5 | 0; let t = Math.imul(s ^ s >>> 15, 1 | s); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+    const gen = (mean, sd, lo, hi) => { const a = []; for (let i = 0; i < N; i++) { const g = (rnd() + rnd() + rnd() - 1.5) / 1.5; a.push(Math.max(lo, Math.min(hi, mean + g * sd))); } return a; };
+    const colW = (X1 - X0) / N, barW = colW * 0.52;
+    const dayX = i => X0 + colW * (i + 0.5);
+    const RNG = '#DCDDF7', BAND = '#6E6FE6', MED = '#312E81';
+    // Per-night distribution column: min→max light bar, median→95th band, median tick.
+    const rangeCols = (tMed, tP95, tMax, tMin, lo, hi, cR = RNG, cB = BAND, cM = MED) => {
+      const out = [];
+      for (let i = 0; i < N; i++) {
+        const span = hi - lo;
+        let med = tMed * (0.94 + 0.12 * rnd());
+        const half = span * 0.135;
+        let mx = med + half * (0.92 + 0.16 * rnd());
+        let mn = med - half * (0.92 + 0.16 * rnd());
+        let p95 = med + (mx - med) * 0.5;
+        med = Math.min(hi, Math.max(lo, med)); p95 = Math.min(hi, Math.max(lo, p95)); mx = Math.min(hi, Math.max(lo, mx)); mn = Math.min(hi, Math.max(lo, mn));
+        const x = (dayX(i) - barW / 2).toFixed(1);
+        const yMx = yv(mx, lo, hi), yMn = yv(mn, lo, hi), yMd = yv(med, lo, hi), yP = yv(p95, lo, hi);
+        out.push({ x, y: yMx.toFixed(1), w: barW.toFixed(1), h: Math.max(0.8, yMn - yMx).toFixed(1), fill: cR });
+        out.push({ x, y: yP.toFixed(1), w: barW.toFixed(1), h: Math.max(0.8, yMd - yP).toFixed(1), fill: cB });
+        out.push({ x, y: (yMd - 0.9).toFixed(1), w: barW.toFixed(1), h: '1.8', fill: cM });
+      }
+      return out;
+    };
+
+    const ahi = [0.7,0.4,0.9,0.5,0.3,0.6,1.2,0.5,0.4,0.8,0.6,0.3,1.5,0.5,0.4,0.6,0.7,0.5,0.9,0.4,0.3,0.6,0.8,0.5,0.4,1.1,0.6,0.5,0.7,0.55];
+    const hrs = [7.2,7.5,6.8,7.0,7.3,7.6,6.9,7.1,7.4,7.0,6.7,7.2,3.2,7.5,7.3,7.0,7.1,7.4,6.9,7.2,7.6,7.0,7.3,7.1,6.8,7.2,7.5,7.0,7.3,7.1];
+
+    // AHI stacked event-type bars (Hypopnea, Central, Obstructive, Unknown)
+    const ratio = { h: 0.48, c: 0.47, o: 0.035, u: 0.015 };
+    const segColor = { h: '#AEB0F2', c: '#6E6FE6', o: '#312E81', u: '#C5C9D4' };
+    const ahiRects = [];
+    ahi.forEach((tot, i) => {
+      const x = dayX(i) - barW / 2;
+      let yb = YB;
+      const parts = [['h', tot * ratio.h * (0.85 + 0.3 * rnd())], ['c', tot * ratio.c * (0.85 + 0.3 * rnd())], ['o', tot * ratio.o], ['u', tot * ratio.u]];
+      parts.forEach(([k, v]) => { const h = (v / 2) * (YB - YT); if (h <= 0.3) return; yb -= h; ahiRects.push({ x: x.toFixed(1), y: yb.toFixed(1), w: barW.toFixed(1), h: h.toFixed(1), fill: segColor[k] }); });
+    });
+
+    const leakCols = rangeCols(0.64, 8.48, 17.56, 0, 0, 30, '#C7E7D8', '#2FA37A', '#17684C');
+    const mvCols = rangeCols(5.98, 8.10, 13.0, 1.38, 0, 14, '#C9DCF4', '#3B82C4', '#1E4E79');
+    const rrCols = rangeCols(16.61, 21.25, 31.15, 3.0, 0, 32, '#DCCDF1', '#8B5CC4', '#4A2B7A');
+    const tvCols = rangeCols(358, 486, 705, 60, 0, 800, '#F6DCBE', '#DD8636', '#955018');
+    const pulseCols = rangeCols(53.73, 61.37, 73.09, 47.0, 40, 80, '#F4CED3', '#D2596A', '#8A2A38');
+
+    // SpO2 nightly range (low → high) with median tick; bar tinted by the night's low.
+    const spo2Cols = [];
+    for (let i = 0; i < N; i++) {
+      let med = 96.9 + (rnd() - 0.5) * 0.7;
+      let hi2 = med + 1.1 + (rnd() - 0.5) * 0.5;
+      let low = med - 1.5 + (rnd() - 0.5) * 0.5;
+      if (i === N - 1) { low = 86; med = 95.4; hi2 = 97.2; }
+      hi2 = Math.min(99, hi2); low = Math.max(84, Math.min(low, med - 0.4));
+      const x = (dayX(i) - barW / 2).toFixed(1);
+      const yHi = yv(hi2, 85, 100), yLo = yv(low, 85, 100), yMd = yv(med, 85, 100);
+      const fill = low < 88 ? '#F0D2CB' : (low < 90 ? '#F3E2C4' : '#C2E2EC');
+      const tick = low < 88 ? '#C0392B' : '#18647E';
+      spo2Cols.push({ x, y: yHi.toFixed(1), w: barW.toFixed(1), h: Math.max(0.8, yLo - yHi).toFixed(1), fill });
+      spo2Cols.push({ x, y: (yMd - 0.9).toFixed(1), w: barW.toFixed(1), h: '1.8', fill: tick });
+    }
+
+    const M2 = 64, ln = [];
+    for (let i = 0; i < M2; i++) { const g = (rnd() + rnd() - 1); ln.push(96.6 + g * 0.8); }
+    for (let i = 38; i <= 46; i++) { const t = (i - 38) / 8; ln[i] = 96 - Math.sin(Math.PI * t) * 10; }
+    ln[42] = 86;
+    const lowNightPts = toPtsN(ln,81,100);
+
+    const nights = hrs.map((v) => { const ok = v >= 4; return { ok, bg: ok ? '#2E8B57' : '#C9881F' }; });
+    const usageBars = hrs.map((v) => { const ok = v >= 4; return { bg: ok ? '#2E8B57' : '#C9881F', hPx: Math.max(3, Math.round(v / 12 * 230)) + 'px' }; });
+
+    const sorted = [...hrs].sort((a, b) => a - b);
+    const q = (p) => { const idx = p * (sorted.length - 1), lo = Math.floor(idx), hi = Math.ceil(idx); return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo); };
+    const fHM = d => { const h = Math.floor(d), m = Math.round((d - h) * 60); return h + ':' + String(m).padStart(2, '0'); };
+
+    const moNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    let lastMo = -1;
+    const dateTicks = [0,3,6,9,12,15,18,21,24,27,29].map(i => {
+      const d = new Date(2026, 4, 24 + i), mo = d.getMonth();
+      const lab = (mo !== lastMo) ? moNames[mo] + ' ' + d.getDate() : '' + d.getDate();
+      lastMo = mo;
+      return { x: (X0 + colW * (i + 0.5)).toFixed(1), label: lab };
+    });
+
+    return {
+      nights, usageBars, ahiRects, dateTicks,
+      leakCols, mvCols, rrCols, tvCols, pulseCols, spo2Cols, lowNightPts,
+      q1: fHM(q(0.25)), q3: fHM(q(0.75)),
+    };
+  }
+}
+</script>
+</body>
+</html>

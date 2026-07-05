@@ -18,6 +18,8 @@
 #include <QStyleHints>
 #include <QDebug>
 #include <QLocale>
+#include <QDateTime>
+#include <QTimeZone>
 #include <cmath>
 #include <algorithm>
 #include <QMap>
@@ -39,6 +41,8 @@
 #include "SleepLib/session.h"
 #include "SleepLib/event.h"
 #include "SleepLib/schema.h"
+#include "compliancereport_internal.h"
+#include "compliancereport_airviewv2.h"
 
 extern MainWindow *mainwin;
 extern ChannelID RMS9_EPR;
@@ -144,6 +148,14 @@ ComplianceReportDialog::ComplianceReportDialog(QWidget *parent)
         }
     }
 
+    // Report style: Classic (existing look) vs AirView V2 (new fixed-layout design).
+    m_styleCombo = new QComboBox(this);
+    m_styleCombo->addItem(tr("Classic"),    (int)Classic);
+    m_styleCombo->addItem(tr("AirView V2"), (int)AirViewV2);
+    mainLayout->addWidget(new QLabel(tr("Report style:"), this));
+    mainLayout->addWidget(m_styleCombo);
+    connect(m_styleCombo, &QComboBox::currentIndexChanged, this, &ComplianceReportDialog::onStyleChanged);
+
     // ResMed AirView format: when ticked, the report mimics a ResMed AirView
     // Compliance + Therapy report — it drops the O2/pulse-ox, sleep-stage/bedtime,
     // detailed-channel and therapy-history sections and the extra device/therapy
@@ -163,6 +175,7 @@ ComplianceReportDialog::ComplianceReportDialog(QWidget *parent)
 
     // Set initial custom date fields visibility
     onRangeChanged(0);
+    onStyleChanged(0);   // set initial enabled-state of the AirView-format checkbox
 }
 
 QDate ComplianceReportDialog::startDate() const
@@ -265,14 +278,250 @@ void ComplianceReportDialog::onRangeChanged(int index)
 {
     int days = m_rangeCombo->itemData(index).toInt();
     bool isCustom = (days == 0);
-    
+
     m_startDateEdit->setEnabled(isCustom);
     m_endDateEdit->setEnabled(isCustom);
-    
+
     if (!isCustom) {
         m_startDateEdit->setDate(startDate());
         m_endDateEdit->setDate(endDate());
     }
+}
+
+void ComplianceReportDialog::onStyleChanged(int)
+{
+    bool airv2 = (reportStyle() == AirViewV2);
+    // The "AirView format" content-trim checkbox applies to the Classic report only.
+    m_airViewCheck->setEnabled(!airv2);
+    if (airv2) m_airViewCheck->setChecked(false);
+}
+
+ComplianceReportDialog::ReportStyle ComplianceReportDialog::reportStyle() const
+{
+    return (ReportStyle)m_styleCombo->currentData().toInt();
+}
+
+// ---- Functions with external linkage (moved out of the anonymous namespace so
+// a second translation unit can include compliancereport_internal.h and call
+// them). Definitions must match the declarations in that header exactly. ----
+
+QString getSettingStr(Day* day, ChannelID cid) {
+    if (!day || !day->settingExists(cid)) return QString();
+    double val = day->settings_wavg(cid);
+    schema::Channel & chan = schema::channel[cid];
+    if (chan.datatype() == schema::LOOKUP) {
+        QString opt = chan.option(qRound(val));
+        if (!opt.isEmpty()) return opt;
+    }
+    QString unit = chan.units();
+    if (unit.isEmpty()) return QString::number(val, 'f', 1);
+    return QString::number(val, 'f', 1) + " " + unit;
+}
+
+QColor colorForChannel(ChannelID chanId)
+{
+    if (chanId == CPAP_MinuteVent)  return QColor("#4db6ac"); // Softer teal
+    if (chanId == CPAP_RespRate)    return QColor("#b39ddb"); // Softer purple
+    if (chanId == CPAP_TidalVolume) return QColor("#80deea"); // Softer cyan
+    if (chanId == CPAP_FlowLimit)   return QColor("#ffb74d"); // Softer orange/amber
+    if (chanId == CPAP_Snore)       return QColor("#f48fb1"); // Softer pink
+    if (chanId == CPAP_Ti)          return QColor("#c5e1a5"); // Softer lime green
+    if (chanId == CPAP_Te)          return QColor("#e6ee9c"); // Softer yellow-green
+    if (chanId == OXI_Pulse)        return QColor("#ef9a9a"); // Softer red
+    if (chanId == OXI_SPO2)         return QColor("#90caf9"); // Softer blue
+    return QColor("#cbd5e1"); // Softer grey
+}
+
+QString unitForChannel(ChannelID chanId)
+{
+    if (chanId == CPAP_Pressure || chanId == CPAP_EPAP) return "cmH₂O";
+    if (chanId == CPAP_Leak || chanId == CPAP_LeakTotal) return "L/min";
+    if (chanId == CPAP_MinuteVent)                return "L/min";
+    if (chanId == CPAP_RespRate)                  return "br/min";
+    if (chanId == CPAP_TidalVolume)               return "mL";
+    if (chanId == CPAP_Ti || chanId == CPAP_Te)   return "s";
+    if (chanId == OXI_Pulse)                      return "bpm";
+    if (chanId == OXI_SPO2)                       return "%";
+    return "";
+}
+
+// SpO2 time-in-zone percentages for the Overnight Oxygen Summary, derived from
+// cumulative "time above threshold" seconds. totalSec = total recording seconds;
+// secAbove95/secAbove90 = cumulative seconds with SpO2 above each threshold.
+Spo2ZonePercents spo2ZonePercents(double totalSec, double secAbove95, double secAbove90)
+{
+    Spo2ZonePercents z { 0.0, 0.0, 0.0 };
+    if (totalSec <= 0.0) return z;
+    double ge95 = qBound(0.0, secAbove95, totalSec);
+    double ge90 = qBound(ge95, secAbove90, totalSec);   // monotonic: >=95 ⊆ >=90
+    z.pctGe95   = 100.0 * ge95 / totalSec;
+    z.pct90to95 = 100.0 * (ge90 - ge95) / totalSec;
+    z.pctLt90   = 100.0 * (totalSec - ge90) / totalSec;
+    return z;
+}
+
+// Upper-percentile preference, read from the profile so the report matches
+// OSCAR's own Daily/Overview "95%" calc. ResMed locks this at 95%.
+static double upperPctValue()
+{
+    if (!p_profile) return 0.95;
+    return qBound(0.50, p_profile->general->prefCalcPercentile() / 100.0, 0.999);
+}
+
+static QString upperPctLabel()   // e.g. "95th"; tied to the clamped value used in math
+{
+    return QString::number(qRound(upperPctValue() * 100.0)) + QStringLiteral("th");
+}
+
+QList<SettingsChangeBlock> getSettingsChanges(const QDate& start, const QDate& end, const QList<Day*>& daysList) {
+    QList<SettingsChangeBlock> blocks;
+    if (daysList.isEmpty()) return blocks;
+
+    // Per-block derived fields: leak channel and untreated baseline AHI
+    ChannelID leakChan = p_profile->hasChannel(CPAP_Leak) ? CPAP_Leak
+                       : (p_profile->hasChannel(CPAP_LeakTotal) ? CPAP_LeakTotal : NoChannel);
+    double crBase = p_profile->cpap ? p_profile->cpap->untreatedAHI() : 0.0;
+    const double complH = p_profile->cpap ? p_profile->cpap->complianceHours() : 4.0;
+
+    // Compact set-pressure string for the therapy-history table.
+    auto pressShort = [](Day* d) -> QString {
+        CPAPMode m = (CPAPMode)(int)d->settings_max(CPAP_Mode);
+        if (m == MODE_CPAP)
+            return QString::number(d->settings_min(CPAP_Pressure), 'f', 1);
+        if (m == MODE_APAP)
+            return QString("%1\xe2\x80\x93%2")
+                .arg(d->settings_min(CPAP_PressureMin), 0, 'f', 1)
+                .arg(d->settings_max(CPAP_PressureMax), 0, 'f', 1);
+        return d->getPressureSettings();  // bilevel/ASV etc. keep the descriptive string
+    };
+
+    SettingsChangeBlock curBlock;
+    bool hasBlock = false;
+    QMap<QDate, Day*> curBlockMap;
+
+    auto finalizeBlock = [&]() {
+        double blockAHI = curBlock.hours > 0 ? curBlock.ahiEvents / curBlock.hours : 0.0;
+        curBlock.deltaAhiVsBase = crBase > 0 ? (blockAHI - crBase) / crBase * 100.0 : 0.0;
+        curBlock.p95Leak = (leakChan != NoChannel) ? calcDayAvgPercentile(leakChan, upperPctValue(), curBlockMap) : 0.0;
+        curBlock.avgUseHrs = curBlock.days > 0 ? curBlock.hours / curBlock.days : 0.0;
+        curBlock.cai = curBlock.hours > 0 ? curBlock.centralEvents / curBlock.hours : 0.0;
+        int comp = 0;
+        for (auto it = curBlockMap.constBegin(); it != curBlockMap.constEnd(); ++it)
+            if (it.value() && it.value()->hours(MT_CPAP) >= complH) comp++;
+        curBlock.compliantNights = comp;
+    };
+
+    for (Day* day : daysList) {
+        if (!day) continue;
+        Machine* mach = day->machine(MT_CPAP);
+        if (!mach) continue;
+
+        QString relief = day->getPressureRelief();
+        QString mode = day->getCPAPModeStr();
+        QString pressure = day->getPressureSettings();
+        QString deviceStr = mach->brand() + " " + mach->model() + " (" + mach->serial() + ")";
+
+        if (!hasBlock) {
+            curBlock.start = day->date();
+            curBlock.end = day->date();
+            curBlock.days = 1;
+            curBlock.hours = day->hours(MT_CPAP);
+            curBlock.ahiEvents = day->count(CPAP_ClearAirway) + day->count(CPAP_Obstructive) + day->count(CPAP_Apnea) + day->count(CPAP_Hypopnea);
+            curBlock.centralEvents = day->count(CPAP_ClearAirway);
+            curBlock.deviceStr = deviceStr;
+            curBlock.relief = relief;
+            curBlock.mode = mode;
+            curBlock.pressure = pressure;
+            curBlock.pressureShort = pressShort(day);
+            curBlockMap.clear();
+            curBlockMap[day->date()] = day;
+            hasBlock = true;
+        } else {
+            if (curBlock.relief == relief && curBlock.mode == mode && curBlock.pressure == pressure && curBlock.deviceStr == deviceStr) {
+                curBlock.end = day->date();
+                curBlock.days++;
+                curBlock.hours += day->hours(MT_CPAP);
+                curBlock.ahiEvents += day->count(CPAP_ClearAirway) + day->count(CPAP_Obstructive) + day->count(CPAP_Apnea) + day->count(CPAP_Hypopnea);
+                curBlock.centralEvents += day->count(CPAP_ClearAirway);
+                curBlockMap[day->date()] = day;
+            } else {
+                finalizeBlock();
+                blocks.append(curBlock);
+                curBlock = SettingsChangeBlock();
+                curBlock.start = day->date();
+                curBlock.end = day->date();
+                curBlock.days = 1;
+                curBlock.hours = day->hours(MT_CPAP);
+                curBlock.ahiEvents = day->count(CPAP_ClearAirway) + day->count(CPAP_Obstructive) + day->count(CPAP_Apnea) + day->count(CPAP_Hypopnea);
+                curBlock.centralEvents = day->count(CPAP_ClearAirway);
+                curBlock.deviceStr = deviceStr;
+                curBlock.relief = relief;
+                curBlock.mode = mode;
+                curBlock.pressure = pressure;
+                curBlock.pressureShort = pressShort(day);
+                curBlockMap.clear();
+                curBlockMap[day->date()] = day;
+            }
+        }
+    }
+    if (hasBlock) {
+        finalizeBlock();
+        blocks.append(curBlock);
+    }
+    return blocks;
+}
+
+// Compute the average of per-night percentile values, matching AirView's
+// "Median (avg)" / "95th % (avg)" methodology where each night is weighted
+// equally instead of pooling all samples into one global distribution.
+double calcDayAvgPercentile(ChannelID chan, EventDataType pct,
+                             const QMap<QDate, Day*>& daysMap,
+                             MachineType mt)
+{
+    double sum = 0.0;
+    int count = 0;
+    for (auto it = daysMap.constBegin(); it != daysMap.constEnd(); ++it) {
+        Day* day = it.value();
+        if (!day) continue;
+        bool hasData = (mt == MT_OXIMETER || mt == MT_UNKNOWN)
+            ? day->timeAboveThreshold(chan, 0.0) > 0.0
+            : day->hours(mt) > 0.0;
+        if (!hasData) continue;
+        // Include the night iff the channel actually recorded data that night,
+        // counting legitimate-zero values (e.g. a night with zero flow limitation
+        // or zero leak). The old "v > 0.0" guard silently dropped those clean
+        // nights, averaging only over bad nights and inflating the result for
+        // channels that physiologically bottom out at zero (FlowLimit, Snore).
+        // channelHasData() also excludes used-nights where this channel was simply
+        // not recorded, so an absent channel never contributes a spurious 0.
+        if (!day->channelHasData(chan)) continue;
+        sum += day->percentile(chan, pct);
+        count++;
+    }
+    return count > 0 ? sum / count : 0.0;
+}
+
+// "Maximum (avg)" — averaged per night like calcDayAvgPercentile, but mirrors
+// OSCAR's max-calc preference (day.cpp): P99.5 when the percentile-max option is
+// set (default/locked for ResMed), else the true per-night maximum.
+double calcDayAvgMax(ChannelID chan, const QMap<QDate, Day*>& daysMap,
+                     MachineType mt)
+{
+    const bool usePct = p_profile && p_profile->general->prefCalcMax() != 0;
+    double sum = 0.0;
+    int count = 0;
+    for (auto it = daysMap.constBegin(); it != daysMap.constEnd(); ++it) {
+        Day* day = it.value();
+        if (!day) continue;
+        bool hasData = (mt == MT_OXIMETER || mt == MT_UNKNOWN)
+            ? day->timeAboveThreshold(chan, 0.0) > 0.0
+            : day->hours(mt) > 0.0;
+        if (!hasData) continue;
+        if (!day->channelHasData(chan)) continue;
+        sum += usePct ? day->percentile(chan, 0.995) : day->Max(chan);
+        count++;
+    }
+    return count > 0 ? sum / count : 0.0;
 }
 
 namespace {
@@ -284,19 +533,6 @@ QString imageToBase64DataUrl(const QImage& img)
     buffer.open(QIODevice::WriteOnly);
     img.save(&buffer, "PNG");
     return QString("data:image/png;base64,") + byteArray.toBase64();
-}
-
-static QString getSettingStr(Day* day, ChannelID cid) {
-    if (!day || !day->settingExists(cid)) return QString();
-    double val = day->settings_wavg(cid);
-    schema::Channel & chan = schema::channel[cid];
-    if (chan.datatype() == schema::LOOKUP) {
-        QString opt = chan.option(qRound(val));
-        if (!opt.isEmpty()) return opt;
-    }
-    QString unit = chan.units();
-    if (unit.isEmpty()) return QString::number(val, 'f', 1);
-    return QString::number(val, 'f', 1) + " " + unit;
 }
 
 // Clinically-safe minimum that discards sensor dropout / artifact samples.
@@ -336,44 +572,13 @@ static const double SPO2_MAX_FALL_PCT_PER_SEC = 4.0;
 // above; max, mean, T90 and T88 still use every valid sample.
 static const qint64 SPO2_POST_DROPOUT_SETTLE_MS = 8000;
 
-// Upper-percentile preference, read from the profile so the report matches
-// OSCAR's own Daily/Overview "95%" calc. ResMed locks this at 95%.
-static double upperPctValue()
-{
-    if (!p_profile) return 0.95;
-    return qBound(0.50, p_profile->general->prefCalcPercentile() / 100.0, 0.999);
+static double crPctile(const QVector<double>& s, double p) {   // s sorted asc, p in [0,1]
+    if (s.isEmpty()) return 0.0;
+    if (s.size() == 1) return s[0];
+    double idx = p * (s.size() - 1); int lo = (int)idx; double f = idx - lo;
+    return (lo + 1 < s.size()) ? s[lo] + f * (s[lo + 1] - s[lo]) : s[lo];
 }
-
-static QString upperPctLabel()   // e.g. "95th"; tied to the clamped value used in math
-{
-    return QString::number(qRound(upperPctValue() * 100.0)) + QStringLiteral("th");
-}
-
-// Single-pass collector for the dropout-filtered oximetry statistics. The four
-// quantities the report needs — min, max, time-weighted mean, and seconds spent
-// below a threshold — all derive from one walk over the same raw event samples,
-// so computing them together avoids re-opening and re-walking the same sessions
-// once per statistic (the oximetry page alone used to make six full passes over
-// the same SpO2/Pulse data). Every value at or below floorVal is treated as
-// sensor-off dropout and excluded from min/max/wavg.
-//
-//  - min / max:      lowest / highest sample above floorVal. `found` is false
-//                    when no non-dropout sample exists (min/max then read 0.0,
-//                    matching the old helpers).
-//  - wavg:           each sample weighted by the interval to the next sample,
-//                    mirroring Profile::calcWavg for evenly-sampled oximetry; the
-//                    trailing sample of each EventList carries no interval and is
-//                    omitted, as before.
-//  - timeBelowSecs:  gap-integrated time the signal sits in (floorVal, threshold],
-//                    mirroring Session::timeBelowThreshold but discarding the
-//                    probe-loss 0% spans that would otherwise inflate T90.
-struct FilteredStats {
-    bool   found = false;
-    double min = 0.0;
-    double max = 0.0;
-    double wavg = 0.0;
-    double timeBelowSecs = 0.0;
-};
+static void usageQuartiles(const QVector<double>& s, double& q1, double& q3) { q1 = crPctile(s, 0.25); q3 = crPctile(s, 0.75); }
 
 // belowThreshold is consulted only for timeBelowSecs; callers that don't need a
 // time-below figure can pass any value at or below floorVal (the in-range test
@@ -466,121 +671,6 @@ static void accumulateDayFilteredStats(Day* day, ChannelID code, MachineType mt,
         }
         if (!alreadyLoaded) sess->TrashEvents();
     }
-}
-
-static FilteredStats calcFilteredStats(ChannelID code, MachineType mt,
-                                       const QDate& start, const QDate& end,
-                                       double floorVal, double belowThreshold,
-                                       double maxFallPerSec = 0.0)
-{
-    FilteredStats r;
-    if (!p_profile) return r;
-
-    double weightedSum = 0.0, totalTime = 0.0, totalMs = 0.0;
-
-    // Use MT_UNKNOWN so we iterate the same day objects that OSCAR's native
-    // oximetry view does. Oximeter sessions may be stored on days whose machine
-    // type is MT_UNKNOWN, so getDays(MT_OXIMETER) can miss them.
-    QList<Day*> days = p_profile->getDays(MT_UNKNOWN, start, end);
-    for (Day* day : days)
-        accumulateDayFilteredStats(day, code, mt, floorVal, belowThreshold,
-                                   maxFallPerSec, r, weightedSum, totalTime, totalMs);
-
-    r.wavg = totalTime > 0.0 ? weightedSum / totalTime : 0.0;
-    r.timeBelowSecs = totalMs / 1000.0;
-    return r;
-}
-
-// Same statistics for a single Day object. Used by the worst-night pass so each
-// night's nadir/T90 is measured over the night's entire session instead of a
-// one-calendar-day getDays() window — guaranteeing the displayed night's nadir
-// matches the period minimum and the rendered trace.
-static FilteredStats calcDayFilteredStats(Day* day, ChannelID code, MachineType mt,
-                                          double floorVal, double belowThreshold,
-                                          double maxFallPerSec = 0.0)
-{
-    FilteredStats r;
-    double weightedSum = 0.0, totalTime = 0.0, totalMs = 0.0;
-    accumulateDayFilteredStats(day, code, mt, floorVal, belowThreshold,
-                               maxFallPerSec, r, weightedSum, totalTime, totalMs);
-    r.wavg = totalTime > 0.0 ? weightedSum / totalTime : 0.0;
-    r.timeBelowSecs = totalMs / 1000.0;
-    return r;
-}
-
-struct SettingsChangeBlock {
-    QDate start;
-    QDate end;
-    int days = 0;
-    double hours = 0.0;
-    double ahiEvents = 0.0;
-    QString deviceStr;
-    QString relief;
-    QString mode;
-    QString pressure;
-    double minSpo2 = -1.0;  // < 0 means no oximetry data for this block
-};
-
-struct StatsRow {
-    QString label;
-    QString value;
-    QString color;      // empty = default (label grey #64748b, value dark #0f172a)
-    bool bold = false;  // true = label is also dark #0f172a and bold
-    bool boldValue = false; // true = value is bold
-};
-
-QList<SettingsChangeBlock> getSettingsChanges(const QDate& start, const QDate& end, const QList<Day*>& daysList) {
-    QList<SettingsChangeBlock> blocks;
-    if (daysList.isEmpty()) return blocks;
-
-    SettingsChangeBlock curBlock;
-    bool hasBlock = false;
-
-    for (Day* day : daysList) {
-        if (!day) continue;
-        Machine* mach = day->machine(MT_CPAP);
-        if (!mach) continue;
-
-        QString relief = day->getPressureRelief();
-        QString mode = day->getCPAPModeStr();
-        QString pressure = day->getPressureSettings();
-        QString deviceStr = mach->brand() + " " + mach->model() + " (" + mach->serial() + ")";
-
-        if (!hasBlock) {
-            curBlock.start = day->date();
-            curBlock.end = day->date();
-            curBlock.days = 1;
-            curBlock.hours = day->hours(MT_CPAP);
-            curBlock.ahiEvents = day->count(CPAP_ClearAirway) + day->count(CPAP_Obstructive) + day->count(CPAP_Apnea) + day->count(CPAP_Hypopnea);
-            curBlock.deviceStr = deviceStr;
-            curBlock.relief = relief;
-            curBlock.mode = mode;
-            curBlock.pressure = pressure;
-            hasBlock = true;
-        } else {
-            if (curBlock.relief == relief && curBlock.mode == mode && curBlock.pressure == pressure && curBlock.deviceStr == deviceStr) {
-                curBlock.end = day->date();
-                curBlock.days++;
-                curBlock.hours += day->hours(MT_CPAP);
-                curBlock.ahiEvents += day->count(CPAP_ClearAirway) + day->count(CPAP_Obstructive) + day->count(CPAP_Apnea) + day->count(CPAP_Hypopnea);
-            } else {
-                blocks.append(curBlock);
-                curBlock.start = day->date();
-                curBlock.end = day->date();
-                curBlock.days = 1;
-                curBlock.hours = day->hours(MT_CPAP);
-                curBlock.ahiEvents = day->count(CPAP_ClearAirway) + day->count(CPAP_Obstructive) + day->count(CPAP_Apnea) + day->count(CPAP_Hypopnea);
-                curBlock.deviceStr = deviceStr;
-                curBlock.relief = relief;
-                curBlock.mode = mode;
-                curBlock.pressure = pressure;
-            }
-        }
-    }
-    if (hasBlock) {
-        blocks.append(curBlock);
-    }
-    return blocks;
 }
 
 // ---- Shared QPainter chart helpers ----
@@ -868,42 +958,6 @@ static void drawBars(QPainter& painter, const QRect& chartRect, int totalDays,
     }
 }
 
-static QColor colorForChannel(ChannelID chanId)
-{
-    if (chanId == CPAP_MinuteVent)  return QColor("#4db6ac"); // Softer teal
-    if (chanId == CPAP_RespRate)    return QColor("#b39ddb"); // Softer purple
-    if (chanId == CPAP_TidalVolume) return QColor("#80deea"); // Softer cyan
-    if (chanId == CPAP_FlowLimit)   return QColor("#ffb74d"); // Softer orange/amber
-    if (chanId == CPAP_Snore)       return QColor("#f48fb1"); // Softer pink
-    if (chanId == CPAP_Ti)          return QColor("#c5e1a5"); // Softer lime green
-    if (chanId == CPAP_Te)          return QColor("#e6ee9c"); // Softer yellow-green
-    if (chanId == OXI_Pulse)        return QColor("#ef9a9a"); // Softer red
-    if (chanId == OXI_SPO2)         return QColor("#90caf9"); // Softer blue
-    return QColor("#cbd5e1"); // Softer grey
-}
-
-static QString unitForChannel(ChannelID chanId)
-{
-    if (chanId == CPAP_Pressure || chanId == CPAP_EPAP) return "cmH₂O";
-    if (chanId == CPAP_Leak || chanId == CPAP_LeakTotal) return "L/min";
-    if (chanId == CPAP_MinuteVent)                return "L/min";
-    if (chanId == CPAP_RespRate)                  return "br/min";
-    if (chanId == CPAP_TidalVolume)               return "mL";
-    if (chanId == CPAP_Ti || chanId == CPAP_Te)   return "s";
-    if (chanId == OXI_Pulse)                      return "bpm";
-    if (chanId == OXI_SPO2)                       return "%";
-    return "";
-}
-
-// Per-night oximetry summary used to pick the single "worst" night for the
-// Lowest-Oxygen Night trace. Pure data — no Qt rendering.
-struct NightO2Stat {
-    QDate   date;
-    double  nadir;     // lowest valid SpO2 that night (artifact-floored)
-    double  t90Secs;   // seconds below 90% that night
-    bool    valid;     // true only if the night had usable oximetry data
-};
-
 // Returns the index of the worst night: lowest nadir wins; ties broken by most
 // time below 90%, then earliest date. Returns -1 when no night is valid.
 static int selectWorstNightIndex(const QList<NightO2Stat>& nights)
@@ -919,23 +973,6 @@ static int selectWorstNightIndex(const QList<NightO2Stat>& nights)
         // equal nadir and t90: keep earlier index (already `best`)
     }
     return best;
-}
-
-// SpO2 time-in-zone percentages for the Overnight Oxygen Summary, derived from
-// cumulative "time above threshold" seconds. totalSec = total recording seconds;
-// secAbove95/secAbove90 = cumulative seconds with SpO2 above each threshold.
-struct Spo2ZonePercents { double pctGe95; double pct90to95; double pctLt90; };
-
-static Spo2ZonePercents spo2ZonePercents(double totalSec, double secAbove95, double secAbove90)
-{
-    Spo2ZonePercents z { 0.0, 0.0, 0.0 };
-    if (totalSec <= 0.0) return z;
-    double ge95 = qBound(0.0, secAbove95, totalSec);
-    double ge90 = qBound(ge95, secAbove90, totalSec);   // monotonic: >=95 ⊆ >=90
-    z.pctGe95   = 100.0 * ge95 / totalSec;
-    z.pct90to95 = 100.0 * (ge90 - ge95) / totalSec;
-    z.pctLt90   = 100.0 * (totalSec - ge90) / totalSec;
-    return z;
 }
 
 static void drawChartTitle(QPainter& painter, const QString& title, const QString& unit)
@@ -1728,74 +1765,53 @@ QString renderChannelBarChart(ChannelID chanId, const QColor& barColor,
     return c.finish();
 }
 
-// Compute the average of per-night percentile values, matching AirView's
-// "Median (avg)" / "95th % (avg)" methodology where each night is weighted
-// equally instead of pooling all samples into one global distribution.
-static double calcDayAvgPercentile(ChannelID chan, EventDataType pct,
-                                    const QMap<QDate, Day*>& daysMap,
-                                    MachineType mt = MT_CPAP)
+} // namespace
+
+FilteredStats calcFilteredStats(ChannelID code, MachineType mt,
+                                const QDate& start, const QDate& end,
+                                double floorVal, double belowThreshold,
+                                double maxFallPerSec)
 {
-    double sum = 0.0;
-    int count = 0;
-    for (auto it = daysMap.constBegin(); it != daysMap.constEnd(); ++it) {
-        Day* day = it.value();
-        if (!day) continue;
-        bool hasData = (mt == MT_OXIMETER || mt == MT_UNKNOWN)
-            ? day->timeAboveThreshold(chan, 0.0) > 0.0
-            : day->hours(mt) > 0.0;
-        if (!hasData) continue;
-        // Include the night iff the channel actually recorded data that night,
-        // counting legitimate-zero values (e.g. a night with zero flow limitation
-        // or zero leak). The old "v > 0.0" guard silently dropped those clean
-        // nights, averaging only over bad nights and inflating the result for
-        // channels that physiologically bottom out at zero (FlowLimit, Snore).
-        // channelHasData() also excludes used-nights where this channel was simply
-        // not recorded, so an absent channel never contributes a spurious 0.
-        if (!day->channelHasData(chan)) continue;
-        sum += day->percentile(chan, pct);
-        count++;
-    }
-    return count > 0 ? sum / count : 0.0;
+    FilteredStats r;
+    if (!p_profile) return r;
+
+    double weightedSum = 0.0, totalTime = 0.0, totalMs = 0.0;
+
+    // Use MT_UNKNOWN so we iterate the same day objects that OSCAR's native
+    // oximetry view does. Oximeter sessions may be stored on days whose machine
+    // type is MT_UNKNOWN, so getDays(MT_OXIMETER) can miss them.
+    QList<Day*> days = p_profile->getDays(MT_UNKNOWN, start, end);
+    for (Day* day : days)
+        accumulateDayFilteredStats(day, code, mt, floorVal, belowThreshold,
+                                   maxFallPerSec, r, weightedSum, totalTime, totalMs);
+
+    r.wavg = totalTime > 0.0 ? weightedSum / totalTime : 0.0;
+    r.timeBelowSecs = totalMs / 1000.0;
+    return r;
 }
 
-// "Maximum (avg)" — averaged per night like calcDayAvgPercentile, but mirrors
-// OSCAR's max-calc preference (day.cpp): P99.5 when the percentile-max option is
-// set (default/locked for ResMed), else the true per-night maximum.
-static double calcDayAvgMax(ChannelID chan, const QMap<QDate, Day*>& daysMap,
-                            MachineType mt = MT_CPAP)
+// Same statistics for a single Day object. Used by the worst-night pass so each
+// night's nadir/T90 is measured over the night's entire session instead of a
+// one-calendar-day getDays() window — guaranteeing the displayed night's nadir
+// matches the period minimum and the rendered trace.
+FilteredStats calcDayFilteredStats(Day* day, ChannelID code, MachineType mt,
+                                   double floorVal, double belowThreshold,
+                                   double maxFallPerSec)
 {
-    const bool usePct = p_profile && p_profile->general->prefCalcMax() != 0;
-    double sum = 0.0;
-    int count = 0;
-    for (auto it = daysMap.constBegin(); it != daysMap.constEnd(); ++it) {
-        Day* day = it.value();
-        if (!day) continue;
-        bool hasData = (mt == MT_OXIMETER || mt == MT_UNKNOWN)
-            ? day->timeAboveThreshold(chan, 0.0) > 0.0
-            : day->hours(mt) > 0.0;
-        if (!hasData) continue;
-        if (!day->channelHasData(chan)) continue;
-        sum += usePct ? day->percentile(chan, 0.995) : day->Max(chan);
-        count++;
-    }
-    return count > 0 ? sum / count : 0.0;
+    FilteredStats r;
+    double weightedSum = 0.0, totalTime = 0.0, totalMs = 0.0;
+    accumulateDayFilteredStats(day, code, mt, floorVal, belowThreshold,
+                               maxFallPerSec, r, weightedSum, totalTime, totalMs);
+    r.wavg = totalTime > 0.0 ? weightedSum / totalTime : 0.0;
+    r.timeBelowSecs = totalMs / 1000.0;
+    return r;
 }
-
-// "Maximum (avg)" follows OSCAR's max-calc preference (see calcDayAvgMax):
-// the P99.5 percentile by default (and always for ResMed, where the pref is
-// locked), or the true per-night maximum if the user selects "True Maximum".
-// P99.5 is the default because the raw nightly maximum is dominated by
-// non-therapy artifacts: removing the mask while the blower runs spikes leak to
-// 60+ L/min, and the same transition produces absurd tidal volume (>1000 ml) and
-// respiratory rate (50+ br/min). ResMed's AirView avoids this by excluding
-// mask-off spans before taking the maximum — segmentation OSCAR cannot replicate
-// from imported data — so P99.5 keeps "Maximum (avg)" clinically sane.
 
 // Whole-night SpO2 trace for the single worst night of the period. Plots raw
 // OXI_SPO2 samples on a clock-time axis with 90%/88% reference lines and
 // desaturation marks; gaps (inter-session + probe-loss) are drawn as gaps so a
 // dropout is never misread as a desaturation.
-static QString renderLowestOxygenNight(Day* day, double nadir, const QString& title)
+QString renderLowestOxygenNight(Day* day, double nadir, const QString& title)
 {
     SvgChart c(1, "Lowest-Oxygen Night", title, "%");
     QPainter& painter = c.painter;
@@ -1875,8 +1891,6 @@ static QString renderLowestOxygenNight(Day* day, double nadir, const QString& ti
     return c.finish();
 }
 
-} // namespace
-
 // ---- True-vector chart embedding (see ChartObjectHandler in the header) ----
 
 QSizeF ChartObjectHandler::intrinsicSize(QTextDocument* /*doc*/, int /*posInDocument*/,
@@ -1946,6 +1960,414 @@ static void embedVectorCharts(QTextDocument& doc, ChartObjectHandler* handler)
     }
 }
 
+ReportData ComplianceReport::gatherReportData(QDate start, QDate end)
+{
+    ReportData rd;
+    rd.start = start;
+    rd.end = end;
+
+    // Check if data exists in range
+    rd.totalDays = start.daysTo(end) + 1;
+    rd.presentDays = p_profile->countDays(MT_CPAP, start, end);
+
+    // Map dates to Day* objects
+    rd.daysList = p_profile->getDays(MT_CPAP, start, end);
+    for (Day* day : rd.daysList) {
+        if (!day) continue;
+        rd.daysMap[day->date()] = day;
+    }
+
+    // Days with no data at all vs days in map but with 0 therapy hours
+    for (int i = 0; i < rd.totalDays; ++i) {
+        if (!rd.daysMap.contains(start.addDays(i))) ++rd.daysNoData;
+    }
+    for (auto it = rd.daysMap.begin(); it != rd.daysMap.end(); ++it) {
+        if (it.value()->hours(MT_CPAP) == 0.0) ++rd.daysNotUsed;
+    }
+
+    // "Used" means actual therapy was recorded (> 0 hours). countDays counts any
+    // day with an enabled session, which includes 0-hour summary/brick records;
+    // counting those as "used" double-counts them (they also land in daysNotUsed)
+    // and dilutes avgHoursUsed so it disagrees with the median. The usage buckets
+    // are then mutually exclusive: daysUsed (compliant + non-compliant) + daysNotUsed
+    // + daysNoData == totalDays.
+    for (auto it = rd.daysMap.begin(); it != rd.daysMap.end(); ++it) {
+        if (it.value()->hours(MT_CPAP) > 0.0) ++rd.daysUsed;
+    }
+
+    // Gather statistics
+    rd.allDays = p_profile->getDays(MT_UNKNOWN, start, end);
+    // Determine the machine type that actually holds oximetry data for this profile.
+    rd.oxiSourceType = MT_OXIMETER;
+    if (p_profile->countDays(MT_OXIMETER, start, end) == 0) {
+        ChannelID spo2id  = schema::channel["SPO2"].id();
+        ChannelID pulseid = schema::channel["Pulse"].id();
+        if ((spo2id  != NoChannel && p_profile->channelAvailable(spo2id))
+                || (pulseid != NoChannel && p_profile->channelAvailable(pulseid))) {
+            rd.oxiSourceType = MT_CPAP;
+        }
+    }
+
+    // usedDaysOxi   = nights with SpO2 data (gates SpO2-specific output).
+    // usedDaysPulse = nights with Pulse data (gates Pulse-specific output).
+    // usedDaysOxiAny= nights with EITHER channel — the oximetry section as a
+    //   whole appears whenever any oximetry was recorded, so a Pulse-only
+    //   profile (no SpO2) still gets its oximeter page instead of nothing.
+    for (Day* day : rd.allDays) {
+        if (!day) continue;
+        bool hasS = day->timeAboveThreshold(OXI_SPO2,  0.0) > 0.0;
+        bool hasP = day->timeAboveThreshold(OXI_Pulse, 0.0) > 0.0;
+        if (hasS) rd.usedDaysOxi++;
+        if (hasP) rd.usedDaysPulse++;
+        if (hasS || hasP) rd.usedDaysOxiAny++;
+    }
+    rd.settingsBlocks = getSettingsChanges(start, end, rd.daysList);
+    if (rd.usedDaysOxi > 0) {
+        for (auto& block : rd.settingsBlocks) {
+            double v = calcFilteredStats(OXI_SPO2, rd.oxiSourceType, block.start, block.end, SPO2_ARTIFACT_FLOOR, 0.0, SPO2_MAX_FALL_PCT_PER_SEC).min;
+            block.minSpo2 = (v > SPO2_ARTIFACT_FLOOR) ? v : -1.0;
+        }
+    }
+
+    rd.compliantDays = p_profile->countCompliantDays(MT_CPAP, start, end);
+    rd.pctCompliant = (double)rd.compliantDays / rd.totalDays * 100.0;
+    rd.pctUsed = (double)rd.daysUsed / rd.totalDays * 100.0;
+    rd.complianceThreshold = p_profile->cpap ? p_profile->cpap->complianceHours() : 4.0;
+
+    rd.totalHours = p_profile->calcHours(MT_CPAP, start, end);
+    // daysUsed counts only days with > 0 hours, so it can be 0 even when the
+    // range has enabled-but-0-hour summary records (presentDays > 0). Guard the
+    // divide so the PDF never shows "nan hours nan minutes".
+    rd.avgHoursUsed = rd.daysUsed > 0 ? rd.totalHours / rd.daysUsed : 0.0;
+    rd.avgHoursTotal = rd.totalHours / rd.totalDays;
+
+    // Median usage calculation
+    QVector<double> activeDaysHours;
+    double sumCsrPctPerNight = 0.0;   // Sum of nightly CSR% — for AirView-style per-night average
+    for (Day* day : rd.daysList) {
+        if (!day) continue;
+        double hrs = day->hours(MT_CPAP);
+        if (hrs > 0.0) {
+            activeDaysHours.append(hrs);
+            if (p_profile->hasChannel(CPAP_CSR)) {
+                double csrPct = day->calcPON(CPAP_CSR);
+                rd.totalCsrMinutes += hrs * (csrPct / 100.0) * 60.0;
+                sumCsrPctPerNight += csrPct;
+            }
+        }
+    }
+    std::sort(activeDaysHours.begin(), activeDaysHours.end());
+    if (!activeDaysHours.isEmpty()) {
+        int size = activeDaysHours.size();
+        if (size % 2 == 1) {
+            rd.medianHoursUsed = activeDaysHours[size / 2];
+        } else {
+            rd.medianHoursUsed = (activeDaysHours[size / 2 - 1] + activeDaysHours[size / 2]) / 2.0;
+        }
+    }
+    usageQuartiles(activeDaysHours, rd.q1HoursUsed, rd.q3HoursUsed);
+    // AirView reports "CSR% (avg)" as the mean of each night's CSR%, weighting every
+    // night equally — consistent with the per-night averaging used for every other
+    // "(avg)" statistic.
+    rd.avgCsrPctPerNight = rd.daysUsed > 0 ? sumCsrPctPerNight / rd.daysUsed : 0.0;
+
+    // AHI
+    double ahiHours = p_profile->calcHours(MT_CPAP, start, end);
+    rd.CentralAI = ahiHours > 0 ? p_profile->calcCount(CPAP_ClearAirway, MT_CPAP, start, end) / ahiHours : 0.0;
+    rd.ObstructiveAI = ahiHours > 0 ? p_profile->calcCount(CPAP_Obstructive, MT_CPAP, start, end) / ahiHours : 0.0;
+    rd.UnknownAI = ahiHours > 0 ? p_profile->calcCount(CPAP_Apnea, MT_CPAP, start, end) / ahiHours : 0.0;
+    rd.AI = rd.CentralAI + rd.ObstructiveAI + rd.UnknownAI;
+    rd.HI = ahiHours > 0 ? p_profile->calcCount(CPAP_Hypopnea, MT_CPAP, start, end) / ahiHours : 0.0;
+    rd.AHI = rd.AI + rd.HI;
+    rd.ReraIndex = ahiHours > 0 ? p_profile->calcCount(CPAP_RERA, MT_CPAP, start, end) / ahiHours : 0.0;
+    rd.RDI = rd.AHI + rd.ReraIndex;
+
+    // Baseline (diagnostic) AHI — mirrored from the exportReport body's untreatedAHI local (line ~2438)
+    {
+        double crBase = p_profile->cpap ? p_profile->cpap->untreatedAHI() : 0.0;
+        rd.untreatedAHI      = crBase;
+        rd.hasBaseline       = (crBase > 0.0);
+        rd.baselinePctChange = rd.hasBaseline ? (rd.AHI - crBase) / crBase * 100.0 : 0.0;
+    }
+
+    // Leaks
+    rd.leakChan = p_profile->hasChannel(CPAP_Leak) ? CPAP_Leak : (p_profile->hasChannel(CPAP_LeakTotal) ? CPAP_LeakTotal : NoChannel);
+    if (rd.leakChan != NoChannel) {
+        rd.medianLeak = calcDayAvgPercentile(rd.leakChan, 0.5,  rd.daysMap);
+        rd.p95Leak    = calcDayAvgPercentile(rd.leakChan, upperPctValue(), rd.daysMap);
+        rd.maxLeak    = calcDayAvgMax(rd.leakChan, rd.daysMap);  // respects OSCAR's max-calc pref (P99.5 or true max)
+    }
+
+    // 95th percentile flow limitation
+    if (p_profile->hasChannel(CPAP_FLG))
+        rd.p95FlowLimit = calcDayAvgPercentile(CPAP_FLG, upperPctValue(), rd.daysMap);  // per-night avg, consistent with all other channels
+
+    // Apnea Time and Leak Redline calculations
+    double totalApneaSecs = p_profile->calcSum(CPAP_ClearAirway, MT_CPAP, start, end) +
+                             p_profile->calcSum(CPAP_Obstructive, MT_CPAP, start, end) +
+                             p_profile->calcSum(CPAP_Apnea, MT_CPAP, start, end);
+    int totalApneaSecsInt = round(totalApneaSecs);
+    int apneaH = totalApneaSecsInt / 3600;
+    int apneaM = (totalApneaSecsInt % 3600) / 60;
+    int apneaS = totalApneaSecsInt % 60;
+    rd.timeInApneaStr = QString("%1:%2:%3")
+        .arg(apneaH, 2, 10, QChar('0'))
+        .arg(apneaM, 2, 10, QChar('0'))
+        .arg(apneaS, 2, 10, QChar('0'));
+
+    // CSR Time calculation
+    int totalCsrSecsInt = round(rd.totalCsrMinutes * 60.0);
+    int csrH = totalCsrSecsInt / 3600;
+    int csrM = (totalCsrSecsInt % 3600) / 60;
+    int csrS = totalCsrSecsInt % 60;
+    rd.timeInCsrStr = QString("%1:%2:%3")
+        .arg(csrH, 2, 10, QChar('0'))
+        .arg(csrM, 2, 10, QChar('0'))
+        .arg(csrS, 2, 10, QChar('0'));
+
+    double totalLeakSecs = 0.0;
+    double totalLeakAboveRedlineSecs = 0.0;
+    rd.leakRedline = p_profile->cpap ? p_profile->cpap->leakRedline() : 24.0;
+    for (Day* day : rd.daysList) {
+        if (!day) continue;
+        if (rd.leakChan != NoChannel) {
+            double hrs = day->hours(MT_CPAP);
+            totalLeakSecs += hrs * 3600.0;
+            totalLeakAboveRedlineSecs += day->timeAboveThreshold(rd.leakChan, rd.leakRedline) * 60.0;
+        }
+    }
+    rd.pctOverRedline = totalLeakSecs > 0 ? (totalLeakAboveRedlineSecs / totalLeakSecs) * 100.0 : 0.0;
+    int leakAboveRedlineSecsInt = round(totalLeakAboveRedlineSecs);
+    int larH = leakAboveRedlineSecsInt / 3600;
+    int larM = (leakAboveRedlineSecsInt % 3600) / 60;
+    int larS = leakAboveRedlineSecsInt % 60;
+    rd.timeAboveRedlineStr = QString("%1:%2:%3")
+        .arg(larH, 2, 10, QChar('0'))
+        .arg(larM, 2, 10, QChar('0'))
+        .arg(larS, 2, 10, QChar('0'));
+
+    // Additional therapy indices
+    rd.flIndex = (ahiHours > 0 && p_profile->hasChannel(CPAP_FlowLimit))
+        ? p_profile->calcCount(CPAP_FlowLimit, MT_CPAP, start, end) / ahiHours : 0.0;
+    // Dropout-filtered SpO2 stats over the whole period, computed in one pass and
+    // reused everywhere — period-low, T90 (time < 90% excluding probe-loss 0%
+    // spans), and the time-weighted average.
+    // Key the oximetry day map on either oximetry channel: a profile may record
+    // Pulse without SpO2 (or vice-versa).
+    rd.hasSpO2  = p_profile->hasChannel(OXI_SPO2);
+    rd.hasPulse = p_profile->hasChannel(OXI_Pulse);
+    if (rd.hasSpO2 || rd.hasPulse) {
+        for (Day* day : rd.allDays) {
+            if (!day) continue;
+            bool hasOxi = (rd.hasSpO2  && day->timeAboveThreshold(OXI_SPO2,  0.0) > 0.0) ||
+                          (rd.hasPulse && day->timeAboveThreshold(OXI_Pulse, 0.0) > 0.0);
+            if (hasOxi) rd.oxiDaysMap[day->date()] = day;
+        }
+    }
+    if (rd.hasSpO2) {
+        FilteredStats spo2 = calcFilteredStats(OXI_SPO2, rd.oxiSourceType, start, end, SPO2_ARTIFACT_FLOOR, 90.0, SPO2_MAX_FALL_PCT_PER_SEC);
+        rd.t90Secs       = spo2.timeBelowSecs;
+        rd.minSpO2       = spo2.min;
+        rd.avgSpO2Period = spo2.wavg;
+        for (Day* day : rd.oxiDaysMap)
+            rd.spo2RecordingSecs += day->timeAboveThreshold(OXI_SPO2, 0.0) * 60.0;
+    }
+    rd.minSpO2Set = (rd.minSpO2 > 0.0);
+
+    // Dropout-filtered Pulse stats over the whole period, same single-pass reuse
+    // (period min/max + time-weighted average).
+    if (p_profile->hasChannel(OXI_Pulse)) {
+        FilteredStats pulse = calcFilteredStats(OXI_Pulse, rd.oxiSourceType, start, end, PULSE_ARTIFACT_FLOOR, 0.0);
+        rd.minPulsePeriod = pulse.min;
+        rd.maxPulsePeriod = pulse.max;
+        rd.avgPulsePeriod = pulse.wavg;
+    }
+    int t90SecsInt = (int)rd.t90Secs;
+    int t90H = t90SecsInt / 3600;
+    int t90M = (t90SecsInt % 3600) / 60;
+    int t90S = t90SecsInt % 60;
+    rd.t90Str = QString("%1:%2:%3")
+        .arg(t90H, 2, 10, QChar('0')).arg(t90M, 2, 10, QChar('0')).arg(t90S, 2, 10, QChar('0'));
+
+    // Device Settings & Info
+    Machine *cpap = p_profile->GetMachine(MT_CPAP);
+    rd.brand = cpap ? cpap->brand().toHtmlEscaped() : tr("Unknown");
+    rd.model = cpap ? cpap->model().toHtmlEscaped() : tr("Unknown");
+    rd.serial = cpap ? cpap->serial().toHtmlEscaped() : tr("Unknown");
+
+    // Leak reporting convention differs by manufacturer: CPAP_Leak is always
+    // unintentional leak, CPAP_LeakTotal is always total leak.
+    rd.isTotalLeak = (rd.leakChan == CPAP_LeakTotal);
+
+    rd.lastDay = p_profile->GetGoodDay(p_profile->LastDay(MT_CPAP), MT_CPAP);
+    rd.modeStr = rd.lastDay ? rd.lastDay->getCPAPModeStr().toHtmlEscaped() : tr("Unknown");
+    rd.pressureSettings = rd.lastDay ? rd.lastDay->getPressureSettings().toHtmlEscaped() : tr("Unknown");
+    rd.relief = rd.lastDay ? rd.lastDay->getPressureRelief().toHtmlEscaped() : tr("None");
+
+    // Gather comfort settings
+    rd.humidLevel = getSettingStr(rd.lastDay, CPAP_HumidSetting);
+    if (rd.humidLevel.isEmpty()) rd.humidLevel = getSettingStr(rd.lastDay, PRS1_HumidLevel);
+    rd.humidLevel = rd.humidLevel.toHtmlEscaped();
+    rd.rampTime = getSettingStr(rd.lastDay, CPAP_RampTime).toHtmlEscaped();
+    rd.rampPres = getSettingStr(rd.lastDay, CPAP_RampPressure);
+
+    rd.pressDisplay = rd.pressureSettings;
+    if (!rd.pressDisplay.contains("cmH2O", Qt::CaseInsensitive)) {
+        rd.pressDisplay += " cmH2O";
+    }
+
+    // Patient DOB and Age calculation
+    rd.dob = p_profile->user->DOB();
+    rd.age = -1;
+    if (rd.dob.isValid()) {
+        rd.age = QDate::currentDate().year() - rd.dob.year();
+        if (QDate::currentDate() < rd.dob.addYears(rd.age))
+            rd.age--;
+    }
+    rd.patientName = (p_profile->user->lastName() + ", " + p_profile->user->firstName()).toHtmlEscaped();
+    rd.maskDescription = p_profile->cpap ? p_profile->cpap->maskDescription() : QString();
+
+    // Determine device mode early — used to gate pressure stats/charts for CPAP
+    rd.p1Mode = rd.lastDay ? (CPAPMode)(int)rd.lastDay->settings_max(CPAP_Mode) : MODE_UNKNOWN;
+    rd.p1IsCpap = (rd.p1Mode == MODE_CPAP);
+
+    // Calculate CPAP Pressure Stats
+    if (p_profile->hasChannel(CPAP_Pressure)) {
+        rd.avgPressure = calcDayAvgPercentile(CPAP_Pressure, 0.5,  rd.daysMap);
+        rd.p95Pressure = calcDayAvgPercentile(CPAP_Pressure, upperPctValue(), rd.daysMap);
+        rd.maxPressure = calcDayAvgMax(CPAP_Pressure, rd.daysMap);
+    }
+
+    // Overnight oxygen detail number part (ODI / configured drop criterion / T88 /
+    // SpO2 time-in-zone). Originally computed inside the Classic render section's
+    // "!airView && usedDaysOxi > 0" block; the pure numbers live here so the
+    // AirView V2 renderer can reuse them. Gated on oximetry presence only.
+    if (rd.usedDaysOxi > 0) {
+        double oximeterHrs = 0.0;
+        for (Day* d : rd.oxiDaysMap)
+            for (Session* sess : d->getSessions(rd.oxiSourceType))
+                oximeterHrs += sess->hours();
+        rd.odi = oximeterHrs > 0 ? p_profile->calcCount(OXI_SPO2Drop, rd.oxiSourceType, start, end) / oximeterHrs : 0.0;
+        rd.dropPct = p_profile->oxi ? p_profile->oxi->spO2DropPercentage() : 3.0;  // configured ODI criterion
+        rd.t88Secs = calcFilteredStats(OXI_SPO2, rd.oxiSourceType, start, end, SPO2_ARTIFACT_FLOOR, 88.0).timeBelowSecs;
+        double secAbove95 = 0.0, secAbove90 = 0.0;
+        for (Day* d : rd.oxiDaysMap) {
+            secAbove95 += d->timeAboveThreshold(OXI_SPO2, 95.0) * 60.0;
+            secAbove90 += d->timeAboveThreshold(OXI_SPO2, 90.0) * 60.0;
+        }
+        rd.spo2Zones = spo2ZonePercents(rd.spo2RecordingSecs, secAbove95, secAbove90);
+    }
+
+    // Oximetry-derived fields — mirrored from the exportReport body's oxiSourceType block (lines ~3056-3064)
+    if (rd.usedDaysOxiAny > 0) {
+        rd.oxiNotUsedDays = rd.totalDays - rd.usedDaysOxiAny;
+        double crOximeterHours = 0.0;
+        for (Day* day : rd.oxiDaysMap)
+            for (Session* sess : day->getSessions(rd.oxiSourceType))
+                crOximeterHours += sess->hours();
+        rd.oxiRecordingHrsAvg = crOximeterHours / rd.usedDaysOxiAny;  // usedDaysOxiAny > 0 guaranteed
+        if (rd.usedDaysOxi > 0) {
+            rd.pctTimeInDesat = crOximeterHours > 0 ? (100.0 / crOximeterHours) * (p_profile->calcSum(OXI_SPO2Drop, rd.oxiSourceType, start, end) / 3600.0) : 0.0;
+        }
+        if (rd.usedDaysPulse > 0) {
+            rd.pulseChangeIndex = crOximeterHours > 0 ? p_profile->calcCount(OXI_PulseChange, rd.oxiSourceType, start, end) / crOximeterHours : 0.0;
+        }
+    }
+
+    // Sleep-stage aggregation (GATED). Most profiles (CPAP + oximeter) have no
+    // MT_SLEEPSTAGE machine, so rd.sleep stays absent and the AirView V2 page omits
+    // the section. Only Zeo / Apple-Watch / Dreem profiles populate this. The math
+    // mirrors statistics.cpp's SC_SS_* per-night aggregation (statistics.cpp
+    // ~2146-2245): per-night Deep/Light/REM/Wake durations come from the ZEO_TimeIn*
+    // session settings (already in minutes per schema.cpp ~360-364); bedtime/wake
+    // come from session realFirst()/realLast(); each stat is the per-night average.
+    if (!p_profile->GetMachines(MT_SLEEPSTAGE).isEmpty()) {
+        QList<Day*> stageDays = p_profile->getDays(MT_SLEEPSTAGE, start, end);
+        int nights = 0;
+        double sumWake = 0, sumREM = 0, sumLight = 0, sumDeep = 0;
+        double sumLatency = 0, sumBedHrs = 0, sumWakeHrs = 0;
+
+        for (Day* sday : stageDays) {
+            if (!sday) continue;
+            QList<Session*> ssess = sday->getSessions(MT_SLEEPSTAGE, false);
+            if (ssess.isEmpty()) continue;
+            qint64 bedMs = 0, wakeMs = 0;
+            double dWake = 0, dREM = 0, dLight = 0, dDeep = 0, dLat = 0;
+            bool hasData = false;
+            for (Session* sess : ssess) {
+                if (!sess->enabled()) continue;
+                qint64 sf = sess->realFirst();
+                if (sf > 0 && (bedMs == 0 || sf < bedMs)) bedMs = sf;
+                qint64 sl = sess->realLast();
+                if (sl > 0 && (wakeMs == 0 || sl > wakeMs)) wakeMs = sl;
+                auto addS = [&](ChannelID ch, double &out) {
+                    auto it = sess->settings.find(ch);
+                    if (it != sess->settings.end()) out += it.value().toDouble();
+                };
+                addS(ZEO_TimeInWake,  dWake);
+                addS(ZEO_TimeInREM,   dREM);
+                addS(ZEO_TimeInLight, dLight);
+                addS(ZEO_TimeInDeep,  dDeep);
+                addS(ZEO_TimeToZ,     dLat);
+                hasData = true;
+            }
+            if (!hasData || bedMs == 0 || wakeMs == 0) continue;
+            QDateTime bdt = QDateTime::fromMSecsSinceEpoch(bedMs, QTimeZone::systemTimeZone());
+            double bh = bdt.time().hour() + bdt.time().minute()/60.0 + bdt.time().second()/3600.0;
+            if (bh < 12.0) bh += 24.0;   // shift after-midnight bedtimes onto a continuous evening->morning axis
+            sumBedHrs += bh;
+
+            QDateTime wkt = QDateTime::fromMSecsSinceEpoch(wakeMs, QTimeZone::systemTimeZone());
+            double wh = wkt.time().hour() + wkt.time().minute()/60.0 + wkt.time().second()/3600.0;
+            if (wh < 12.0) wh += 24.0;
+            sumWakeHrs += wh;
+
+            sumWake    += dWake;
+            sumREM     += dREM;
+            sumLight   += dLight;
+            sumDeep    += dDeep;
+            sumLatency += dLat;
+            nights++;
+        }
+
+        rd.sleep.sleepStageNights = nights;
+        if (nights > 0) {
+            rd.sleep.awakeMin = sumWake  / nights;
+            rd.sleep.remMin   = sumREM   / nights;
+            rd.sleep.lightMin = sumLight / nights;
+            rd.sleep.deepMin  = sumDeep  / nights;
+            // TST excludes Wake — matches statistics.cpp avgTST = avgREM+avgLight+avgDeep.
+            rd.sleep.tstMin   = rd.sleep.remMin + rd.sleep.lightMin + rd.sleep.deepMin;
+            // Percentages are over STAGED time (incl. wake) — matches statistics.cpp's
+            // totalMin = avgWake + avgTST denominator for the SC_SS_*_PCT rows.
+            double stagedMin = rd.sleep.awakeMin + rd.sleep.tstMin;
+            if (stagedMin > 0) {
+                rd.sleep.deepPct  = 100.0 * rd.sleep.deepMin  / stagedMin;
+                rd.sleep.lightPct = 100.0 * rd.sleep.lightMin / stagedMin;
+                rd.sleep.remPct   = 100.0 * rd.sleep.remMin   / stagedMin;
+                rd.sleep.awakePct = 100.0 * rd.sleep.awakeMin / stagedMin;
+            }
+            rd.sleep.remOfTstPct = rd.sleep.tstMin > 0 ? 100.0 * rd.sleep.remMin / rd.sleep.tstMin : 0.0;
+            rd.sleep.sleepLatencyMin = sumLatency / nights;  // ZEO_TimeToZ is in minutes
+
+            // Average bedtime / wake as 24h "HH:mm", same averaging as statistics.cpp.
+            auto hrsToHHmm = [](double h) -> QString {
+                if (h >= 24.0) h -= 24.0;
+                int hh = static_cast<int>(h) % 24;
+                int mm = static_cast<int>((h - static_cast<int>(h)) * 60.0);
+                return QString("%1:%2").arg(hh, 2, 10, QChar('0')).arg(mm, 2, 10, QChar('0'));
+            };
+            rd.sleep.avgBedtime = hrsToHHmm(sumBedHrs  / nights);
+            rd.sleep.avgWake    = hrsToHHmm(sumWakeHrs / nights);
+
+            rd.sleep.present = true;
+        }
+    }
+
+    return rd;
+}
+
+
 void ComplianceReport::exportReport(QWidget *parent)
 {
     if (!p_profile) {
@@ -1969,40 +2391,10 @@ void ComplianceReport::exportReport(QWidget *parent)
     }
 
     // Check if data exists in range
-    int totalDays = start.daysTo(end) + 1;
     int presentDays = p_profile->countDays(MT_CPAP, start, end);
     if (presentDays == 0) {
         QMessageBox::warning(parent, tr("No Data"), tr("No CPAP data found in the selected date range."));
         return;
-    }
-
-    // Map dates to Day* objects
-    QList<Day*> daysList = p_profile->getDays(MT_CPAP, start, end);
-    QMap<QDate, Day*> daysMap;
-    for (Day* day : daysList) {
-        if (!day) continue;
-        daysMap[day->date()] = day;
-    }
-
-    // Days with no data at all vs days in map but with 0 therapy hours
-    int daysNoData = 0;
-    for (int i = 0; i < totalDays; ++i) {
-        if (!daysMap.contains(start.addDays(i))) ++daysNoData;
-    }
-    int daysNotUsed = 0;
-    for (auto it = daysMap.begin(); it != daysMap.end(); ++it) {
-        if (it.value()->hours(MT_CPAP) == 0.0) ++daysNotUsed;
-    }
-
-    // "Used" means actual therapy was recorded (> 0 hours). countDays counts any
-    // day with an enabled session, which includes 0-hour summary/brick records;
-    // counting those as "used" double-counts them (they also land in daysNotUsed)
-    // and dilutes avgHoursUsed so it disagrees with the median. The usage buckets
-    // are then mutually exclusive: daysUsed (compliant + non-compliant) + daysNotUsed
-    // + daysNoData == totalDays.
-    int daysUsed = 0;
-    for (auto it = daysMap.begin(); it != daysMap.end(); ++it) {
-        if (it.value()->hours(MT_CPAP) > 0.0) ++daysUsed;
     }
 
     // Prompt for save file name
@@ -2014,251 +2406,80 @@ void ComplianceReport::exportReport(QWidget *parent)
         return;
     }
 
-    // Gather statistics
-    QList<Day*> allDays = p_profile->getDays(MT_UNKNOWN, start, end);
-    // Determine the machine type that actually holds oximetry data for this profile.
-    MachineType oxiSourceType = MT_OXIMETER;
-    if (p_profile->countDays(MT_OXIMETER, start, end) == 0) {
-        ChannelID spo2id  = schema::channel["SPO2"].id();
-        ChannelID pulseid = schema::channel["Pulse"].id();
-        if ((spo2id  != NoChannel && p_profile->channelAvailable(spo2id))
-                || (pulseid != NoChannel && p_profile->channelAvailable(pulseid))) {
-            oxiSourceType = MT_CPAP;
-        }
-    }
+    // Gather every report statistic into a single reusable struct so the same
+    // numbers can be shared with the AirView V2 renderer.
+    ReportData rd = gatherReportData(start, end);
 
-    // usedDaysOxi   = nights with SpO2 data (gates SpO2-specific output).
-    // usedDaysPulse = nights with Pulse data (gates Pulse-specific output).
-    // usedDaysOxiAny= nights with EITHER channel — the oximetry section as a
-    //   whole appears whenever any oximetry was recorded, so a Pulse-only
-    //   profile (no SpO2) still gets its oximeter page instead of nothing.
-    int usedDaysOxi = 0, usedDaysPulse = 0, usedDaysOxiAny = 0;
-    for (Day* day : allDays) {
-        if (!day) continue;
-        bool hasS = day->timeAboveThreshold(OXI_SPO2,  0.0) > 0.0;
-        bool hasP = day->timeAboveThreshold(OXI_Pulse, 0.0) > 0.0;
-        if (hasS) usedDaysOxi++;
-        if (hasP) usedDaysPulse++;
-        if (hasS || hasP) usedDaysOxiAny++;
-    }
-    QList<SettingsChangeBlock> settingsBlocks = getSettingsChanges(start, end, daysList);
-    if (usedDaysOxi > 0) {
-        for (auto& block : settingsBlocks) {
-            double v = calcFilteredStats(OXI_SPO2, oxiSourceType, block.start, block.end, SPO2_ARTIFACT_FLOOR, 0.0, SPO2_MAX_FALL_PCT_PER_SEC).min;
-            block.minSpo2 = (v > SPO2_ARTIFACT_FLOOR) ? v : -1.0;
-        }
-    }
+    // Bind the values the Classic renderer consumes from the gathered data.
+    int totalDays = rd.totalDays;
+    int daysNoData = rd.daysNoData;
+    int daysNotUsed = rd.daysNotUsed;
+    int daysUsed = rd.daysUsed;
+    const QMap<QDate, Day*>& daysMap = rd.daysMap;
+    const QList<SettingsChangeBlock>& settingsBlocks = rd.settingsBlocks;
+    MachineType oxiSourceType = rd.oxiSourceType;
+    int usedDaysOxi = rd.usedDaysOxi;
+    int usedDaysPulse = rd.usedDaysPulse;
+    int usedDaysOxiAny = rd.usedDaysOxiAny;
+    int compliantDays = rd.compliantDays;
+    double pctCompliant = rd.pctCompliant;
+    double pctUsed = rd.pctUsed;
+    double complianceThreshold = rd.complianceThreshold;
+    double totalHours = rd.totalHours;
+    double avgHoursUsed = rd.avgHoursUsed;
+    double avgHoursTotal = rd.avgHoursTotal;
+    double medianHoursUsed = rd.medianHoursUsed;
+    double totalCsrMinutes = rd.totalCsrMinutes;
+    double avgCsrPctPerNight = rd.avgCsrPctPerNight;
+    double CentralAI = rd.CentralAI;
+    double ObstructiveAI = rd.ObstructiveAI;
+    double UnknownAI = rd.UnknownAI;
+    double AI = rd.AI;
+    double HI = rd.HI;
+    double AHI = rd.AHI;
+    double ReraIndex = rd.ReraIndex;
+    double RDI = rd.RDI;
+    ChannelID leakChan = rd.leakChan;
+    double medianLeak = rd.medianLeak;
+    double p95Leak = rd.p95Leak;
+    double maxLeak = rd.maxLeak;
+    double p95FlowLimit = rd.p95FlowLimit;
+    QString timeInApneaStr = rd.timeInApneaStr;
+    QString timeInCsrStr = rd.timeInCsrStr;
+    double leakRedline = rd.leakRedline;
+    double pctOverRedline = rd.pctOverRedline;
+    QString timeAboveRedlineStr = rd.timeAboveRedlineStr;
+    double flIndex = rd.flIndex;
+    double t90Secs = rd.t90Secs;
+    double spo2RecordingSecs = rd.spo2RecordingSecs;
+    double minSpO2 = rd.minSpO2;
+    double avgSpO2Period = rd.avgSpO2Period;
+    bool minSpO2Set = rd.minSpO2Set;
+    double minPulsePeriod = rd.minPulsePeriod;
+    double maxPulsePeriod = rd.maxPulsePeriod;
+    double avgPulsePeriod = rd.avgPulsePeriod;
+    QString t90Str = rd.t90Str;
+    QString brand = rd.brand;
+    QString model = rd.model;
+    QString serial = rd.serial;
+    QString modeStr = rd.modeStr;
+    QString relief = rd.relief;
+    QString humidLevel = rd.humidLevel;
+    QString rampTime = rd.rampTime;
+    QString rampPres = rd.rampPres;
+    QDate dob = rd.dob;
+    int age = rd.age;
+    CPAPMode p1Mode = rd.p1Mode;
+    bool p1IsCpap = rd.p1IsCpap;
+    double avgPressure = rd.avgPressure;
+    double p95Pressure = rd.p95Pressure;
+    double maxPressure = rd.maxPressure;
+    Day *lastDay = rd.lastDay;
+    bool isTotalLeak = rd.isTotalLeak;
 
-    int compliantDays = p_profile->countCompliantDays(MT_CPAP, start, end);
-    double pctCompliant = (double)compliantDays / totalDays * 100.0;
-    double pctUsed = (double)daysUsed / totalDays * 100.0;
-    double complianceThreshold = p_profile->cpap ? p_profile->cpap->complianceHours() : 4.0;
-
-    double totalHours = p_profile->calcHours(MT_CPAP, start, end);
-    // daysUsed counts only days with > 0 hours, so it can be 0 even when the
-    // range has enabled-but-0-hour summary records (presentDays > 0). Guard the
-    // divide so the PDF never shows "nan hours nan minutes".
-    double avgHoursUsed = daysUsed > 0 ? totalHours / daysUsed : 0.0;
-    double avgHoursTotal = totalHours / totalDays;
-
-    // Median usage calculation
-    QVector<double> activeDaysHours;
-    double totalCsrMinutes = 0.0;
-    double sumCsrPctPerNight = 0.0;   // Σ nightly CSR% — for AirView-style per-night average
-    for (Day* day : daysList) {
-        if (!day) continue;
-        double hrs = day->hours(MT_CPAP);
-        if (hrs > 0.0) {
-            activeDaysHours.append(hrs);
-            if (p_profile->hasChannel(CPAP_CSR)) {
-                double csrPct = day->calcPON(CPAP_CSR);
-                totalCsrMinutes += hrs * (csrPct / 100.0) * 60.0;
-                sumCsrPctPerNight += csrPct;
-            }
-        }
-    }
-    std::sort(activeDaysHours.begin(), activeDaysHours.end());
-    double medianHoursUsed = 0.0;
-    if (!activeDaysHours.isEmpty()) {
-        int size = activeDaysHours.size();
-        if (size % 2 == 1) {
-            medianHoursUsed = activeDaysHours[size / 2];
-        } else {
-            medianHoursUsed = (activeDaysHours[size / 2 - 1] + activeDaysHours[size / 2]) / 2.0;
-        }
-    }
-    double avgCsrMinutesPerNight = daysUsed > 0 ? totalCsrMinutes / daysUsed : 0.0;
-    // AirView reports "CSR% (avg)" as the mean of each night's CSR%, weighting every
-    // night equally — consistent with the per-night averaging used for every other
-    // "(avg)" statistic. The previous period-weighted form (CSR hours / total hours)
-    // let long nights dominate and diverged from AirView when night lengths varied.
-    double avgCsrPctPerNight = daysUsed > 0 ? sumCsrPctPerNight / daysUsed : 0.0;
-
-    // AHI
-    double ahiHours = p_profile->calcHours(MT_CPAP, start, end);
-    double CentralAI = ahiHours > 0 ? p_profile->calcCount(CPAP_ClearAirway, MT_CPAP, start, end) / ahiHours : 0.0;
-    double ObstructiveAI = ahiHours > 0 ? p_profile->calcCount(CPAP_Obstructive, MT_CPAP, start, end) / ahiHours : 0.0;
-    double UnknownAI = ahiHours > 0 ? p_profile->calcCount(CPAP_Apnea, MT_CPAP, start, end) / ahiHours : 0.0;
-    double AI = CentralAI + ObstructiveAI + UnknownAI;
-    double HI = ahiHours > 0 ? p_profile->calcCount(CPAP_Hypopnea, MT_CPAP, start, end) / ahiHours : 0.0;
-    double AHI = AI + HI;
-    double ReraIndex = ahiHours > 0 ? p_profile->calcCount(CPAP_RERA, MT_CPAP, start, end) / ahiHours : 0.0;
-    double RDI = AHI + ReraIndex;
-
-    // Leaks
-    ChannelID leakChan = p_profile->hasChannel(CPAP_Leak) ? CPAP_Leak : (p_profile->hasChannel(CPAP_LeakTotal) ? CPAP_LeakTotal : NoChannel);
-    double medianLeak = 0.0;
-    double p95Leak = 0.0;
-    double maxLeak = 0.0;
-    if (leakChan != NoChannel) {
-        medianLeak = calcDayAvgPercentile(leakChan, 0.5,  daysMap);
-        p95Leak    = calcDayAvgPercentile(leakChan, upperPctValue(), daysMap);
-        maxLeak    = calcDayAvgMax(leakChan, daysMap);  // respects OSCAR's max-calc pref (P99.5 or true max)
-    }
-
-    // 95th percentile flow limitation
-    double p95FlowLimit = 0.0;
-    if (p_profile->hasChannel(CPAP_FLG))
-        p95FlowLimit = calcDayAvgPercentile(CPAP_FLG, upperPctValue(), daysMap);  // per-night avg, consistent with all other channels
-
-    // Apnea Time and Leak Redline calculations
-    double totalApneaSecs = p_profile->calcSum(CPAP_ClearAirway, MT_CPAP, start, end) +
-                             p_profile->calcSum(CPAP_Obstructive, MT_CPAP, start, end) +
-                             p_profile->calcSum(CPAP_Apnea, MT_CPAP, start, end);
-    int totalApneaSecsInt = round(totalApneaSecs);
-    int apneaH = totalApneaSecsInt / 3600;
-    int apneaM = (totalApneaSecsInt % 3600) / 60;
-    int apneaS = totalApneaSecsInt % 60;
-    QString timeInApneaStr = QString("%1:%2:%3")
-        .arg(apneaH, 2, 10, QChar('0'))
-        .arg(apneaM, 2, 10, QChar('0'))
-        .arg(apneaS, 2, 10, QChar('0'));
-
-    // CSR Time calculation
-    int totalCsrSecsInt = round(totalCsrMinutes * 60.0);
-    int csrH = totalCsrSecsInt / 3600;
-    int csrM = (totalCsrSecsInt % 3600) / 60;
-    int csrS = totalCsrSecsInt % 60;
-    QString timeInCsrStr = QString("%1:%2:%3")
-        .arg(csrH, 2, 10, QChar('0'))
-        .arg(csrM, 2, 10, QChar('0'))
-        .arg(csrS, 2, 10, QChar('0'));
-
-    double totalLeakSecs = 0.0;
-    double totalLeakAboveRedlineSecs = 0.0;
-    double leakRedline = p_profile->cpap ? p_profile->cpap->leakRedline() : 24.0;
-    for (Day* day : daysList) {
-        if (!day) continue;
-        if (leakChan != NoChannel) {
-            double hrs = day->hours(MT_CPAP);
-            totalLeakSecs += hrs * 3600.0;
-            totalLeakAboveRedlineSecs += day->timeAboveThreshold(leakChan, leakRedline) * 60.0;
-        }
-    }
-    double pctOverRedline = totalLeakSecs > 0 ? (totalLeakAboveRedlineSecs / totalLeakSecs) * 100.0 : 0.0;
-    int leakAboveRedlineSecsInt = round(totalLeakAboveRedlineSecs);
-    int larH = leakAboveRedlineSecsInt / 3600;
-    int larM = (leakAboveRedlineSecsInt % 3600) / 60;
-    int larS = leakAboveRedlineSecsInt % 60;
-    QString timeAboveRedlineStr = QString("%1:%2:%3")
-        .arg(larH, 2, 10, QChar('0'))
-        .arg(larM, 2, 10, QChar('0'))
-        .arg(larS, 2, 10, QChar('0'));
-
-    // Additional therapy indices
-    double flIndex = (ahiHours > 0 && p_profile->hasChannel(CPAP_FlowLimit))
-        ? p_profile->calcCount(CPAP_FlowLimit, MT_CPAP, start, end) / ahiHours : 0.0;
-    // Dropout-filtered SpO2 stats over the whole period, computed in one pass and
-    // reused everywhere — period-low, T90 (time < 90% excluding probe-loss 0%
-    // spans), and the time-weighted average. Reusing one walk means the report
-    // never shows two different "minimum SpO2" numbers and never re-reads the same
-    // samples for each statistic.
-    double t90Secs = 0.0;
-    double spo2RecordingSecs = 0.0;  // total SpO2 sample time, for T90-as-% of recording
-    double minSpO2 = 0.0, avgSpO2Period = 0.0;
-    // Key the oximetry day map on either oximetry channel: a profile may record
-    // Pulse without SpO2 (or vice-versa). Keying on SpO2 alone left Pulse-only
-    // profiles with an empty map, blanking every Pulse stat/chart downstream.
-    QMap<QDate, Day*> oxiDaysMapEarly;
-    bool hasSpO2  = p_profile->hasChannel(OXI_SPO2);
-    bool hasPulse = p_profile->hasChannel(OXI_Pulse);
-    if (hasSpO2 || hasPulse) {
-        for (Day* day : allDays) {
-            if (!day) continue;
-            bool hasOxi = (hasSpO2  && day->timeAboveThreshold(OXI_SPO2,  0.0) > 0.0) ||
-                          (hasPulse && day->timeAboveThreshold(OXI_Pulse, 0.0) > 0.0);
-            if (hasOxi) oxiDaysMapEarly[day->date()] = day;
-        }
-    }
-    if (hasSpO2) {
-        FilteredStats spo2 = calcFilteredStats(OXI_SPO2, oxiSourceType, start, end, SPO2_ARTIFACT_FLOOR, 90.0, SPO2_MAX_FALL_PCT_PER_SEC);
-        t90Secs       = spo2.timeBelowSecs;
-        minSpO2       = spo2.min;
-        avgSpO2Period = spo2.wavg;
-        for (Day* day : oxiDaysMapEarly)
-            spo2RecordingSecs += day->timeAboveThreshold(OXI_SPO2, 0.0) * 60.0;
-    }
-    bool minSpO2Set = (minSpO2 > 0.0);
-
-    // Dropout-filtered Pulse stats over the whole period, same single-pass reuse
-    // (period min/max + time-weighted average).
-    double minPulsePeriod = 0.0, maxPulsePeriod = 0.0, avgPulsePeriod = 0.0;
-    if (p_profile->hasChannel(OXI_Pulse)) {
-        FilteredStats pulse = calcFilteredStats(OXI_Pulse, oxiSourceType, start, end, PULSE_ARTIFACT_FLOOR, 0.0);
-        minPulsePeriod = pulse.min;
-        maxPulsePeriod = pulse.max;
-        avgPulsePeriod = pulse.wavg;
-    }
-    int t90SecsInt = (int)t90Secs;
-    int t90H = t90SecsInt / 3600;
-    int t90M = (t90SecsInt % 3600) / 60;
-    int t90S = t90SecsInt % 60;
-    QString t90Str = QString("%1:%2:%3")
-        .arg(t90H, 2, 10, QChar('0')).arg(t90M, 2, 10, QChar('0')).arg(t90S, 2, 10, QChar('0'));
-
-    // Device Settings & Info
-    Machine *cpap = p_profile->GetMachine(MT_CPAP);
-    QString brand = cpap ? cpap->brand().toHtmlEscaped() : tr("Unknown");
-    QString model = cpap ? cpap->model().toHtmlEscaped() : tr("Unknown");
-    QString serial = cpap ? cpap->serial().toHtmlEscaped() : tr("Unknown");
-
-    // Leak reporting convention differs by manufacturer:
-    //  - ResMed reports UNINTENTIONAL leak (mask vent flow already subtracted);
-    //    >24 L/min indicates a poor seal, so the 24 L/min redline is meaningful.
-    //  - Philips Respironics (and others) report TOTAL leak (intentional mask
-    //    exhaust + seal leak), where 30-50 L/min is normal and a 24 L/min redline
-    //    would be alarmingly wrong.
-    // The channel itself is the authoritative discriminator: CPAP_Leak is always
-    // unintentional leak, CPAP_LeakTotal is always total leak.
-    bool isTotalLeak = (leakChan == CPAP_LeakTotal);
+    // Render-only locals derived from the gathered leak data (not ReportData fields).
     QString leakTypeLabel = tr("Leak Rate");
     double leakChartRedline = isTotalLeak ? 0.0 : leakRedline;  // hide 24 L/min line for total leak
-
-    Day *lastDay = p_profile->GetGoodDay(p_profile->LastDay(MT_CPAP), MT_CPAP);
-    QString modeStr = lastDay ? lastDay->getCPAPModeStr().toHtmlEscaped() : tr("Unknown");
-    QString pressureSettings = lastDay ? lastDay->getPressureSettings().toHtmlEscaped() : tr("Unknown");
-    QString relief = lastDay ? lastDay->getPressureRelief().toHtmlEscaped() : tr("None");
-
-    // Gather comfort settings
-    QString humidLevel = getSettingStr(lastDay, CPAP_HumidSetting);
-    if (humidLevel.isEmpty()) humidLevel = getSettingStr(lastDay, PRS1_HumidLevel);
-    humidLevel = humidLevel.toHtmlEscaped();
-    QString rampTime = getSettingStr(lastDay, CPAP_RampTime).toHtmlEscaped();
-    QString rampPres = getSettingStr(lastDay, CPAP_RampPressure);
-
-    QString pressDisplay = pressureSettings;
-    if (!pressDisplay.contains("cmH2O", Qt::CaseInsensitive)) {
-        pressDisplay += " cmH2O";
-    }
-
-    // Patient DOB and Age calculation
-    QDate dob = p_profile->user->DOB();
-    int age = -1;
-    if (dob.isValid()) {
-        age = QDate::currentDate().year() - dob.year();
-        if (QDate::currentDate() < dob.addYears(age))
-            age--;
-    }
 
     // Local duration formatting helper
     auto getHoursMinutes = [](double hrsVal) {
@@ -2276,20 +2497,6 @@ void ComplianceReport::exportReport(QWidget *parent)
         return QString("%1h %2m").arg(hm.first).arg(hm.second);
     };
 
-    // Determine device mode early — used to gate pressure stats/charts for CPAP
-    CPAPMode p1Mode = lastDay ? (CPAPMode)(int)lastDay->settings_max(CPAP_Mode) : MODE_UNKNOWN;
-    bool p1IsCpap = (p1Mode == MODE_CPAP);
-
-    // Calculate CPAP Pressure Stats
-    double avgPressure = 0.0;
-    double p95Pressure = 0.0;
-    double maxPressure = 0.0;
-    if (p_profile->hasChannel(CPAP_Pressure)) {
-        avgPressure = calcDayAvgPercentile(CPAP_Pressure, 0.5,  daysMap);
-        p95Pressure = calcDayAvgPercentile(CPAP_Pressure, upperPctValue(), daysMap);
-        maxPressure = calcDayAvgMax(CPAP_Pressure, daysMap);
-    }
-
     // Render compact bar charts in vector SVG format (no legend inside image)
     QString usageChartUrl = renderUsageChart(daysMap, start, end, complianceThreshold, tr("Daily Usage"), tr("hours"));
     QString ahiChartUrl   = renderAhiChart(daysMap, start, end, tr("AHI"), tr("events/hour"));
@@ -2302,6 +2509,10 @@ void ComplianceReport::exportReport(QWidget *parent)
     printer.setOutputFileName(savePath);
     printer.setPageSize(QPageSize(QPageSize::A4));
     printer.setPageOrientation(QPageLayout::Portrait);
+    if (dlg.reportStyle() == ComplianceReportDialog::AirViewV2) {
+        renderAirViewV2Pdf(rd, printer, selectedChans);
+        return;   // AirView V2 fully owns the printer
+    }
     printer.setPageMargins(QMarginsF(8, 4, 8, 4), QPageLayout::Millimeter);
 
     // Stats column is wide enough for the longest label/value pair.
@@ -2329,7 +2540,7 @@ void ComplianceReport::exportReport(QWidget *parent)
     QVector<QByteArray> chartRegistry;
 
     // Reuse oximeter daysMap built earlier
-    const QMap<QDate, Day*>& oxiDaysMap = oxiDaysMapEarly;
+    const QMap<QDate, Day*>& oxiDaysMap = rd.oxiDaysMap;
 
     // Build channel charts for every checked channel that has data
     // Skip channels already covered by the four fixed charts above
@@ -2409,7 +2620,7 @@ void ComplianceReport::exportReport(QWidget *parent)
     QString logoBase64 = logoImage.isNull() ? QString() : imageToBase64DataUrl(logoImage);
 
     // Common header strings
-    QString patientNameStr = (p_profile->user->lastName() + ", " + p_profile->user->firstName()).toHtmlEscaped();
+    QString patientNameStr = rd.patientName;
     QString dateRangeStr   = start.toString("MMM d, yyyy") + " - " + end.toString("MMM d, yyyy");
     QString page1SubInfo;
     if (dob.isValid())
@@ -2573,7 +2784,7 @@ void ComplianceReport::exportReport(QWidget *parent)
 
     // Mask: show if configured in Preferences (omitted in AirView format)
     if (!airView) {
-        QString maskDesc = p_profile->cpap ? p_profile->cpap->maskDescription() : QString();
+        QString maskDesc = rd.maskDescription;
         if (!maskDesc.isEmpty()) {
             MaskType mtype = p_profile->cpap ? p_profile->cpap->maskType() : Mask_Unknown;
             if (mtype == Mask_Unknown) {
@@ -2669,6 +2880,7 @@ void ComplianceReport::exportReport(QWidget *parent)
                 "</tr>";
     }
     if (p_profile->hasChannel(CPAP_CSR)) {
+        double avgCsrMinutesPerNight = daysUsed > 0 ? totalCsrMinutes / daysUsed : 0.0;
         int csrAvgMins = qRound(avgCsrMinutesPerNight);
         html += "<tr>"
                 "<td colspan='3' " + tkL + ">" + tr("Cheyne-Stokes respiration (average duration per night)") + "</td>"
@@ -2888,19 +3100,10 @@ void ComplianceReport::exportReport(QWidget *parent)
     // unchanged. The desaturation/zone indices are computed in the later stats
     // section, so derive the few we need here. Omitted in AirView mode.
     if (!airView && usedDaysOxi > 0) {
-        double oximeterHrs = 0.0;
-        for (Day* d : oxiDaysMap)
-            for (Session* sess : d->getSessions(oxiSourceType))
-                oximeterHrs += sess->hours();
-        double odi = oximeterHrs > 0 ? p_profile->calcCount(OXI_SPO2Drop, oxiSourceType, start, end) / oximeterHrs : 0.0;
-        double dropPct = p_profile->oxi ? p_profile->oxi->spO2DropPercentage() : 3.0;  // configured ODI criterion
-        double t88Secs = calcFilteredStats(OXI_SPO2, oxiSourceType, start, end, SPO2_ARTIFACT_FLOOR, 88.0).timeBelowSecs;
-        double secAbove95 = 0.0, secAbove90 = 0.0;
-        for (Day* d : oxiDaysMap) {
-            secAbove95 += d->timeAboveThreshold(OXI_SPO2, 95.0) * 60.0;
-            secAbove90 += d->timeAboveThreshold(OXI_SPO2, 90.0) * 60.0;
-        }
-        Spo2ZonePercents z = spo2ZonePercents(spo2RecordingSecs, secAbove95, secAbove90);
+        double odi = rd.odi;
+        double dropPct = rd.dropPct;
+        double t88Secs = rd.t88Secs;
+        Spo2ZonePercents z = rd.spo2Zones;
         auto hm = [](double secs) -> QString { return QString::number(int(secs / 60.0)) + " min"; };
 
         // Proportional time-in-zone bar. Use the HTML width ATTRIBUTE (not CSS
