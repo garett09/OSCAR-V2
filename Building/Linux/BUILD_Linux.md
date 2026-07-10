@@ -17,7 +17,7 @@ After installing the required packages:
 
     $ mkdir OSCAR
     $ cd OSCAR
-    $ git clone https://gitlab.com/CrimsonNape/OSCAR-code.git
+    $ git clone https://gitlab.com/CrimsonNape/OSCAR-SQL.git OSCAR-code
     $ mkdir build
     $ cd build
     $ qmake ../OSCAR-code/OSCAR_QT.pro

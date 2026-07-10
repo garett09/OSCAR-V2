@@ -132,10 +132,11 @@ QString findLegacyOscarDataFolder()
 
 bool gfxEgnineIsSupported(GFXEngine e)
 {
-#if defined(Q_OS_WIN32)
-    Q_UNUSED(e)
-    return true;
-#else
+    // Only two engines remain: Desktop OpenGL and Software. The former middle
+    // enum slot (value 1, ANGLE) is no longer supported and has no display name,
+    // so it must not be offered. This applies on every platform, including
+    // Windows, which previously reported all values as supported and so produced
+    // an empty third entry in the Preferences graphics-engine drop-down.
     switch(e) {
     case GFX_OpenGL:
     case GFX_Software:
@@ -143,7 +144,6 @@ bool gfxEgnineIsSupported(GFXEngine e)
     default:
        return false;
     }
-#endif
 }
 GFXEngine currentGFXEngine()
 {

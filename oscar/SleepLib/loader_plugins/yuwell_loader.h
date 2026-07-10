@@ -33,7 +33,7 @@ struct FormatBSessionSummary {
   unsigned char avg_leak_vol;
   unsigned char avg_pressure;
   short unsigned int offset;
-  unsigned char session_minutes;
+  quint16 session_minutes;  // bytes 28-29 of the 30-byte session summary record, BE u16
 };
 
 class YuwellLoader;

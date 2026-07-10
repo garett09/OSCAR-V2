@@ -22,7 +22,7 @@ Setting aside the religious wars that can arise over any development methodology
 ### How Do I Develop in a Branch?
 
 0. Create your own fork of the repo and configure it to stay up-to-date with the upstream repo.
-	* Go to https://gitlab.com/CrimsonNape/OSCAR-code and click on **Fork** in the top right of the project page.
+	* Go to https://gitlab.com/Seeker4/OSCAR-code and click on **Fork** in the top right of the project page.
 	* Note that your repository is not updated automatically when changes are merged into the CrimsonNape repository. You must check manually that you have all changes in your forked repository!
 
 1. Create a branch to work on your feature or bugfix:

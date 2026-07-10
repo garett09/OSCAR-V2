@@ -603,6 +603,13 @@ int main(int argc, char *argv[]) {
     switch (gfxEngine) {
     case GFX_OpenGL:
         QCoreApplication::setAttribute(Qt::AA_UseDesktopOpenGL);
+        // Share a single OpenGL context across all QOpenGLWidget instances
+        // (Daily, Overview, snapshot and undocked graph views). Qt5's QGLWidget
+        // shared-context constructor argument was dropped in the Qt6 port, leaving
+        // each gGraphView with its own context; on macOS this forces every view
+        // after the first onto a slow per-frame read-back path, causing jerky
+        // scrolling. This is the Qt6-native equivalent of the old shared context.
+        QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
         break;
     case GFX_Software:
     default:
@@ -984,6 +991,33 @@ int main(int argc, char *argv[]) {
     p_pref->Erase(STR_AppName);
     p_pref->Erase(STR_GEN_SkipLogin);
 
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    // Register Importer Modules for autoscanner
+    //
+    // This MUST run before the OSCAR 1.x migration below. The importer reads the legacy
+    // channels.dat and resolves each entry against schema::channel, which is populated only
+    // here by schema::init() and each loader's initChannels(). When registration ran after
+    // migration the schema was still empty during import, so every channel customization
+    // (colors, labels, thresholds, enabled/overview state) was silently skipped (#140).
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    schema::init();
+    PRS1Loader::Register();
+    ResmedLoader::Register();
+    IntellipapLoader::Register();
+    SleepStyleLoader::Register();
+    FPIconLoader::Register();
+    WeinmannLoader::Register();
+    CMS50Loader::Register();
+    CMS50F37Loader::Register();
+    MD300W1Loader::Register();
+    ViatomLoader::Register();
+    PrismaLoader::Register();
+    ResventLoader::Register();
+    BmcLoader::Register();
+    BmcG3xLoader::Register();
+    VREMLoader::Register();
+    YuwellLoader::Register();
+
     ///////////////////////////////////////////////////////////////////////////////////////////
     // Migrate from OSCAR 1.x if needed
     ///////////////////////////////////////////////////////////////////////////////////////////
@@ -1057,27 +1091,6 @@ int main(int argc, char *argv[]) {
 
     AppSetting->setVersionString(getVersion());
 
-    ////////////////////////////////////////////////////////////////////////////////////////////
-    // Register Importer Modules for autoscanner
-    ////////////////////////////////////////////////////////////////////////////////////////////
-    schema::init();
-    PRS1Loader::Register();
-    ResmedLoader::Register();
-    IntellipapLoader::Register();
-    SleepStyleLoader::Register();
-    FPIconLoader::Register();
-    WeinmannLoader::Register();
-    CMS50Loader::Register();
-    CMS50F37Loader::Register();
-    MD300W1Loader::Register();
-    ViatomLoader::Register();
-    PrismaLoader::Register();
-    ResventLoader::Register();
-    BmcLoader::Register();
-    BmcG3xLoader::Register();
-    VREMLoader::Register();
-    YuwellLoader::Register();
-
     // Begin logging device connection activity.
     QString connectionsLogDir = GetLogDir() + "/connections";
     rotateLogs(connectionsLogDir);  // keep a limited set of previous logs
@@ -1119,12 +1132,25 @@ int main(int argc, char *argv[]) {
 
     DeviceConnectionManager::getInstance().record(nullptr);
 
+    // Un-parent the machine loaders from the main window before deleting it.
+    // Loaders are parented to MainWindow in Startup() but are owned by the global
+    // m_loaders list and freed once by Profiles::Done() → DestroyLoaders() below.
+    // closeEvent() normally un-parents them, but RestartApplication() exits via
+    // QApplication::exit() and bypasses closeEvent(); without this, "delete mainwin"
+    // would delete the still-parented loaders as child objects and DestroyLoaders()
+    // would then delete them again — a double-free crashing on shutdown/restart.
+    // Doing it here, at the sole point where MainWindow is destroyed, covers every
+    // exit path.
+    for (auto & loader : GetLoaders()) {
+        loader->setParent(nullptr);
+    }
+
     // Delete the main window explicitly while Qt is still fully alive.
-    // closeEvent() has already run (closing the profile, saving window geometry,
-    // un-parenting loaders, and shutting down the logger) but the widget tree
-    // is still alive. Deleting it here — while globals like AppSetting and the
-    // graph fonts are still valid — ensures widget destructors don't access
-    // freed memory, which would corrupt state and crash QApplication's teardown.
+    // closeEvent() has already run for a normal quit (closing the profile, saving
+    // window geometry, and shutting down the logger) but the widget tree is still
+    // alive. Deleting it here — while globals like AppSetting and the graph fonts
+    // are still valid — ensures widget destructors don't access freed memory, which
+    // would corrupt state and crash QApplication's teardown.
     delete mainwin;
     mainwin = nullptr;
 

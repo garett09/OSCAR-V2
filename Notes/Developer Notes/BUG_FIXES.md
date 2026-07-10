@@ -4,6 +4,94 @@ Notable bugs found and fixed during development/investigation.
 
 ---
 
+## 2026-07-08 — 1.x→2.0 import still drops channel customizations: init ordering (#140, reopened)
+
+**Files:** `oscar/main.cpp` — startup sequence in `main()` (schema/loader registration vs. `migrateFromOSCAR()`)
+
+**Symptom:** Importing/migrating an OSCAR 1.x profile (seen with 1.6.0) does not carry over
+per-channel customizations (enabled state, colors, custom labels, thresholds,
+show-in-overview). The migrated profile silently falls back to schema defaults. Debug log
+shows, during import, a "Looking up channel X by name…" + "loadChannels has no idea about
+channel X" pair for **every** channel in the old `channels.dat` (128/128 in the reported log).
+
+**Root cause:** A second root cause that #140 (commit `c61e025c`, 2026-05-11) did not
+address. #140 correctly rewired the importer to *read* the source `channels.dat`
+(`profileimporter.cpp` → `migrateChannelsToDatabase(sourcePath)` →
+`loadChannelsFromDat()`), but `loadChannelsFromDat()` resolves each stored entry against the
+`schema::channel` registry (`profiles.cpp` ~2958/2962). In `main()`, `migrateFromOSCAR()`
+ran **before** `schema::init()` and the loader `Register()`/`initChannels()` calls, so the
+registry was empty during import and every lookup returned the empty channel and was
+skipped. `saveChannelsToDatabase()` then wrote the (empty) schema, so the
+`initializeChannelsFromSchema()` fallback was also bypassed. #140 only touched
+`profiles.cpp/.h` and `profileimporter.cpp`, never `main.cpp`, and the ordering was already
+inverted at that commit — so the read path #140 added has never actually resolved a channel
+during import. (Matches the CLAUDE.md debugging note: search for ALL root causes.)
+
+**Fix:** Moved the schema + loader registration block (`schema::init()` and all
+`*Loader::Register()` calls) in `main()` to run *before* the OSCAR 1.x migration block, so
+`schema::channel` is fully populated when the importer reads `channels.dat`. `schema::init()`
+(guarded by `schema_initialized`) and each loader `Register()` are idempotent, and `p_pref`/
+`AppSetting` are already initialized earlier, so the move is side-effect free.
+`schema::setOrders()`, device-connection logging, and `Profiles::Scan()` are unchanged.
+The original 1.x `channels.dat` is read (not copied/modified), so previously mis-migrated
+profiles can be re-imported to recover their customizations.
+
+---
+
+## 2026-07-05 — macOS: jerky/slow graph scrolling after the first view (#235) — PENDING macOS VERIFICATION
+
+**Files:** `oscar/main.cpp` — graphics-engine setup (`GFX_OpenGL` branch, before `QApplication`)
+
+**Symptom:** On macOS (reported: 14.7.5, Intel/AMD Radeon, 2560×1440, 1× DPI) graph
+scrolling in OSCAR 2.0/2.0.1 is jerky and slow, worst on the Overview page with several
+months of data; OSCAR 1.7 is smooth on the same machine. Tell-tale: whichever graph view
+is opened *first* after launch scrolls smoothly, and every view opened afterwards is laggy
+(Daily first → smooth; then Overview → laggy; back to Daily → now also laggy).
+
+**Root cause:** OSCAR creates several `QOpenGLWidget` (`gGraphView`) instances — Daily's
+`GraphView` + snapshot, Overview's `GraphView`, undocked graphs. In the Qt5 codebase these
+shared one GL context via the `QGLWidget(format, parent, shared)` constructor. The Qt6 port
+dropped that argument: `gGraphView` passes only `parent` to `QOpenGLWidget`
+(`Graphs/gGraphView.cpp:474`), the `shared` pointer is stored but unused for GL, and
+`Qt::AA_ShareOpenGLContexts` is never set. Without a shared context, on macOS every view
+after the first falls onto a slow per-frame texture read-back/compose path → jerky
+scrolling. (High-DPI/Retina was ruled out — reporter is at 1× DPI.)
+
+**Fix (candidate):** Set `Qt::AA_ShareOpenGLContexts` before constructing `QApplication`
+(in the `GFX_OpenGL` branch of `main.cpp`) — the Qt6-native equivalent of the old shared
+context. **Not yet verified:** cannot be reproduced/tested without a Mac; requires an
+x86_64/universal macOS build tested by the reporter (Daily → scroll → Overview → scroll,
+and the reverse). Do not consider closed until confirmed on hardware.
+
+---
+
+## 2026-07-05 — Crash on restart: double-free of machine loaders (#234)
+
+**Files:** `oscar/main.cpp` — application shutdown path (before `delete mainwin`)
+
+**Symptom:** Any in-app restart — switching the graphics engine, changing language,
+creating a profile (all via `RestartApplication()`) — crashed OSCAR on shutdown with
+`EXC_BAD_ACCESS` in `DestroyLoaders()`, reached from `Profiles::Done()` in `main()`.
+Reported on macOS 14.7.5 (Intel); the reporter saw the same crash in OSCAR 1.7. A
+manual quit-and-relaunch did not crash.
+
+**Root cause:** Machine loaders are parented to `MainWindow` in `Startup()`
+(`loader->setParent(this)`) but are owned by the global `m_loaders` list and freed
+once by `Profiles::Done() → DestroyLoaders()`. `closeEvent()` un-parents them to keep
+ownership single, but `RestartApplication()` exits via `QApplication::exit()` and
+never fires `closeEvent()`. On that path `delete mainwin` deletes the still-parented
+loaders as child QObjects, and `DestroyLoaders()` then deletes them again — a
+double-free (the crash is a virtual-destructor call through a freed vtable). The
+non-Mac restart branch calls `QApplication::exit()` too, so the bug is cross-platform.
+
+**Fix:** Un-parent all loaders (`GetLoaders()` → `setParent(nullptr)`) in `main()`
+immediately before `delete mainwin` — the single point where `MainWindow` is
+destroyed — so loaders are detached regardless of how the event loop exited and are
+freed exactly once by `DestroyLoaders()`. The redundant un-parent loop in
+`closeEvent()` is left in place (harmless).
+
+---
+
 ## 2026-07-03 — SelectProfiles page not cleaned up when last profile is deleted (#233)
 
 **Files:** `oscar/profileselector.cpp` — `ProfileSelector::updateProfileList()`,

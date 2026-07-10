@@ -525,7 +525,8 @@ int YuwellFormatB::OpenMachine(Machine *mach, const QString & serial) {
     in.setByteOrder(QDataStream::LittleEndian); // Mostly, except for record offsets
 
     unsigned char mode, ramp, initial_pressure, pressure_setting, maximum_pressure, minimum_pressure, humidity, fps_level;
-    unsigned char oai_count, hi_count, avg_leak_vol, avg_pressure, offset_high, offset_low, session_minutes;
+    unsigned char oai_count, hi_count, avg_leak_vol, avg_pressure, offset_high, offset_low;
+    quint16 session_minutes;  // bytes 28-29 of the 30-byte session summary record, BE u16
     short int record_count;
     short unsigned int offset;
     unsigned char start_year, start_month, start_day, start_hour, start_minute, start_second;
@@ -601,8 +602,9 @@ int YuwellFormatB::OpenMachine(Machine *mach, const QString & serial) {
          * summary information. Then there's nothing of a bunch of 0xFF's until 0x7600.
          */
         offset = ((offset_high << 0x08) + offset_low) + 0x7600;
-        in.skipRawData(1);
-        in >> session_minutes;
+        in.setByteOrder(QDataStream::BigEndian);
+        in >> session_minutes;   // bytes 28-29: BE u16
+        in.setByteOrder(QDataStream::LittleEndian);
 
         FormatBSessionSummary sessionSummary = {
             start,
@@ -1138,7 +1140,7 @@ QStringList YuwellFormatD::GetModelSerials() {
                 sessionDir.setSorting(QDir::Name);
 
                 QStringList filters;
-                filters << "*s.BYS";
+                filters << "*s.bys" << "*s.BYS";
                 sessionDir.setNameFilters(filters);
 
                 QFileInfoList flist = sessionDir.entryInfoList();

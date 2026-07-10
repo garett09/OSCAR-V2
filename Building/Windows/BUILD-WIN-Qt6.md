@@ -66,7 +66,7 @@ From <http://gnuwin32.sourceforge.net/packages/gawk.htm>, download setup for “
 #### Clone Repository
 Whether you use batch files or QTCreator, you will need to get a copy of the OSCAR code.
 - In a browser, log into your account at gitlab.com.
-- Select the Oscar project at https://gitlab.com/CrimsonNape/OSCAR-code.
+- Select the Oscar project at https://gitlab.com/CrimsonNape/OSCAR-SQL.
 - Clone a copy of the repository to a location on your computer.
 
 #### Validate the installed software.

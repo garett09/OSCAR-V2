@@ -169,7 +169,7 @@ This also allows building using windows shortcuts.
 
 **Clone Repository**
 - In a browser, log into your account at gitlab.com.
-- Select the Oscar project at https://gitlab.com/CrimsonNape/OSCAR-code.
+- Select the Oscar project at https://gitlab.com/CrimsonNape/OSCAR-SQL.
 - Clone a copy of the repository to a location on your computer.
 
 **Run and configure Qt Creator**
