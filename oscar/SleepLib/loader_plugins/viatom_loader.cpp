@@ -17,6 +17,7 @@
 
 #include <QDir>
 #include <QTextStream>
+#include <QRegularExpression>
 #include <QApplication>
 #include <QMessageBox>
 #include "viatom_loader.h"
@@ -513,16 +514,15 @@ ViatomFile::ViatomFile(QFile & file) : m_file(file)
 
 QDateTime ViatomFile::getFilenameTimestamp()
 {
-    QString date_string = QFileInfo(m_file).fileName().section("_", -1);  // Strip any SleepU_ etc. prefix.
+    QString fileName = QFileInfo(m_file).fileName();
 
-    int lastPoint = date_string.lastIndexOf("."); // Added to strip off any filename extension
-    date_string = date_string.left(lastPoint);
+    // Extract the 14-digit numeric timestamp (yyyyMMddHHmmss) regardless of
+    // any prefix ending in "_" or suffix starting with "." or "_".
+    static const QRegularExpression re14("(\\d{14})");
+    QRegularExpressionMatch match = re14.match(fileName);
+    QString date_string = match.hasMatch() ? match.captured(1) : QString();
 
-    QString format_string = "yyyyMMddHHmmss";
-    if (date_string.contains(":")) {
-        format_string = "yyyy-MM-dd HH:mm:ss";
-    }
-    return QDateTime::fromString(date_string, format_string);
+    return QDateTime::fromString(date_string, "yyyyMMddHHmmss");
 }
 
 bool ViatomFile::ParseHeader()

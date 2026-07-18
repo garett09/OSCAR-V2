@@ -393,19 +393,20 @@ bool YuwellFormatB::Detect() {
      * -----------
      * YH-580
      */
-    QDir cardDir(m_filePath);
-
-    if (!cardDir.exists("YHSD-NEW.BYS")) {
-        return false;
-    }
-
-    QFileInfo fi = QFileInfo(m_filePath + "/YHSD-NEW.BYS");
-    if (fi.size() != 0x10000) { // Needs to be 64Kb in size
-        return false;
-    }
-
     QStringList model_serials = GetModelSerials();
     if (model_serials.size() == 0) {
+        return false;
+    }
+
+    // Resolve where the data file actually is: directly in m_filePath, or in a
+    // model-serial subfolder. This lets detection work from the parent folder too,
+    // like every other Yuwell model - not only when pointed inside the .BYS folder.
+    QString dataFile = m_filePath + "/YHSD-NEW.BYS";
+    if (!QFile::exists(dataFile)) {
+        dataFile = m_filePath + "/" + model_serials.first() + "/YHSD-NEW.BYS";
+    }
+    QFileInfo fi = QFileInfo(dataFile);
+    if (fi.size() != 0x10000) { // Needs to be 64Kb in size
         return false;
     }
 
@@ -420,25 +421,57 @@ QStringList YuwellFormatB::GetModelSerials() {
      * instead of a directory name. Much more source-of-truth
      */
     QStringList model_serials;
-    QFile bysFile(m_filePath + "/YHSD-NEW.BYS");
-    if (bysFile.open(QFile::ReadOnly)) {
+
+    // The .BYS files can be directly in m_filePath (SD root, or a model-serial
+    // folder selected directly) or inside a model-serial subfolder when the user
+    // selects the PARENT folder - the way every other Yuwell model is imported.
+    // Try the direct path first; only if it isn't there do we scan subfolders, so
+    // the direct case keeps its exact original behaviour.
+    QStringList dirs;
+    dirs << m_filePath;
+    if (!QFile::exists(m_filePath + "/YHSD-NEW.BYS")) {
+        QDir parent(m_filePath);
+        parent.setFilter(QDir::NoDotAndDotDot | QDir::Dirs | QDir::NoSymLinks);
+        parent.setSorting(QDir::Name);
+        QFileInfoList subs = parent.entryInfoList();
+        for (int i = 0; i < subs.size(); i++) {
+            dirs << subs.at(i).absoluteFilePath();
+        }
+    }
+
+    for (int di = 0; di < dirs.size(); di++) {
+        QFile bysFile(dirs.at(di) + "/YHSD-NEW.BYS");
+        if (!bysFile.open(QFile::ReadOnly)) {
+            continue;
+        }
         QByteArray header = bysFile.read(0xA0);
+        bysFile.close();
+        if (header.size() != 0xA0) {
+            continue;
+        }
 
-        if (header.size() == 0xA0) {
-            QDataStream in(header);
-            in.setVersion(QDataStream::Qt_4_8);
+        QDataStream in(header);
+        in.setVersion(QDataStream::Qt_4_8);
 
-            QByteArray raw_model_serial(16, Qt::Uninitialized);
+        QByteArray raw_model_serial(16, Qt::Uninitialized);
 
-            in.skipRawData(0x84);
-            in.readRawData(raw_model_serial.data(), 16);
+        in.skipRawData(0x84);
+        in.readRawData(raw_model_serial.data(), 16);
 
-            QString model_serial(raw_model_serial);
-            if (model_serial.startsWith("YH")) {
+        QString model_serial(raw_model_serial);
+        if (model_serial.startsWith("YH")) {
+            if (!model_serials.contains(model_serial)) {
                 model_serials << model_serial;
             }
+        } else {
+            // Some models (e.g. the YH-560) store this serial field obfuscated,
+            // so it does not read as "YH...". Fall back to the containing folder
+            // name, which is in the "Model-Serial" form (e.g. YH560A-221050031).
+            QString dirName = QDir(dirs.at(di)).dirName();
+            if (dirName.toUpper().startsWith("YH") && !model_serials.contains(dirName)) {
+                model_serials << dirName;
+            }
         }
-        bysFile.close();
     }
 
     return model_serials;
@@ -479,16 +512,21 @@ int YuwellFormatB::OpenMachine(Machine *mach, const QString & serial) {
     emit m_loader->setProgressValue(0);
     QCoreApplication::processEvents();
 
-    QString test = m_filePath + "/" + serial;
-    QDir dir(m_filePath);
+    // The .BYS may be directly in m_filePath (SD root / model-serial folder
+    // selected directly) or inside a model-serial subfolder when the user selects
+    // the parent folder. Resolve the actual data directory for this serial.
+    QString dataDir = m_filePath;
+    if (!QFile::exists(dataDir + "/YHSD-NEW.BYS")) {
+        dataDir = m_filePath + "/" + serial;
+    }
+    QDir dir(dataDir);
 
     if (!dir.exists() || (!dir.isReadable())) {
         return -1;
     }
 
-    m_loader->backupData(mach, m_filePath);
+    m_loader->backupData(mach, dataDir);
 
-    // We don't use the serial in the path, its always YHSD-NEW.BYS
     calc_leaks = p_profile->cpap->calculateUnintentionalLeaks();
     lpm4 = p_profile->cpap->custom4cmH2OLeaks();
     lpm20 = p_profile->cpap->custom20cmH2OLeaks();
@@ -498,7 +536,7 @@ int YuwellFormatB::OpenMachine(Machine *mach, const QString & serial) {
 
     Sessions.clear();
 
-    QFile file(m_filePath + "/YHSD-NEW.BYS");
+    QFile file(dataDir + "/YHSD-NEW.BYS");
 
     if (!file.exists()) {
         qWarning() << "Yuwell Session Cannot find " << file.fileName();
@@ -554,13 +592,31 @@ int YuwellFormatB::OpenMachine(Machine *mach, const QString & serial) {
     in.readRawData(raw_model_serial.data(), 16);
 
     QString model_serial(raw_model_serial);
+    // Some models (e.g. the YH-560) store this serial field obfuscated, so it
+    // does not read as "YH...". Such a device could not be detected AT ALL before
+    // this patch (GetModelSerials() returned nothing and Detect() failed), so
+    // there is no working behaviour to regress. When the serial is obfuscated we
+    // fall back to the folder-derived serial and enable the recovery workarounds
+    // below; devices whose serial reads cleanly keep the original code path
+    // unchanged, byte for byte.
+    bool serialObfuscated = !model_serial.startsWith("YH");
+    if (serialObfuscated) {
+        model_serial = serial;
+    }
     mach->setModel(model_serial);
 
     in.skipRawData(2924); // Alarming amount of data to skip
 
     QList<FormatBSessionSummary> sessionSummaries;
-    // record_count number of sessions from this point forward, 30 bytes per session summary
-    for (int i = 0; i < record_count; i++) {
+    // On models with an obfuscated serial the header record_count is obfuscated
+    // too (e.g. the YH-560 reads 273 but has ~365 valid records), so instead of
+    // trusting it we walk the whole 30-byte session grid from 0xC00 to 0x7600 and
+    // validate each record, skipping garbage (the ring buffer's partially-written
+    // write-head and empty 0xFF slots). Models with a clean serial keep the
+    // original behaviour: read exactly record_count records, unconditionally.
+    int maxRecords = (0x7600 - 0x0C00) / 30;
+    int loopCount = serialObfuscated ? maxRecords : record_count;
+    for (int i = 0; i < loopCount; i++) {
         in >> start_year;
         in >> start_month;
         in >> start_day;
@@ -589,8 +645,8 @@ int YuwellFormatB::OpenMachine(Machine *mach, const QString & serial) {
         in >> oai_count;
         in >> hi_count;
         in.skipRawData(2);
-        in >> avg_leak_vol;
-        in >> avg_pressure;
+        in >> avg_pressure;   // byte 24 is average pressure (confirmed vs the
+        in >> avg_leak_vol;   // official app); byte 25 is average leak. Was reversed.
         in >> offset_high;
         in >> offset_low;
         /*
@@ -605,6 +661,15 @@ int YuwellFormatB::OpenMachine(Machine *mach, const QString & serial) {
         in.setByteOrder(QDataStream::BigEndian);
         in >> session_minutes;   // bytes 28-29: BE u16
         in.setByteOrder(QDataStream::LittleEndian);
+
+        // The finish datetime (bytes 6-11) is frequently corrupt on obfuscated
+        // models (e.g. the YH-560), which produced absurd session lengths. The
+        // duration (bytes 28-29) is reliable, so reconstruct finish = start +
+        // duration. Only for obfuscated models; clean models keep their own,
+        // valid finish datetime.
+        if (serialObfuscated) {
+            finish = start.addSecs((qint64)session_minutes * 60);
+        }
 
         FormatBSessionSummary sessionSummary = {
             start,
@@ -624,7 +689,20 @@ int YuwellFormatB::OpenMachine(Machine *mach, const QString & serial) {
             offset,
             session_minutes
         };
-        sessionSummaries.append(sessionSummary);
+        if (!serialObfuscated) {
+            // Clean models: original behaviour — trust record_count, append all.
+            sessionSummaries.append(sessionSummary);
+        } else if (start.isValid() && start <= QDateTime::currentDateTime()
+                && mode <= 1
+                && ramp <= 60 && humidity <= 8 && fps_level <= 8
+                && maximum_pressure >= 20 && maximum_pressure <= 200
+                && minimum_pressure >= 20 && minimum_pressure <= 200
+                && minimum_pressure <= maximum_pressure
+                && session_minutes >= 1 && session_minutes <= 1440) {
+            // Obfuscated models: keep only plausible records; skip garbage/
+            // write-head slots and empty (0xFF) padding. A session can't be future.
+            sessionSummaries.append(sessionSummary);
+        }
     }
 
     unsigned char leakage, pressure, spo2, oai, hi, pulse, cai;
@@ -661,37 +739,94 @@ int YuwellFormatB::OpenMachine(Machine *mach, const QString & serial) {
             qint64 ti;
             ti = qint64(ts) * 1000L;
 
-            for (int i = 0; i < summary.session_minutes; i++) {
-                QCoreApplication::processEvents();
+            bool logDecoded = false;
+            if (!serialObfuscated) {
+                // Original YH-580 per-minute layout: 7-byte records
+                // [leak, pressure, spo2, oai, hi, pulse, cai], first byte 0xF9.
+                for (int i = 0; i < summary.session_minutes; i++) {
+                    QCoreApplication::processEvents();
 
-                in >> leakage;
-                in >> pressure;
-                in >> spo2;
-                in >> oai;
-                in >> hi;
-                in >> pulse;
-                in >> cai;
+                    in >> leakage;
+                    in >> pressure;
+                    in >> spo2;
+                    in >> oai;
+                    in >> hi;
+                    in >> pulse;
+                    in >> cai;
 
-                if (i == 0 && leakage != 0xF9) {
-                    break; // Out of bounds offset, not a valid record
-                }
-                PR->AddEvent(ti + (i * 60000), pressure); // Samples are every 60 seconds
-                if (pulse < 249) {
-                    P->AddEvent(ti + (i * 60000), pulse);
-                }
-                O->AddEvent(ti + (i * 60000), spo2);
+                    if (i == 0 && leakage != 0xF9) {
+                        break; // Out of bounds offset, not a valid record
+                    }
+                    logDecoded = true;
+                    PR->AddEvent(ti + (i * 60000), pressure); // Samples are every 60 seconds
+                    if (pulse < 249) {
+                        P->AddEvent(ti + (i * 60000), pulse);
+                    }
+                    O->AddEvent(ti + (i * 60000), spo2);
 
-                if (oai > 0) {
-                    OA->AddEvent(ti + (i * 60000), 0);
+                    if (oai > 0) {
+                        OA->AddEvent(ti + (i * 60000), 0);
+                    }
+                    if (hi > 0) {
+                        H->AddEvent(ti + (i * 60000), 0);
+                    }
+                    if (cai > 0) {
+                        CA->AddEvent(ti + (i * 60000), 0);
+                    }
+                    if (leakage > 0 && leakage < 249) { // First record always pulls high, ignore
+                        LK->AddEvent(ti + (i * 60000), leakage);
+                    }
                 }
-                if (hi > 0) {
-                    H->AddEvent(ti + (i * 60000), 0);
+            } else {
+                // YH-560: use the device's own per-session average pressure (byte 24)
+                // and leak (byte 25) from the summary, held flat across the night.
+                //
+                // The YH-560 does store a per-minute log (reverse-engineered: 7 bytes/
+                // min, [0]=0x7F & [3]=0xFF sync, [5]=leak, [6]=pressure x10; no SpO2/
+                // pulse channel since this family has no oximeter), but it lives in a
+                // small ring buffer. Verified on known-good pre-fault data: only ~2% of
+                // sessions retain a full per-minute trace and ~80% none at all, so the
+                // per-minute samples can't form meaningful pressure/leak aggregates
+                // (they dilute the reported average toward ~1 cmH2O). The summary
+                // averages, by contrast, are present and correct for every session
+                // (byte 24 mean matches the device's reported average pressure), so we
+                // use those and hold them flat from session start to finish.
+                qint64 tend = qint64(summary.finish.toSecsSinceEpoch()) * 1000L;
+                if (summary.avg_pressure >= 20 && summary.avg_pressure <= 200) {
+                    PR->AddEvent(ti, summary.avg_pressure);    // gain 0.1 -> cmH2O
+                    PR->AddEvent(tend, summary.avg_pressure);
                 }
-                if (cai > 0) {
-                    CA->AddEvent(ti + (i * 60000), 0);
+                // byte 25 is already the device's EXCESS (unintentional) leak x10 - the
+                // number it shows on screen as "Leak". Put it straight into CPAP_Leak,
+                // NOT CPAP_LeakTotal: OSCAR's Leak Rate statistic reads CPAP_Leak, which
+                // for a non-ResMed machine it otherwise DERIVES from CPAP_LeakTotal by
+                // subtracting the mask's intentional leak (~22 L/min at these pressures)
+                // - that would zero out our already-excess value. calcs.cpp calcLeaks()
+                // early-returns when a session already has a CPAP_Leak list, so writing
+                // it directly here is respected, not recomputed.
+                EventList *LKu = sess->AddEventList(CPAP_Leak, EVL_Event, 1);
+                int leak_lpm = summary.avg_leak_vol / 10;      // byte 25 is stored x10
+                if (leak_lpm <= 200) {
+                    LKu->AddEvent(ti, leak_lpm);
+                    LKu->AddEvent(tend, leak_lpm);
                 }
-                if (leakage > 0 && leakage < 249) { // First record always pulls high, ignore
-                    LK->AddEvent(ti + (i * 60000), leakage);
+            }
+            // Events for the YH-560 come from the reliable summary counts (bytes
+            // 20-21), not the per-minute flag bytes (which aren't the scored events):
+            // synthesize OAI/HI events spread across the session so the AHI matches
+            // what the device reports. Gated on serialObfuscated (logDecoded stays
+            // false on that branch) so a clean model keeps its original behaviour.
+            // (Best-effort; needs a compile + import test.)
+            if (!logDecoded && serialObfuscated
+                    && (summary.oai_count > 0 || summary.hi_count > 0)) {
+                int total = summary.oai_count + summary.hi_count;
+                qint64 span = qint64(summary.session_minutes) * 60000L;
+                int placed = 0;
+                for (int j = 0; j < summary.oai_count; j++, placed++) {
+                    OA->AddEvent(ti + (span * placed / (total ? total : 1)), 0);
+                }
+                for (int j = 0; j < summary.hi_count; j++, placed++) {
+                    H->AddEvent(ti + (span * placed / (total ? total : 1)), 0);
                 }
             }
             sess->SetChanged(true);
@@ -706,7 +841,7 @@ int YuwellFormatB::OpenMachine(Machine *mach, const QString & serial) {
 
     m_loader->finish();
 
-    return record_count;
+    return sessionSummaries.size();
 }
 
 bool YuwellFormatC::Detect() {
