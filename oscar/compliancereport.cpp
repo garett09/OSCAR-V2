@@ -313,9 +313,14 @@ QString getSettingStr(Day* day, ChannelID cid) {
         QString opt = chan.option(qRound(val));
         if (!opt.isEmpty()) return opt;
     }
+    // Format like OSCAR's Daily "Device Settings" panel: whole integer when the
+    // value is effectively integral (Humidity "4", Temperature "28 ºC"), one
+    // decimal otherwise — so every report surface shows the same text.
+    const double rr = qRound(val);
+    const QString num = (qAbs(val - rr) < 0.05) ? QString::number(static_cast<int>(rr))
+                                                : QString::number(val, 'f', 1);
     QString unit = chan.units();
-    if (unit.isEmpty()) return QString::number(val, 'f', 1);
-    return QString::number(val, 'f', 1) + " " + unit;
+    return unit.isEmpty() ? num : num + " " + unit;
 }
 
 QColor colorForChannel(ChannelID chanId)
@@ -1193,8 +1198,10 @@ static QString makeAhiStatsHtml(double AHI, double HI, double AI, double Central
     const QString labelTextColor = "#334155";  // slate — uniform across every row
     const QString valTextColor   = "#0f172a";  // near-black — uniform across every row
 
+    // Open square in the chart's AI indigo: AHI is the outline of the whole
+    // stacked bar (AI band + HI band), so its swatch reuses the AI band colour.
     addRow(QCoreApplication::translate("ComplianceReport", "AHI"),
-           "<span style='color:#6366f1;'>&#9633;</span>",
+           "<span style='color:#4f46e5;'>&#9633;</span>",
            QString::number(AHI, 'f', 2),
            labelTextColor, valTextColor, true);
 
@@ -2189,26 +2196,28 @@ ReportData ComplianceReport::gatherReportData(QDate start, QDate end)
     rd.t90Str = QString("%1:%2:%3")
         .arg(t90H, 2, 10, QChar('0')).arg(t90M, 2, 10, QChar('0')).arg(t90S, 2, 10, QChar('0'));
 
-    // Device Settings & Info
+    // Device Settings & Info. ReportData carries RAW text: the AirView V2
+    // renderer draws these strings with QPainter, where pre-escaped entities
+    // ("Fisher &amp; Paykel") would print literally. The Classic renderer
+    // escapes at each HTML build site instead.
     Machine *cpap = p_profile->GetMachine(MT_CPAP);
-    rd.brand = cpap ? cpap->brand().toHtmlEscaped() : tr("Unknown");
-    rd.model = cpap ? cpap->model().toHtmlEscaped() : tr("Unknown");
-    rd.serial = cpap ? cpap->serial().toHtmlEscaped() : tr("Unknown");
+    rd.brand = cpap ? cpap->brand() : tr("Unknown");
+    rd.model = cpap ? cpap->model() : tr("Unknown");
+    rd.serial = cpap ? cpap->serial() : tr("Unknown");
 
     // Leak reporting convention differs by manufacturer: CPAP_Leak is always
     // unintentional leak, CPAP_LeakTotal is always total leak.
     rd.isTotalLeak = (rd.leakChan == CPAP_LeakTotal);
 
     rd.lastDay = p_profile->GetGoodDay(p_profile->LastDay(MT_CPAP), MT_CPAP);
-    rd.modeStr = rd.lastDay ? rd.lastDay->getCPAPModeStr().toHtmlEscaped() : tr("Unknown");
-    rd.pressureSettings = rd.lastDay ? rd.lastDay->getPressureSettings().toHtmlEscaped() : tr("Unknown");
-    rd.relief = rd.lastDay ? rd.lastDay->getPressureRelief().toHtmlEscaped() : tr("None");
+    rd.modeStr = rd.lastDay ? rd.lastDay->getCPAPModeStr() : tr("Unknown");
+    rd.pressureSettings = rd.lastDay ? rd.lastDay->getPressureSettings() : tr("Unknown");
+    rd.relief = rd.lastDay ? rd.lastDay->getPressureRelief() : tr("None");
 
     // Gather comfort settings
     rd.humidLevel = getSettingStr(rd.lastDay, CPAP_HumidSetting);
     if (rd.humidLevel.isEmpty()) rd.humidLevel = getSettingStr(rd.lastDay, PRS1_HumidLevel);
-    rd.humidLevel = rd.humidLevel.toHtmlEscaped();
-    rd.rampTime = getSettingStr(rd.lastDay, CPAP_RampTime).toHtmlEscaped();
+    rd.rampTime = getSettingStr(rd.lastDay, CPAP_RampTime);
     rd.rampPres = getSettingStr(rd.lastDay, CPAP_RampPressure);
 
     rd.pressDisplay = rd.pressureSettings;
@@ -2224,7 +2233,7 @@ ReportData ComplianceReport::gatherReportData(QDate start, QDate end)
         if (QDate::currentDate() < rd.dob.addYears(rd.age))
             rd.age--;
     }
-    rd.patientName = (p_profile->user->lastName() + ", " + p_profile->user->firstName()).toHtmlEscaped();
+    rd.patientName = p_profile->user->lastName() + ", " + p_profile->user->firstName();
     rd.maskDescription = p_profile->cpap ? p_profile->cpap->maskDescription() : QString();
 
     // Determine device mode early — used to gate pressure stats/charts for CPAP
@@ -2238,8 +2247,13 @@ ReportData ComplianceReport::gatherReportData(QDate start, QDate end)
         rd.maxPressure = calcDayAvgMax(CPAP_Pressure, rd.daysMap);
     }
 
-    // Overnight oxygen detail number part (ODI / configured drop criterion / T88 /
-    // SpO2 time-in-zone). Originally computed inside the Classic render section's
+    // Configured ODI drop criterion. Set unconditionally (not just when oximetry
+    // data exists) so text that cites the criterion — e.g. the AirView V2
+    // glossary — never renders a bogus "≥0%" on a no-oximetry report.
+    rd.dropPct = p_profile->oxi ? p_profile->oxi->spO2DropPercentage() : 3.0;
+
+    // Overnight oxygen detail number part (ODI / T88 / SpO2 time-in-zone).
+    // Originally computed inside the Classic render section's
     // "!airView && usedDaysOxi > 0" block; the pure numbers live here so the
     // AirView V2 renderer can reuse them. Gated on oximetry presence only.
     if (rd.usedDaysOxi > 0) {
@@ -2248,7 +2262,6 @@ ReportData ComplianceReport::gatherReportData(QDate start, QDate end)
             for (Session* sess : d->getSessions(rd.oxiSourceType))
                 oximeterHrs += sess->hours();
         rd.odi = oximeterHrs > 0 ? p_profile->calcCount(OXI_SPO2Drop, rd.oxiSourceType, start, end) / oximeterHrs : 0.0;
-        rd.dropPct = p_profile->oxi ? p_profile->oxi->spO2DropPercentage() : 3.0;  // configured ODI criterion
         rd.t88Secs = calcFilteredStats(OXI_SPO2, rd.oxiSourceType, start, end, SPO2_ARTIFACT_FLOOR, 88.0).timeBelowSecs;
         double secAbove95 = 0.0, secAbove90 = 0.0;
         for (Day* d : rd.oxiDaysMap) {
@@ -2619,8 +2632,8 @@ void ComplianceReport::exportReport(QWidget *parent)
     QImage logoImage(":/icons/logo-md.png");
     QString logoBase64 = logoImage.isNull() ? QString() : imageToBase64DataUrl(logoImage);
 
-    // Common header strings
-    QString patientNameStr = rd.patientName;
+    // Common header strings (ReportData is raw text — escape for the HTML body)
+    QString patientNameStr = rd.patientName.toHtmlEscaped();
     QString dateRangeStr   = start.toString("MMM d, yyyy") + " - " + end.toString("MMM d, yyyy");
     QString page1SubInfo;
     if (dob.isValid())
@@ -2723,9 +2736,9 @@ void ComplianceReport::exportReport(QWidget *parent)
     // === DEVICE ===
     html += "<table width='100%' cellpadding='0' cellspacing='0' style='" + tblStyle + "'>";
     html += "<tr style='background-color:#454545;'>"
-            "<td colspan='2' style='padding:6px 8px; font-size:11pt; font-weight:700; color:#ffffff;'>" + brand + " " + model + "</td></tr>";
-    html += "<tr><td " + cellL + ">" + tr("Serial number") + "</td><td align='right' " + cellR + ">" + serial + "</td></tr>";
-    html += "<tr><td " + cellL + ">" + tr("Mode") + "</td><td align='right' " + cellR + ">" + modeStr + "</td></tr>";
+            "<td colspan='2' style='padding:6px 8px; font-size:11pt; font-weight:700; color:#ffffff;'>" + (brand + " " + model).toHtmlEscaped() + "</td></tr>";
+    html += "<tr><td " + cellL + ">" + tr("Serial number") + "</td><td align='right' " + cellR + ">" + serial.toHtmlEscaped() + "</td></tr>";
+    html += "<tr><td " + cellL + ">" + tr("Mode") + "</td><td align='right' " + cellR + ">" + modeStr.toHtmlEscaped() + "</td></tr>";
     if (lastDay && p1IsCpap) {
         html += "<tr><td " + cellL + ">" + (airView ? tr("Set pressure") : tr("Pressure")) + "</td><td align='right' " + cellR + ">" + p1MinPresStr + "</td></tr>";
     } else if (lastDay) {
@@ -2758,7 +2771,7 @@ void ComplianceReport::exportReport(QWidget *parent)
         QString airViewEpr = relief;
         if (airViewEpr.startsWith("EPR: ", Qt::CaseInsensitive)) airViewEpr = airViewEpr.mid(5);
         if (airViewEpr.isEmpty()) airViewEpr = tr("Off");
-        html += "<tr><td " + cellL + ">" + tr("EPR") + "</td><td align='right' " + cellR + ">" + airViewEpr + "</td></tr>";
+        html += "<tr><td " + cellL + ">" + tr("EPR") + "</td><td align='right' " + cellR + ">" + airViewEpr.toHtmlEscaped() + "</td></tr>";
     } else if (eprIsOn) {
         html += "<tr><td " + cellL + ">" + tr("EPR") + "</td><td align='right' " + cellR + ">" + eprModeStr + "</td></tr>";
         html += "<tr><td " + cellL + ">" + tr("EPR level") + "</td><td align='right' " + cellR + ">" + eprLevelStr + "</td></tr>";
@@ -2766,15 +2779,15 @@ void ComplianceReport::exportReport(QWidget *parent)
             html += "<tr><td " + cellL + ">" + tr("Response") + "</td><td align='right' " + cellR + ">" + responseStr + "</td></tr>";
         }
     } else {
-        html += "<tr><td " + cellL + ">" + tr("EPR / Pressure Relief") + "</td><td align='right' " + cellR + ">" + relief + "</td></tr>";
+        html += "<tr><td " + cellL + ">" + tr("EPR / Pressure Relief") + "</td><td align='right' " + cellR + ">" + relief.toHtmlEscaped() + "</td></tr>";
     }
     // Humidifier, Ramp and Mask are not part of the AirView device box.
     if (!airView) {
         if (!humidLevel.isEmpty())
-            html += "<tr><td " + cellL + ">" + tr("Humidifier Level") + "</td><td align='right' " + cellR + ">" + humidLevel + "</td></tr>";
+            html += "<tr><td " + cellL + ">" + tr("Humidifier Level") + "</td><td align='right' " + cellR + ">" + humidLevel.toHtmlEscaped() + "</td></tr>";
         if (lastDay && lastDay->settingExists(CPAP_RampTime)
                 && lastDay->settings_wavg(CPAP_RampTime) > 0) {
-            html += "<tr><td " + cellL + ">" + tr("Ramp Time") + "</td><td align='right' " + cellR + ">" + rampTime + "</td></tr>";
+            html += "<tr><td " + cellL + ">" + tr("Ramp Time") + "</td><td align='right' " + cellR + ">" + rampTime.toHtmlEscaped() + "</td></tr>";
             if (!rampPres.isEmpty())
                 html += "<tr><td " + cellL + ">" + tr("Ramp Pressure") + "</td><td align='right' " + cellR + ">" + rampPres.toHtmlEscaped() + "</td></tr>";
         } else {
@@ -2900,31 +2913,18 @@ void ComplianceReport::exportReport(QWidget *parent)
     // device actually reports that setting, so non-ResMed devices degrade cleanly.
     // ==========================================
     {
+        // Values arrive raw (ReportData / getSettingStr); addDev escapes once,
+        // centrally, so no source can double-escape or slip through unescaped.
         QList<QPair<QString, QString>> devRows;
         auto addDev = [&](const QString& label, const QString& value) {
-            if (!value.trimmed().isEmpty()) devRows.append(qMakePair(label, value));
+            if (!value.trimmed().isEmpty()) devRows.append(qMakePair(label, value.toHtmlEscaped()));
         };
-        // Mirror OSCAR's Daily "Device Settings" formatting so each value reads
-        // exactly as it does there: LOOKUP -> option label (or integer + unit when
-        // a numeric option isn't defined, e.g. Humidity Level "4"); numeric
-        // settings -> whole integer when applicable (e.g. Temperature "28 ºC").
+        // getSettingStr mirrors OSCAR's Daily "Device Settings" formatting:
+        // LOOKUP -> option label (or integer + unit when a numeric option isn't
+        // defined, e.g. Humidity Level "4"); numeric settings -> whole integer
+        // when applicable (e.g. Temperature "28 ºC").
         auto setStr = [&](ChannelID cid) -> QString {
-            if (!lastDay || !lastDay->settingExists(cid)) return QString();
-            schema::Channel& chan = schema::channel[cid];
-            const double val = lastDay->settings_wavg(cid);
-            const QString unit = chan.units();
-            QString out;
-            if (chan.datatype() == schema::LOOKUP) {
-                out = chan.option(qRound(val));
-                if (out.isEmpty())
-                    out = QString::number(qRound(val)) + (unit.isEmpty() ? "" : " " + unit);
-            } else {
-                const double rr = qRound(val);
-                const QString num = (qAbs(val - rr) < 0.05) ? QString::number(static_cast<int>(rr))
-                                                            : QString::number(val, 'f', 1);
-                out = num + (unit.isEmpty() ? "" : " " + unit);
-            }
-            return out.toHtmlEscaped();
+            return getSettingStr(lastDay, cid);
         };
 
         addDev(tr("Model"), (brand + " " + model).trimmed());
@@ -2949,7 +2949,7 @@ void ComplianceReport::exportReport(QWidget *parent)
         if (lastDay && lastDay->settingExists(CPAP_RampTime)
                 && lastDay->settings_wavg(CPAP_RampTime) > 0) {
             addDev(tr("Ramp Time"), rampTime);
-            addDev(tr("Ramp Pressure"), rampPres.toHtmlEscaped());
+            addDev(tr("Ramp Pressure"), rampPres);
         }
         addDev(tr("Mask"), setStr(RMS9_Mask));
         addDev(tr("Humidifier"), setStr(RMS9_HumidStatus));

@@ -82,7 +82,6 @@ namespace AV {
     const QColor TH_BG     ("#EAF2F9");
     const QColor TINT_AMBER("#FCF8F0");
     const QColor TINT_RED  ("#FBEDEC");
-    const QColor GAUGE_TRK ("#EEF2F5");
     // Gridlines
     const QColor GRID    ("#EEF0F5");
     const QColor GRID_DOT("#ECF1F4");
@@ -100,24 +99,17 @@ namespace AV {
     const QColor SLEEP_LIGHT("#5E93C4");
     const QColor SLEEP_REM  ("#C9881F");
     const QColor SLEEP_AWAKE("#C2CDD6");
-    // Gauge fills / ticks
-    const QColor GAUGE_LEAK   ("#2FA37A");
-    const QColor TICK_MEDIAN  ("#17684C");
-    const QColor TICK_TARGET  ("#C9881F");
-    const QColor TICK_REDLINE ("#C0392B");
 
-    // Per-channel box-whisker triples: { min-max bar, median-95th band, median tick }
-    struct ChannelTriple { QColor minmax; QColor band; QColor median; };
-    const ChannelTriple LEAK_TRIPLE    {QColor("#C7E7D8"), QColor("#2FA37A"), QColor("#17684C")};
-    const ChannelTriple MINVENT_TRIPLE {QColor("#C9DCF4"), QColor("#3B82C4"), QColor("#1E4E79")};
-    const ChannelTriple RESPRATE_TRIPLE{QColor("#DCCDF1"), QColor("#8B5CC4"), QColor("#4A2B7A")};
-    const ChannelTriple TIDALVOL_TRIPLE{QColor("#F6DCBE"), QColor("#DD8636"), QColor("#955018")};
-    const ChannelTriple PULSE_TRIPLE   {QColor("#F4CED3"), QColor("#D2596A"), QColor("#8A2A38")};
-    const ChannelTriple PRESSURE_TRIPLE{QColor("#C5D6EC"), QColor("#6F8FBF"), QColor("#284B7A")};
+    // Per-channel chart colours: { median–95th band, median tick }
+    struct ChannelColors { QColor band; QColor median; };
+    const ChannelColors LEAK_COLORS    {QColor("#2FA37A"), QColor("#17684C")};
+    const ChannelColors MINVENT_COLORS {QColor("#3B82C4"), QColor("#1E4E79")};
+    const ChannelColors RESPRATE_COLORS{QColor("#8B5CC4"), QColor("#4A2B7A")};
+    const ChannelColors TIDALVOL_COLORS{QColor("#DD8636"), QColor("#955018")};
+    const ChannelColors PULSE_COLORS   {QColor("#D2596A"), QColor("#8A2A38")};
+    const ChannelColors PRESSURE_COLORS{QColor("#6F8FBF"), QColor("#284B7A")};
 
-    // SpO2 night tints
-    const QColor SPO2_LT88  ("#F0D2CB");
-    const QColor SPO2_LT90  ("#F3E2C4");
+    // SpO2 nightly-range bar
     const QColor SPO2_NORMAL("#C2E2EC");
 } // namespace AV
 
@@ -141,8 +133,18 @@ static QFont avMono(double px, int weight = QFont::Normal) {
 }
 
 // --- Step 3: canonical helper ------------------------------------------------
+
+// Corner radius of the module system (bands, cards, callouts, chart frames),
+// in artboard px. One token so every rounded element matches.
+static const double AV_RAD = 5.0;
+
 static void drawBand(QPainter& p, const QRectF& r, const QString& title, const QString& sub, double s) {
-    p.fillRect(r, AV::NAVY);
+    // Rounded top corners; square bottom (the card below butts flush).
+    const double rad = AV_RAD*s;
+    QPainterPath bp;
+    bp.addRoundedRect(r, rad, rad);
+    p.fillPath(bp, AV::NAVY);
+    p.fillRect(QRectF(r.left(), r.top() + rad, r.width(), r.height() - rad), AV::NAVY);
     QRectF t = r.adjusted(15*s, 0, -15*s, 0);
     p.setPen(Qt::white);
     p.setFont(avSans(11.5*s, QFont::Bold, 0.14*11.5*s));
@@ -156,18 +158,42 @@ static void drawBand(QPainter& p, const QRectF& r, const QString& title, const Q
 
 // --- Step 4: structural helpers ---------------------------------------------
 
-// HAIR1 1px border; joinTop suppresses the top edge so the card butts a band.
+// HAIR1 1px border; joinTop suppresses the top edge so the card butts a band
+// (bottom corners rounded to close the band+card module); standalone cards are
+// rounded on all four corners.
 static void drawCard(QPainter& p, const QRectF& r, bool joinTop, double s) {
-    const double a = 0.5*s;
+    const double a = 0.5*s, rad = AV_RAD*s;
     p.setBrush(Qt::NoBrush);
     p.setPen(QPen(AV::HAIR1, 1*s));
     if (joinTop) {
-        p.drawLine(QPointF(r.left()+a,  r.top()),      QPointF(r.left()+a,  r.bottom()-a));
-        p.drawLine(QPointF(r.right()-a, r.top()),      QPointF(r.right()-a, r.bottom()-a));
-        p.drawLine(QPointF(r.left()+a,  r.bottom()-a), QPointF(r.right()-a, r.bottom()-a));
+        QPainterPath cp;
+        cp.moveTo(r.left()+a,  r.top());
+        cp.lineTo(r.left()+a,  r.bottom()-a-rad);
+        cp.quadTo(r.left()+a,  r.bottom()-a, r.left()+a+rad, r.bottom()-a);
+        cp.lineTo(r.right()-a-rad, r.bottom()-a);
+        cp.quadTo(r.right()-a, r.bottom()-a, r.right()-a, r.bottom()-a-rad);
+        cp.lineTo(r.right()-a, r.top());
+        p.drawPath(cp);
     } else {
-        p.drawRect(r.adjusted(a, a, -a, -a));
+        p.drawRoundedRect(r.adjusted(a, a, -a, -a), rad, rad);
     }
+}
+
+// Chart-card chrome shared by pages 3/4/5: rounded HAIR1 frame with a
+// FILL_BLUE header strip (clipped to the rounded top) and a HAIR2 rule.
+static void avCardChrome(QPainter& p, const QRectF& card, double hdrH, double s) {
+    const double a = 0.5*s, rad = AV_RAD*s;
+    QPainterPath clip;
+    clip.addRoundedRect(card, rad, rad);
+    p.save();
+    p.setClipPath(clip);
+    p.fillRect(QRectF(card.left(), card.top(), card.width(), hdrH), AV::FILL_BLUE);
+    p.restore();
+    p.setBrush(Qt::NoBrush);
+    p.setPen(QPen(AV::HAIR2, 1*s));
+    p.drawLine(QPointF(card.left(), card.top() + hdrH), QPointF(card.right(), card.top() + hdrH));
+    p.setPen(QPen(AV::HAIR1, 1*s));
+    p.drawRoundedRect(card.adjusted(a, a, -a, -a), rad, rad);
 }
 
 // label sans GREY1 12px left; value mono INK 12px right; bottom HAIR3 hairline;
@@ -214,7 +240,8 @@ static void drawKVRow(QPainter& p, const QRectF& r, const QString& label, const 
 // shrunk-to-fit (down to a floor) and elided only as a last resort, so a long
 // value (device name, pressure, date range) never hard-clips the cell edge.
 static void drawInfoGrid(QPainter& p, const QRectF& r, const QVector<QPair<QString,QString>>& cells,
-                         int cols, double s, const QVector<double>& colWeights = QVector<double>()) {
+                         int cols, double s, const QVector<double>& colWeights = QVector<double>(),
+                         bool roundTop = false, bool roundBottom = false) {
     if (cols < 1) cols = 1;
     const int n = cells.size();
     int rows = (n + cols - 1) / cols;
@@ -269,9 +296,19 @@ static void drawInfoGrid(QPainter& p, const QRectF& r, const QVector<QPair<QStri
         const double yy = r.top() + rr*ch;
         p.drawLine(QPointF(r.left(), yy), QPointF(r.right(), yy));
     }
-    // outer border
+    // outer border — corners round only on the module's open edges
     p.setPen(QPen(AV::HAIR1, 1*s));
-    p.drawRect(r.adjusted(0.5*s, 0.5*s, -0.5*s, -0.5*s));
+    const QRectF br = r.adjusted(0.5*s, 0.5*s, -0.5*s, -0.5*s);
+    if (!roundTop && !roundBottom) {
+        p.drawRect(br);
+    } else {
+        const double rad = AV_RAD*s;
+        QPainterPath op;
+        op.addRoundedRect(br, rad, rad);
+        if (!roundTop)    op.addRect(QRectF(br.left(), br.top(), br.width(), rad));
+        if (!roundBottom) op.addRect(QRectF(br.left(), br.bottom() - rad, br.width(), rad));
+        p.drawPath(op.simplified());
+    }
 }
 
 // Generic statistics table (page 7). The rect's top/left/width set the table
@@ -365,12 +402,15 @@ static void drawStatTable(QPainter& p, const QRectF& r, const QStringList& heade
     }
 }
 
-// bg FILL_GREY or TINT_AMBER; 8px status dot + label (GREY2 8px uppercase .08em);
-// value mono 25px INK; unit 10px GREY2 suffix; caption 8.5px CAPTION.
+// bg by band (0 FILL_GREY, 1 TINT_AMBER, 2 TINT_RED); 3px status top rule in the
+// dot color; 8px status dot + label (GREY2 8px uppercase .08em); value mono 25px
+// INK; unit 10px GREY2 suffix; caption 8.5px CAPTION. The dot/band MUST be
+// value-driven by the caller — never a fixed color on a clinical scorecard.
 static void drawScorecardCell(QPainter& p, const QRectF& r, const QColor& dot,
                               const QString& label, const QString& value, const QString& unit,
-                              const QString& caption, bool tintAmber, double s) {
-    p.fillRect(r, tintAmber ? AV::TINT_AMBER : AV::FILL_GREY);
+                              const QString& caption, int band, double s) {
+    p.fillRect(r, band >= 2 ? AV::TINT_RED : band == 1 ? AV::TINT_AMBER : AV::FILL_GREY);
+    p.fillRect(QRectF(r.left(), r.top(), r.width(), 3*s), dot);
     const double padX = 13*s, padTop = 14*s, dotD = 8*s;
     const double cx = r.left() + padX, cy = r.top() + padTop;
 
@@ -408,37 +448,20 @@ static void drawScorecardCell(QPainter& p, const QRectF& r, const QColor& dot,
                Qt::AlignLeft | Qt::AlignTop, caption);
 }
 
-// GAUGE_TRK rounded track (~16px tall, radius 3), fill from left, vertical tick
-// lines (2px) at pct positions.
-static void drawGauge(QPainter& p, const QRectF& r, double fillPct, const QColor& fill,
-                      const QVector<QPair<double,QColor>>& ticks, double s) {
-    const double h = 16*s, rad = 3*s;
-    const QRectF track(r.left(), r.top(), r.width(), h);
-    QPainterPath tp;
-    tp.addRoundedRect(track, rad, rad);
-    p.fillPath(tp, AV::GAUGE_TRK);
-
-    const double fw = qBound(0.0, fillPct, 1.0) * r.width();
-    if (fw > 0) {
-        p.save();
-        p.setClipPath(tp);
-        p.fillRect(QRectF(r.left(), r.top(), fw, h), fill);
-        p.restore();
-    }
-    for (const auto& t : ticks) {
-        const double tx = r.left() + qBound(0.0, t.first, 1.0) * r.width();
-        p.fillRect(QRectF(tx - 1*s, r.top(), 2*s, h), t.second);
-    }
-}
-
 // FILL_BLUE bg, HAIR1 border, 3px ACCENT left border, mono "i" ACCENT glyph +
 // BODY 10.5px wrapped text.
 static void drawInfoCallout(QPainter& p, const QRectF& r, const QString& text, double s) {
-    p.fillRect(r, AV::FILL_BLUE);
+    const double rad = AV_RAD*s;
+    QPainterPath cp;
+    cp.addRoundedRect(r, rad, rad);
+    p.fillPath(cp, AV::FILL_BLUE);
+    p.save();
+    p.setClipPath(cp);
+    p.fillRect(QRectF(r.left(), r.top(), 3*s, r.height()), AV::ACCENT);
+    p.restore();
     p.setBrush(Qt::NoBrush);
     p.setPen(QPen(AV::HAIR1, 1*s));
-    p.drawRect(r.adjusted(0.5*s, 0.5*s, -0.5*s, -0.5*s));
-    p.fillRect(QRectF(r.left(), r.top(), 3*s, r.height()), AV::ACCENT);
+    p.drawRoundedRect(r.adjusted(0.5*s, 0.5*s, -0.5*s, -0.5*s), rad, rad);
 
     const double padX = 16*s, padTop = 9*s;
     p.setFont(avMono(12*s, QFont::Bold));
@@ -606,6 +629,29 @@ static QString minsFromSecs(double secs) {
     return QStringLiteral("%1 min").arg(qRound(secs / 60.0));
 }
 
+// Best consecutive-30-night compliance window (CMS-style criterion: ≥ threshold
+// hours on ≥ 70% of nights in a consecutive 30-day span). The whole-period
+// adherence % is NOT the payer criterion, so page 2 reports this explicitly.
+struct AvCmsWindow { bool valid; bool met; QDate start; int pct; };
+static AvCmsWindow avBestCmsWindow(const ReportData& rd) {
+    if (rd.totalDays < 30 || !rd.start.isValid()) return { false, false, QDate(), 0 };
+    QVector<int> ok(rd.totalDays, 0);
+    for (int i = 0; i < rd.totalDays; i++) {
+        const QDate d = rd.start.addDays(i);
+        ok[i] = (rd.daysMap.contains(d)
+                 && rd.daysMap[d]->hours(MT_CPAP) >= rd.complianceThreshold) ? 1 : 0;
+    }
+    int run = 0, best = -1;
+    QDate bestStart;
+    for (int i = 0; i < rd.totalDays; i++) {
+        run += ok[i];
+        if (i >= 30) run -= ok[i - 30];
+        if (i >= 29 && run > best) { best = run; bestStart = rd.start.addDays(i - 29); }
+    }
+    const int pct = qRound(best * 100.0 / 30.0);
+    return { true, pct >= 70, bestStart, pct };
+}
+
 // One label/value row inside a side-panel card, optionally with a leading swatch.
 struct KVRowDef { QString label; QString value; const QColor* swatch; };
 
@@ -628,8 +674,21 @@ static double avUpperPct() {
     return qBound(0.50, p_profile->general->prefCalcPercentile() / 100.0, 0.999);
 }
 
+// Label matching the percentile actually used (e.g. "95th"). Mirrors Classic's
+// upperPctLabel(); every on-page label must use this instead of a literal "95th"
+// so a non-default calculation preference never mislabels a statistic.
+static QString avUpperPctLabel() {
+    return QStringLiteral("%1th").arg(qRound(avUpperPct() * 100.0));
+}
+
+// Oximetry artifact filtering (mirrors compliancereport.cpp's file-local
+// constants; those have internal linkage). Used with calcDayFilteredStats so
+// page-5 per-night nadirs apply the same probe-loss filtering as rd.minSpO2.
+static const double AV_SPO2_ARTIFACT_FLOOR       = 40.0;  // % (probe-loss reads ~0)
+static const double AV_SPO2_MAX_FALL_PCT_PER_SEC =  4.0;
+
 // Reserved-gutter sizes (in 794px-artboard units, scaled by s at use).
-static const double AV_AXIS_W = 24.0;   // y-label gutter (left)
+static const double AV_AXIS_W = 27.0;   // y-label gutter (left): label + tick dash
 static const double AV_XLAB_H = 30.0;   // x-date label strip (date-number row + "Sun" week-start row)
 static const double AV_LEG_H  = 16.0;   // legend row (below the date strip)
 
@@ -658,30 +717,41 @@ static double avNiceMax(double maxVal) {
     return y < 1.0 ? 1.0 : y;
 }
 
-// Horizontal gridlines + right-aligned y value labels in the left gutter. The
-// bottom tick (== yMin) is a solid BASE baseline; interior lines use GRID, or
-// GRID_DOT dashed {2,3} when `dotted`. One tick value may be recoloured via
-// `highlight*` (used for the green "4 h" usage label).
+// Horizontal gridlines + right-aligned y value labels in the left gutter, with
+// AirView-style axis detail: each labelled tick carries a small dash at the
+// axis, and the midpoint between labels gets a shorter dash plus a faint
+// dotted gridline (doubling the readable grid density). The bottom tick
+// (== yMin) is a solid BASE baseline; labelled interior lines use GRID. One
+// tick value may be recoloured via `highlight*` (the green "4 h" usage label).
 static void avDrawYGrid(QPainter& p, const QRectF& plot, double yMin, double yMax,
-                        const QVector<double>& ticks, int prec, bool dotted, double s,
+                        const QVector<double>& ticks, int prec, double s,
                         bool hasHighlight = false, double highlightVal = 0.0,
                         const QColor& highlightCol = QColor()) {
     if (yMax <= yMin) yMax = yMin + 1.0;
     auto yOf = [&](double v){ return plot.bottom() - (v - yMin) / (yMax - yMin) * plot.height(); };
+    const double majTick = 3.5*s, minTick = 2.2*s, labGap = 2.5*s;
+
+    // Minor (half-step) detail between labelled ticks.
+    for (int i = 0; i + 1 < ticks.size(); i++) {
+        const double my = yOf((ticks[i] + ticks[i + 1]) / 2.0);
+        QPen mp(AV::GRID_DOT, 1*s);
+        mp.setDashPattern({2, 3});
+        p.setPen(mp);
+        p.drawLine(QPointF(plot.left(), my), QPointF(plot.right(), my));
+        p.setPen(QPen(AV::GREY3, 1*s));
+        p.drawLine(QPointF(plot.left() - minTick, my), QPointF(plot.left(), my));
+    }
+
     for (double t : ticks) {
         const double yy = yOf(t);
-        if (qAbs(t - yMin) < 1e-9) {
-            p.setPen(QPen(AV::BASE, 1*s));
-        } else {
-            QPen gp(dotted ? AV::GRID_DOT : AV::GRID, 1*s);
-            if (dotted) gp.setDashPattern({2, 3});
-            p.setPen(gp);
-        }
+        p.setPen(QPen(qAbs(t - yMin) < 1e-9 ? AV::BASE : AV::GRID, 1*s));
         p.drawLine(QPointF(plot.left(), yy), QPointF(plot.right(), yy));
+        p.setPen(QPen(AV::GREY2, 1*s));                    // labelled tick dash
+        p.drawLine(QPointF(plot.left() - majTick, yy), QPointF(plot.left(), yy));
         const bool hi = hasHighlight && qAbs(t - highlightVal) < 1e-9;
         p.setFont(avMono(8.5*s, QFont::Normal));
         p.setPen(hi ? highlightCol : AV::GREY3);
-        p.drawText(QRectF(plot.left() - AV_AXIS_W*s, yy - 7*s, AV_AXIS_W*s - 4*s, 14*s),
+        p.drawText(QRectF(plot.left() - AV_AXIS_W*s, yy - 7*s, AV_AXIS_W*s - majTick - labGap, 14*s),
                    Qt::AlignRight | Qt::AlignVCenter, QString::number(t, 'f', prec));
     }
 }
@@ -695,20 +765,25 @@ static int avLabelInterval(int totalDays) {
     return 1;
 }
 
-// x-tick stubs at the baseline + month/day date labels (month name on the first
-// tick of a month, mirroring the classic renderer).
+// x-axis: a small tick stub at EVERY day (AirView-style axis detail; labelled
+// days get a slightly longer stub) + month/day date labels on the label
+// cadence (month name on the first tick of a month, mirroring Classic).
 static void avDrawXDates(QPainter& p, const QRectF& plot, const ReportData& rd, double s) {
     const int totalDays = qMax(1, rd.totalDays);
     const double colW = avColW(plot, totalDays);
     const int interval = avLabelInterval(totalDays);
+    p.setPen(QPen(AV::BASE, 1*s));
+    for (int i = 0; i < totalDays; i++) {
+        const double tx = plot.left() + colW * (i + 0.5);
+        const double stub = (i % interval == 0) ? 3.5*s : 2.0*s;
+        p.drawLine(QPointF(tx, plot.bottom()), QPointF(tx, plot.bottom() + stub));
+    }
     int prevMonth = -1;
     for (int i = 0; i < totalDays; i += interval) {
         const QDate d = rd.start.addDays(i);
         const bool newMonth = (d.month() != prevMonth);
         prevMonth = d.month();
         const double tx = plot.left() + colW * (i + 0.5);
-        p.setPen(QPen(AV::BASE, 1*s));
-        p.drawLine(QPointF(tx, plot.bottom()), QPointF(tx, plot.bottom() + 3.5*s));
         p.setFont(avMono(9*s, QFont::Normal));
         p.setPen(AV::GREY1);
         const QString lab = (newMonth || d.day() == 1) ? d.toString("MMM d") : QString::number(d.day());
@@ -727,12 +802,22 @@ static void avDrawXDates(QPainter& p, const QRectF& plot, const ReportData& rd, 
     }
 }
 
-// Faint vertical week gridlines: one subtle line per Sunday (week start) running
-// the full plot height. Call right after avDrawYGrid and BEFORE the bars/data so
-// it sits behind the data, like the real AirView usage chart.
-static void avDrawWeekGrid(QPainter& p, const QRectF& plot, const ReportData& rd, double s) {
+// Vertical gridlines: a faint dotted line at every labelled date tick plus a
+// slightly stronger solid line per Sunday (week start), running the full plot
+// height. Call right after avDrawYGrid and BEFORE the bars/data so the grid
+// sits behind the data, like the real AirView usage chart.
+static void avDrawXGrid(QPainter& p, const QRectF& plot, const ReportData& rd, double s) {
     const int totalDays = qMax(1, rd.totalDays);
     const double colW = avColW(plot, totalDays);
+    const int interval = avLabelInterval(totalDays);
+    QPen dp(AV::GRID_DOT, 1*s);
+    dp.setDashPattern({2, 3});
+    p.setPen(dp);
+    for (int i = 0; i < totalDays; i += interval) {
+        if (rd.start.addDays(i).dayOfWeek() == 7) continue;   // Sunday drawn below
+        const double tx = plot.left() + colW * (i + 0.5);
+        p.drawLine(QPointF(tx, plot.top()), QPointF(tx, plot.bottom()));
+    }
     p.setPen(QPen(AV::GRID, 1*s));
     for (int i = 0; i < totalDays; i++) {
         if (rd.start.addDays(i).dayOfWeek() != 7) continue;   // Qt: Sun == 7
@@ -795,9 +880,9 @@ static void drawUsageBars(QPainter& p, const QRectF& r, const ReportData& rd, do
 
     QVector<double> ticks;
     for (double t = 0.0; t <= yMax + 1e-6; t += 4.0) ticks.push_back(t);
-    avDrawYGrid(p, plot, yMin, yMax, ticks, 0, /*dotted*/false, s,
-                /*hasHighlight*/true, 4.0, AV::GREEN);
-    avDrawWeekGrid(p, plot, rd, s);
+    avDrawYGrid(p, plot, yMin, yMax, ticks, 0, s,
+                /*hasHighlight*/true, rd.complianceThreshold, AV::GREEN);
+    avDrawXGrid(p, plot, rd, s);
     avDrawXDates(p, plot, rd, s);
 
     auto yOf = [&](double v){ return plot.bottom() - (v - yMin) / (yMax - yMin) * plot.height(); };
@@ -808,8 +893,13 @@ static void drawUsageBars(QPainter& p, const QRectF& r, const ReportData& rd, do
         const QDate d = rd.start.addDays(i);
         if (!rd.daysMap.contains(d)) continue;             // missing day → gap (no bar)
         const double hrs = rd.daysMap[d]->hours(MT_CPAP);
-        if (hrs <= 0.0) continue;
         const double x = plot.left() + colW * (i + 0.5) - barW/2.0;
+        if (hrs <= 0.0) {
+            // Device record but 0 therapy hours: small amber stub so "worn, no
+            // therapy" reads differently from "no data" (mirrors Classic).
+            p.fillRect(QRectF(x, plot.bottom() - 3*s, barW, 3*s), AV::AMBER);
+            continue;
+        }
         const double yTop = yOf(hrs), h = plot.bottom() - yTop;
         if (h <= 0.0) continue;
         const QColor col = (hrs >= rd.complianceThreshold) ? AV::GREEN : AV::AMBER;
@@ -819,14 +909,16 @@ static void drawUsageBars(QPainter& p, const QRectF& r, const ReportData& rd, do
         if (h > rad) p.fillRect(QRectF(x, yTop + rad, barW, h - rad), col);
     }
 
-    // 4 h dashed compliance threshold + white-bg label.
-    const double ty = yOf(4.0);
+    // Dashed compliance-threshold line + white-bg label (threshold is a user
+    // preference — bar coloring above uses the same rd.complianceThreshold).
+    const double ty = yOf(rd.complianceThreshold);
     QPen thr(AV::GREEN, 1.5*s);
     thr.setDashPattern({4, 3});
     p.setPen(thr);
     p.drawLine(QPointF(plot.left(), ty), QPointF(plot.right(), ty));
     p.setFont(avSans(9*s, QFont::DemiBold));
-    const QString tl = QObject::tr("4 h compliance threshold");
+    const QString tl = QObject::tr("%1 h compliance threshold")
+                           .arg(QString::number(rd.complianceThreshold, 'g', 3));
     QFontMetricsF fm(p.font());
     const double tw = fm.horizontalAdvance(tl);
     const QRectF lblBox(plot.right() - tw - 6*s, ty - 14*s, tw + 6*s, 12*s);
@@ -835,14 +927,16 @@ static void drawUsageBars(QPainter& p, const QRectF& r, const ReportData& rd, do
     p.drawText(lblBox.adjusted(0, 0, -3*s, 0), Qt::AlignVCenter | Qt::AlignRight, tl);
 }
 
-// 2) Stacked nightly AHI by event class. Per-night index = count/hours; the four
-//    classes mirror renderAhiChart's extraction but stay separate for V2's
-//    4-segment stack. yMax tiers copied from renderAhiChart.
-[[maybe_unused]] static void drawAhiStacked(QPainter& p, const QRectF& r, const ReportData& rd, double s) {
+// 2) Stacked nightly AHI. Per-night index = count/hours, mirroring
+//    renderAhiChart's extraction and its TWO-band stack (apnea + hypopnea =
+//    AHI, the AirView breakdown). The apnea sub-types (central / obstructive /
+//    unknown) live in the side stats column — a 4-colour stack made single
+//    nights unreadable at ~5px bar width. yMax tiers copied from renderAhiChart.
+static void drawAhiStacked(QPainter& p, const QRectF& r, const ReportData& rd, double s) {
     const int totalDays = qMax(1, rd.totalDays);
     const QRectF plot = avPlotArea(r, s, /*hasLegend*/true);
 
-    QVector<double> hyp(totalDays,0), cen(totalDays,0), obs(totalDays,0), unk(totalDays,0);
+    QVector<double> hyp(totalDays,0), apn(totalDays,0);
     double maxTot = 0.5;
     for (int i = 0; i < totalDays; i++) {
         const QDate d = rd.start.addDays(i);
@@ -850,11 +944,10 @@ static void drawUsageBars(QPainter& p, const QRectF& r, const ReportData& rd, do
         Day* day = rd.daysMap[d];
         const double hrs = day->hours(MT_CPAP);
         if (hrs <= 0.0) continue;
-        hyp[i] = day->count(CPAP_Hypopnea)    / hrs;
-        cen[i] = day->count(CPAP_ClearAirway) / hrs;
-        obs[i] = day->count(CPAP_Obstructive) / hrs;
-        unk[i] = day->count(CPAP_Apnea)       / hrs;
-        maxTot = qMax(maxTot, hyp[i] + cen[i] + obs[i] + unk[i]);
+        hyp[i] = day->count(CPAP_Hypopnea) / hrs;
+        apn[i] = (day->count(CPAP_ClearAirway) + day->count(CPAP_Obstructive)
+                  + day->count(CPAP_Apnea)) / hrs;
+        maxTot = qMax(maxTot, hyp[i] + apn[i]);
     }
 
     double yMax;
@@ -868,8 +961,8 @@ static void drawUsageBars(QPainter& p, const QRectF& r, const ReportData& rd, do
 
     QVector<double> ticks;
     for (int k = 0; k <= 5; k++) ticks.push_back(yMax * k / 5.0);
-    avDrawYGrid(p, plot, 0.0, yMax, ticks, (yMax <= 5.0 ? 1 : 0), false, s);
-    avDrawWeekGrid(p, plot, rd, s);
+    avDrawYGrid(p, plot, 0.0, yMax, ticks, (yMax <= 5.0 ? 1 : 0), s);
+    avDrawXGrid(p, plot, rd, s);
     avDrawXDates(p, plot, rd, s);
 
     auto yOf = [&](double v){ return plot.bottom() - v / yMax * plot.height(); };
@@ -879,9 +972,8 @@ static void drawUsageBars(QPainter& p, const QRectF& r, const ReportData& rd, do
     for (int i = 0; i < totalDays; i++) {
         const double x = plot.left() + colW * (i + 0.5) - barW/2.0;
         double yb = plot.bottom();
-        const QPair<double,QColor> segs[4] = {      // bottom→top
-            { hyp[i], AV::EV_HYP }, { cen[i], AV::EV_CENTRAL },
-            { obs[i], AV::EV_OBS }, { unk[i], AV::EV_UNK } };
+        const QPair<double,QColor> segs[2] = {      // bottom→top: apnea, hypopnea
+            { apn[i], AV::EV_OBS }, { hyp[i], AV::EV_HYP } };
         for (const auto& seg : segs) {
             const double h = seg.first / yMax * plot.height();
             if (h <= 0.3*s) continue;
@@ -901,11 +993,9 @@ static void drawUsageBars(QPainter& p, const QRectF& r, const ReportData& rd, do
 
     const QRectF legRect(plot.left(), r.bottom() - AV_LEG_H*s, plot.width(), AV_LEG_H*s);
     drawChartLegend(p, legRect, QVector<AvLegendItem>{
-        { AV::EV_HYP,     QObject::tr("Hypopnea"),      false },
-        { AV::EV_CENTRAL, QObject::tr("Central apnea"), false },
-        { AV::EV_OBS,     QObject::tr("Obstructive"),   false },
-        { AV::EV_UNK,     QObject::tr("Unknown"),       false },
-        { AV::EV_OBS,     QObject::tr("mean %1").arg(QString::number(rd.AHI, 'f', 2)), true },
+        { AV::EV_OBS, QObject::tr("Apnea (all types)"), false },
+        { AV::EV_HYP, QObject::tr("Hypopnea"),          false },
+        { AV::EV_OBS, QObject::tr("period AHI %1").arg(QString::number(rd.AHI, 'f', 2)), true },
     }, s);
 }
 
@@ -1049,20 +1139,22 @@ static AvYRange avComputeYRange(QVector<double> mins, QVector<double> maxes,
     return { yMin, yMax, step, clipped, dataMax };
 }
 
-// 3) Per-night box-whisker for a distribution channel. Data extraction mirrors
-//    renderLeakChart / renderChannelBarChart: per night median = percentile 0.5,
-//    box top = upper-percentile (avUpperPct), whiskers = Day::Min/Max. The day
-//    map is passed explicitly so oximetry pages can supply rd.oxiDaysMap; `triple`
-//    is the design-system AV::ChannelTriple (minmax bar / median–95th box /
-//    median tick). Columns are culled by FULL horizontal extent, not onset.
-[[maybe_unused]] static void drawBoxWhisker(QPainter& p, const QRectF& r, const ReportData& rd,
-                           const QMap<QDate,Day*>& dayMap, ChannelID chan,
-                           const AV::ChannelTriple& triple, bool normalBand,
-                           double normLo, double normHi, double redline, double s) {
+// 3) Per-night median–95th percentile band for a distribution channel. Data
+//    extraction mirrors renderLeakChart / renderChannelBarChart: per night
+//    median = percentile 0.5, band top = upper percentile (avUpperPct). Raw
+//    nightly Min/Max whiskers are deliberately NOT drawn: Day::Min includes
+//    sensor-dropout zeros (a single pulse probe-slip painted a whisker to 0,
+//    contradicting the dropout-filtered header stats), and the extra encoding
+//    doubled the legend without clinical benefit. The day map is passed
+//    explicitly so oximetry pages can supply rd.oxiDaysMap; `colors` is the
+//    design-system AV::ChannelColors (median–95th band / median tick).
+static void drawChannelBand(QPainter& p, const QRectF& r, const ReportData& rd,
+                            const QMap<QDate,Day*>& dayMap, ChannelID chan,
+                            const AV::ChannelColors& colors, double redline, double s) {
     const int totalDays = qMax(1, rd.totalDays);
     const QRectF plot = avPlotArea(r, s, /*hasLegend*/true);
 
-    QVector<double> med(totalDays,0), p95(totalDays,0), mn(totalDays,0), mx(totalDays,0);
+    QVector<double> med(totalDays,0), p95(totalDays,0);
     QVector<bool> has(totalDays,false);
     const double up = avUpperPct();
     for (int i = 0; i < totalDays; i++) {
@@ -1072,19 +1164,19 @@ static AvYRange avComputeYRange(QVector<double> mins, QVector<double> maxes,
         const bool hasData = (chan == OXI_SPO2 || chan == OXI_Pulse)
                                  ? (day->timeAboveThreshold(chan, 0.0) > 0.0)
                                  : (day->hours(MT_CPAP) > 0.0);
-        if (!hasData) continue;
+        // channelHasData: a used night where THIS channel recorded nothing must
+        // not paint a zero-height sliver or drag the auto-scaled floor to 0.
+        if (!hasData || !day->channelHasData(chan)) continue;
         has[i] = true;
         med[i] = day->percentile(chan, 0.5);
         p95[i] = day->percentile(chan, up);
-        mn[i]  = day->Min(chan);
-        mx[i]  = day->Max(chan);
     }
 
-    // Collect the per-night distribution into compact arrays for the auto-scaler.
-    QVector<double> aMin, aMax, aMed, aP95;
+    // Compact arrays for the auto-scaler: the median series anchors the floor,
+    // the upper-percentile series the ceiling.
+    QVector<double> aMed, aP95;
     for (int i = 0; i < totalDays; i++) {
         if (!has[i]) continue;
-        aMin.push_back(mn[i]);  aMax.push_back(mx[i]);
         aMed.push_back(med[i]); aP95.push_back(p95[i]);
     }
 
@@ -1124,16 +1216,18 @@ static AvYRange avComputeYRange(QVector<double> mins, QVector<double> maxes,
         defMin = 0.0; defMax = 600.0;
     } else {
         cp = { false, 0.10, 1.0, 1.0, 0.0, 1e9, false, NaNv, NaNv, NaNv, false };
-        defMin = 0.0; defMax = avNiceMax(aMax.isEmpty() ? 1.0 : aMax.back());
+        defMin = 0.0;
+        defMax = avNiceMax(aP95.isEmpty() ? 1.0
+                           : *std::max_element(aP95.constBegin(), aP95.constEnd()));
     }
 
-    const AvYRange yr = avComputeYRange(aMin, aMax, aMed, aP95, cp, defMin, defMax);
+    const AvYRange yr = avComputeYRange(aMed, aP95, aMed, aP95, cp, defMin, defMax);
     const double yMin = yr.yMin, yMax = yr.yMax, step = yr.tickStep;
 
     QVector<double> ticks;
     for (double t = yMin; t <= yMax + 1e-6; t += step) ticks.push_back(t);
-    avDrawYGrid(p, plot, yMin, yMax, ticks, ((yMax - yMin) <= 5.0 ? 1 : 0), false, s);
-    avDrawWeekGrid(p, plot, rd, s);
+    avDrawYGrid(p, plot, yMin, yMax, ticks, ((yMax - yMin) <= 5.0 ? 1 : 0), s);
+    avDrawXGrid(p, plot, rd, s);
     avDrawXDates(p, plot, rd, s);
 
     auto yOf = [&](double v){
@@ -1141,32 +1235,27 @@ static AvYRange avComputeYRange(QVector<double> mins, QVector<double> maxes,
         return qBound(plot.top(), y, plot.bottom());
     };
 
-    if (normalBand) {                                // green normal band behind data
-        QColor nb = AV::GREEN; nb.setAlphaF(0.08);
-        p.fillRect(QRectF(plot.left(), yOf(normHi), plot.width(), yOf(normLo) - yOf(normHi)), nb);
-    }
-
     const double colW = avColW(plot, totalDays), barW = colW * 0.52;
     p.setPen(Qt::NoPen);
     for (int i = 0; i < totalDays; i++) {
         if (!has[i]) continue;
         const double x = plot.left() + colW * (i + 0.5) - barW/2.0;
-        const double yMxp = yOf(mx[i]), yMnp = yOf(mn[i]), yMdp = yOf(med[i]), yP = yOf(p95[i]);
-        p.fillRect(QRectF(x, yMxp, barW, qMax(0.8*s, yMnp - yMxp)), triple.minmax);   // min–max
-        p.fillRect(QRectF(x, yP,   barW, qMax(0.8*s, yMdp - yP)),   triple.band);     // median–95th
-        p.fillRect(QRectF(x, yMdp - 0.9*s, barW, 1.8*s),            triple.median);   // median tick
+        const double yMdp = yOf(med[i]), yP = yOf(p95[i]);
+        p.fillRect(QRectF(x, yP, barW, qMax(0.8*s, yMdp - yP)), colors.band);   // median–95th
+        p.fillRect(QRectF(x, yMdp - 0.9*s, barW, 1.8*s),        colors.median); // median tick
     }
 
-    // High-side outlier clip indicator (pulse/leak only). A spike that exceeds the
-    // robust ceiling renders flush to the top (yOf already qBounds it); flag it with
-    // a small triangle on each clipped column + a "peak <value>" annotation. Low
-    // values and findings are NEVER clipped (allowHiClip is false elsewhere).
+    // High-side outlier clip indicator (pulse/leak only). A night whose upper
+    // percentile exceeds the robust ceiling renders flush to the top (yOf
+    // already qBounds it); flag it with a small triangle on each clipped column
+    // + a "peak <value>" annotation. Low values and findings are NEVER clipped
+    // (allowHiClip is false elsewhere).
     if (yr.clipped) {
         const double tw = 6*s;
         p.setPen(Qt::NoPen);
-        p.setBrush(triple.median);
+        p.setBrush(colors.median);
         for (int i = 0; i < totalDays; i++) {
-            if (!has[i] || mx[i] <= yMax + 1e-9) continue;
+            if (!has[i] || p95[i] <= yMax + 1e-9) continue;
             const double cxp = plot.left() + colW * (i + 0.5);
             QPolygonF tri;
             tri << QPointF(cxp, plot.top())
@@ -1176,7 +1265,7 @@ static AvYRange avComputeYRange(QVector<double> mins, QVector<double> maxes,
         }
         p.setBrush(Qt::NoBrush);
         p.setFont(avSans(8.5*s, QFont::DemiBold));
-        p.setPen(triple.median);
+        p.setPen(colors.median);
         p.drawText(QRectF(plot.left(), plot.top() + 1*s, plot.width() - 2*s, 12*s),
                    Qt::AlignRight | Qt::AlignTop,
                    QObject::tr("peak %1").arg(qRound(yr.clipValue)));
@@ -1195,105 +1284,12 @@ static AvYRange avComputeYRange(QVector<double> mins, QVector<double> maxes,
     }
 
     QVector<AvLegendItem> leg = {
-        { triple.minmax, QObject::tr("nightly min–max"), false },
-        { triple.band,   QObject::tr("median–95th"),     false },
-        { triple.median, QObject::tr("median"),          false },
+        { colors.band,   QObject::tr("nightly median–%1").arg(avUpperPctLabel()), false },
+        { colors.median, QObject::tr("median"), false },
     };
-    if (normalBand) {
-        QColor nb = AV::GREEN;
-        leg.push_back({ nb, QObject::tr("normal %1–%2")
-                            .arg(QString::number(normLo, 'f', 0)).arg(QString::number(normHi, 'f', 0)), false });
-    }
     if (redline > 0.0) leg.push_back({ AV::RED, QObject::tr("redline %1").arg(qRound(redline)), true });
     const QRectF legRect(plot.left(), r.bottom() - AV_LEG_H*s, plot.width(), AV_LEG_H*s);
     drawChartLegend(p, legRect, leg, s);
-}
-
-// 4) Pressure trace. Data extraction mirrors renderPressureChart: per-night
-//    percentile/median + prescribed-setting scan. Fixed CPAP draws a flat navy
-//    line at the set pressure; auto draws a median↔95th band with set min/max.
-[[maybe_unused]] static void drawPressureChart(QPainter& p, const QRectF& r, const ReportData& rd, double s) {
-    const int totalDays = qMax(1, rd.totalDays);
-    const QRectF plot = avPlotArea(r, s, /*hasLegend*/false);
-    const ChannelID pressChan = CPAP_Pressure;
-    const double up = avUpperPct();
-
-    QVector<double> med(totalDays,0), p95(totalDays,0);
-    QVector<bool> has(totalDays,false);
-    double maxVal = 12.0;
-    for (int i = 0; i < totalDays; i++) {
-        const QDate d = rd.start.addDays(i);
-        if (!rd.daysMap.contains(d) || rd.daysMap[d]->hours(MT_CPAP) <= 0) continue;
-        Day* day = rd.daysMap[d];
-        has[i] = true;
-        p95[i] = day->percentile(pressChan, up);
-        med[i] = day->percentile(pressChan, 0.5);
-        maxVal = qMax(maxVal, (double)p95[i]);
-    }
-
-    bool isAuto = false; double setMin = 0, setMax = 0, setFixed = 0;
-    for (int i = 0; i < totalDays; i++) {
-        const QDate d = rd.start.addDays(i);
-        if (!rd.daysMap.contains(d) || rd.daysMap[d]->hours(MT_CPAP) <= 0) continue;
-        Day* day = rd.daysMap[d];
-        const double mn = day->settings_min(CPAP_PressureMin);
-        const double mx = day->settings_max(CPAP_PressureMax);
-        if (mn > 0.0 || mx > 0.0) {
-            isAuto = true;
-            if (mn > 0.0) setMin = (setMin == 0.0) ? mn : qMin(setMin, mn);
-            if (mx > 0.0) setMax = qMax(setMax, mx);
-        } else {
-            const double f = day->settings_max(CPAP_Pressure);
-            if (f > 0.0) setFixed = qMax(setFixed, f);
-        }
-    }
-    maxVal = qMax(maxVal, isAuto ? setMax : setFixed);
-    double yMax = qCeil(maxVal / 4.0) * 4.0;
-    if (yMax < 12.0) yMax = 12.0;
-
-    double yMin = 0.0;
-    { double dataFloor = yMax;
-      for (int i = 0; i < totalDays; i++) if (has[i] && med[i] > 0) dataFloor = qMin(dataFloor, (double)med[i]);
-      if (dataFloor < yMax) yMin = qMax(4.0, qFloor((dataFloor - 2.0) / 2.0) * 2.0); }
-
-    QVector<double> ticks;
-    for (double t = yMin; t <= yMax + 1e-6; t += 2.0) ticks.push_back(t);
-    avDrawYGrid(p, plot, yMin, yMax, ticks, 0, /*dotted*/true, s);
-    avDrawWeekGrid(p, plot, rd, s);
-    avDrawXDates(p, plot, rd, s);
-
-    auto yOf = [&](double v){
-        const double y = plot.bottom() - (v - yMin) / (yMax - yMin) * plot.height();
-        return qBound(plot.top(), y, plot.bottom());
-    };
-    const double colW = avColW(plot, totalDays);
-
-    if (isAuto) {
-        QPolygonF band;                              // p95 across, then median back
-        for (int i = 0; i < totalDays; i++) if (has[i]) band << QPointF(plot.left() + colW*(i+0.5), yOf(p95[i]));
-        for (int i = totalDays-1; i >= 0; i--) if (has[i]) band << QPointF(plot.left() + colW*(i+0.5), yOf(med[i]));
-        QColor bf = AV::ACCENT; bf.setAlphaF(0.12);
-        p.setPen(Qt::NoPen); p.setBrush(bf); p.drawPolygon(band);
-        QPolygonF medLine;
-        for (int i = 0; i < totalDays; i++) if (has[i]) medLine << QPointF(plot.left() + colW*(i+0.5), yOf(med[i]));
-        p.setBrush(Qt::NoBrush);
-        p.setPen(QPen(AV::ACCENT, 1.5*s));
-        p.drawPolyline(medLine);
-        QPen sp(AV::BASE, 1*s); sp.setDashPattern({5, 4}); p.setPen(sp);
-        if (setMax > 0.0)   p.drawLine(QPointF(plot.left(), yOf(setMax)), QPointF(plot.right(), yOf(setMax)));
-        if (setMin > yMin)  p.drawLine(QPointF(plot.left(), yOf(setMin)), QPointF(plot.right(), yOf(setMin)));
-        p.setFont(avSans(8.5*s, QFont::Normal)); p.setPen(AV::NAVY);
-        p.drawText(QRectF(plot.left(), yOf(setMax) - 13*s, plot.width() - 2*s, 12*s), Qt::AlignRight | Qt::AlignVCenter,
-                   QObject::tr("%1–%2 auto").arg(QString::number(setMin, 'f', 1)).arg(QString::number(setMax, 'f', 1)));
-    } else {
-        const double fp = (setFixed > 0.0) ? setFixed : maxVal;
-        const double fy = yOf(fp);
-        p.setPen(QPen(AV::NAVY, 2*s));
-        p.drawLine(QPointF(plot.left(), fy), QPointF(plot.right(), fy));
-        p.setFont(avSans(8.5*s, QFont::Normal)); p.setPen(AV::NAVY);
-        p.drawText(QRectF(plot.left(), fy - 13*s, plot.width() - 2*s, 12*s), Qt::AlignRight | Qt::AlignVCenter,
-                   QObject::tr("%1 fixed").arg(QString::number(fp, 'f', 1)));
-    }
 }
 
 // ============================================================================
@@ -1336,10 +1332,14 @@ static void drawDistributionBar(QPainter& p, const QRectF& r,
     p.restore();
 }
 
-// 6) Per-night SpO2 range chart over rd.oxiDaysMap. Mirrors drawBoxWhisker's
-//    per-night extraction but tints each night's min–max range bar by its nightly
-//    MIN (SpO2 zone) and adds 90/88 dashed thresholds + a bold period-low marker.
-//    y-axis floats to floor(min-2)..100 (kept ≤ 85 so the 88/90 lines are visible).
+// 6) Per-night SpO2 range chart over rd.oxiDaysMap. Deliberately different from
+//    drawChannelBand: for SpO2 the clinical finding is the DEPTH of nightly
+//    desaturation, and a median–95th band would collapse into a sliver at ~97%
+//    and hide every dip — so each night plots its dropout-filtered min–max
+//    range with a median tick, plus a bold period-low marker. No threshold
+//    lines or zone tints: interpretation is left to the clinician. y-axis
+//    floats to floor(min-2)..100, capped at 90 so ≥10 points of context remain
+//    and a stable trace doesn't read as dramatic swings.
 static void drawSpo2Chart(QPainter& p, const QRectF& r, const ReportData& rd, double s) {
     const int totalDays = qMax(1, rd.totalDays);
     const QRectF plot = avPlotArea(r, s, /*hasLegend*/true);
@@ -1353,73 +1353,79 @@ static void drawSpo2Chart(QPainter& p, const QRectF& r, const ReportData& rd, do
         if (!rd.oxiDaysMap.contains(d)) continue;
         Day* day = rd.oxiDaysMap[d];
         if (day->timeAboveThreshold(OXI_SPO2, 0.0) <= 0.0) continue;
-        const double dmn = day->Min(OXI_SPO2);
-        if (dmn <= 0.0) continue;
+        // Dropout-filtered nightly range (same probe-loss filter as rd.minSpO2),
+        // so a probe-slip artifact never fakes a low or drags the axis.
+        const FilteredStats fs = calcDayFilteredStats(day, OXI_SPO2, rd.oxiSourceType,
+                                                      AV_SPO2_ARTIFACT_FLOOR, 0.0,
+                                                      AV_SPO2_MAX_FALL_PCT_PER_SEC);
+        if (!fs.found || fs.min <= 0.0) continue;
         has[i] = true;
         med[i] = day->percentile(OXI_SPO2, 0.5);
-        mn[i]  = dmn;
-        mx[i]  = day->Max(OXI_SPO2);
-        dataMin = qMin(dataMin, dmn);
-        if (dmn < lowVal) { lowVal = dmn; lowIdx = i; }
+        mn[i]  = fs.min;
+        mx[i]  = fs.max;
+        dataMin = qMin(dataMin, fs.min);
+        if (fs.min < lowVal) { lowVal = fs.min; lowIdx = i; }
     }
 
-    // Ceiling is fixed at 100. The LOW floor follows the TRUE worst dip (snapped to
-    // a step of 2) so a low desaturation is NEVER hidden as an "outlier". Capping
-    // at <=80 keeps the 88/90 reference lines in frame; there is deliberately NO
-    // lower clamp, so if dataMin < 80 the floor follows it down (e.g. 70 or lower).
+    // Ceiling is fixed at 100. The LOW floor follows the TRUE worst dip (snapped
+    // to a step of 2) so a low desaturation is NEVER hidden as an "outlier";
+    // capped at 90 so the axis always keeps ≥10 points of context. There is
+    // deliberately NO lower clamp — if dataMin is 70, the floor follows it down.
     const double yMax = 100.0;
-    double yMin = qMin(80.0, (double)(qFloor((dataMin - 2.0) / 2.0) * 2.0));
+    const double yMin = qMin(90.0, (double)(qFloor((dataMin - 2.0) / 2.0) * 2.0));
 
     auto yOf = [&](double v){
         const double y = plot.bottom() - (v - yMin) / (yMax - yMin) * plot.height();
         return qBound(plot.top(), y, plot.bottom());
     };
 
-    // baseline (solid) + 5-step gridlines/labels above it (90 tick recoloured amber)
-    p.setPen(QPen(AV::BASE, 1*s));
-    p.drawLine(QPointF(plot.left(), plot.bottom()), QPointF(plot.right(), plot.bottom()));
-    p.setFont(avMono(8.5*s, QFont::Normal));
-    p.setPen(AV::GREY3);
-    p.drawText(QRectF(plot.left() - AV_AXIS_W*s, plot.bottom() - 7*s, AV_AXIS_W*s - 4*s, 14*s),
-               Qt::AlignRight | Qt::AlignVCenter, QString::number((int)yMin));
-    for (int v = ((int)yMin/5 + 1)*5; v <= (int)yMax; v += 5) {
-        const double yy = yOf(v);
-        p.setPen(QPen(AV::GRID, 1*s));
-        p.drawLine(QPointF(plot.left(), yy), QPointF(plot.right(), yy));
+    // AirView-style axis: baseline + labels/tick dashes every 5%, minor dash +
+    // faint dotted gridline at intervening whole % (every 2% on deep ranges).
+    {
+        const double majTick = 3.5*s, minTick = 2.2*s, labGap = 2.5*s;
+        p.setPen(QPen(AV::BASE, 1*s));
+        p.drawLine(QPointF(plot.left(), plot.bottom()), QPointF(plot.right(), plot.bottom()));
         p.setFont(avMono(8.5*s, QFont::Normal));
-        p.setPen(v == 90 ? AV::AMBER : AV::GREY3);
-        p.drawText(QRectF(plot.left() - AV_AXIS_W*s, yy - 7*s, AV_AXIS_W*s - 4*s, 14*s),
-                   Qt::AlignRight | Qt::AlignVCenter, QString::number(v));
+        p.setPen(AV::GREY3);
+        p.drawText(QRectF(plot.left() - AV_AXIS_W*s, plot.bottom() - 7*s,
+                          AV_AXIS_W*s - majTick - labGap, 14*s),
+                   Qt::AlignRight | Qt::AlignVCenter, QString::number((int)yMin));
+        const int minorStep = ((yMax - yMin) > 16.0) ? 2 : 1;
+        for (int v = (int)yMin + 1; v < (int)yMax; v++) {
+            if (v % 5 == 0 || (v - (int)yMin) % minorStep != 0) continue;
+            const double yy = yOf(v);
+            QPen mp(AV::GRID_DOT, 1*s);
+            mp.setDashPattern({2, 3});
+            p.setPen(mp);
+            p.drawLine(QPointF(plot.left(), yy), QPointF(plot.right(), yy));
+            p.setPen(QPen(AV::GREY3, 1*s));
+            p.drawLine(QPointF(plot.left() - minTick, yy), QPointF(plot.left(), yy));
+        }
+        for (int v = ((int)yMin/5 + 1)*5; v <= (int)yMax; v += 5) {
+            const double yy = yOf(v);
+            p.setPen(QPen(AV::GRID, 1*s));
+            p.drawLine(QPointF(plot.left(), yy), QPointF(plot.right(), yy));
+            p.setPen(QPen(AV::GREY2, 1*s));
+            p.drawLine(QPointF(plot.left() - majTick, yy), QPointF(plot.left(), yy));
+            p.setFont(avMono(8.5*s, QFont::Normal));
+            p.setPen(AV::GREY3);
+            p.drawText(QRectF(plot.left() - AV_AXIS_W*s, yy - 7*s,
+                              AV_AXIS_W*s - majTick - labGap, 14*s),
+                       Qt::AlignRight | Qt::AlignVCenter, QString::number(v));
+        }
     }
-    avDrawWeekGrid(p, plot, rd, s);
+    avDrawXGrid(p, plot, rd, s);
     avDrawXDates(p, plot, rd, s);
 
-    // dashed thresholds 90 (amber) / 88 (red) + small red "88" right-edge label
-    auto dashLine = [&](double val, const QColor& c){
-        if (val < yMin || val > yMax) return;
-        QPen dp(c, 0.9*s); dp.setDashPattern({5, 4});
-        p.setPen(dp);
-        p.drawLine(QPointF(plot.left(), yOf(val)), QPointF(plot.right(), yOf(val)));
-    };
-    dashLine(90.0, AV::AMBER);
-    dashLine(88.0, AV::RED);
-    if (88.0 >= yMin && 88.0 <= yMax) {
-        p.setFont(avSans(8*s, QFont::Normal));
-        p.setPen(AV::RED);
-        p.drawText(QRectF(plot.right() - 22*s, yOf(88.0) - 12*s, 20*s, 12*s),
-                   Qt::AlignRight | Qt::AlignBottom, QStringLiteral("88"));
-    }
-
-    // per-night min–max range bars tinted by nightly min + median tick
+    // per-night min–max range bars (single neutral colour — no zone tints) +
+    // median tick
     const double colW = avColW(plot, totalDays), barW = colW * 0.52;
     p.setPen(Qt::NoPen);
     for (int i = 0; i < totalDays; i++) {
         if (!has[i]) continue;
         const double x = plot.left() + colW * (i + 0.5) - barW/2.0;
-        const QColor tint = (mn[i] < 88.0) ? AV::SPO2_LT88
-                          : (mn[i] < 90.0) ? AV::SPO2_LT90 : AV::SPO2_NORMAL;
         const double yt = yOf(mx[i]), yb = yOf(mn[i]);
-        p.fillRect(QRectF(x, yt, barW, qMax(0.8*s, yb - yt)), tint);
+        p.fillRect(QRectF(x, yt, barW, qMax(0.8*s, yb - yt)), AV::SPO2_NORMAL);
         const double ym = yOf(med[i]);
         p.fillRect(QRectF(x, ym - 0.9*s, barW, 1.8*s), AV::GREY1);
     }
@@ -1433,7 +1439,8 @@ static void drawSpo2Chart(QPainter& p, const QRectF& r, const ReportData& rd, do
         p.setBrush(Qt::NoBrush);
         p.setFont(avSans(8.5*s, QFont::DemiBold));
         p.setPen(AV::RED);
-        const QString lbl = QString::number(qRound(rd.minSpO2)) + QStringLiteral("%");
+        // Label with the same filtered nightly value that positions the dot.
+        const QString lbl = QString::number(qRound(lowVal)) + QStringLiteral("%");
         QFontMetricsF fm(p.font());
         const double lw = fm.horizontalAdvance(lbl);
         const double lx = qBound(plot.left(), x - lw/2.0, plot.right() - lw);
@@ -1441,11 +1448,11 @@ static void drawSpo2Chart(QPainter& p, const QRectF& r, const ReportData& rd, do
     }
 
     QVector<AvLegendItem> leg = {
-        { AV::SPO2_NORMAL, QObject::tr("nightly range"),      false },
-        { AV::GREY1,       QObject::tr("median"),             false },
-        { AV::SPO2_LT88,   QObject::tr("< 88% night"),        false },
-        { AV::AMBER,       QObject::tr("90 / 88 thresholds"), true  },
+        { AV::SPO2_NORMAL, QObject::tr("nightly range (min–max)"), false },
+        { AV::GREY1,       QObject::tr("median"),                  false },
     };
+    if (rd.minSpO2Set && lowIdx >= 0)
+        leg.push_back({ AV::RED, QObject::tr("period low"), false });
     const QRectF legRect(plot.left(), r.bottom() - AV_LEG_H*s, plot.width(), AV_LEG_H*s);
     drawChartLegend(p, legRect, leg, s);
 }
@@ -1497,6 +1504,19 @@ static void drawOximeterSubheader(QPainter& p, const QRectF& r, const QString& t
     p.setFont(avSans(8.5*s, QFont::DemiBold, 0.1*8.5*s));
     p.setPen(AV::ACCENT);
     p.drawText(r, Qt::AlignVCenter | Qt::AlignLeft, text.toUpper());
+}
+
+// ---- Clinical banding (sleep-medicine thresholds) ---------------------------
+// band 0 = normal, 1 = borderline, 2 = abnormal. capAmber clamps 2→1 for
+// device-estimated/uncalibrated indices (RERA, flow limitation) that must never
+// read as a hard red. Value text uses legible darks; dots use the bright tokens.
+struct AvBand { int band; QColor value; QColor dot; };
+static AvBand avBand(double v, double lo, double hi, bool capAmber = false) {
+    int b = (v >= hi) ? 2 : (v >= lo ? 1 : 0);
+    if (capAmber && b == 2) b = 1;
+    const QColor val = (b == 2) ? AV::RED : (b == 1) ? AV::AMBER_DK : AV::INK;
+    const QColor dot = (b == 2) ? AV::RED : (b == 1) ? AV::AMBER    : AV::GREEN;
+    return { b, val, dot };
 }
 
 // ============================================================================
@@ -1567,7 +1587,7 @@ static void avPage1(QPainter& p, const QRectF& page, const ReportData& rd,
         { QObject::tr("Date of birth"), rd.dob.isValid() ? rd.dob.toString("MMM d, yyyy") : QStringLiteral("—") },
         { QObject::tr("Age"),           rd.age >= 0 ? QObject::tr("%1 yrs").arg(rd.age) : QStringLiteral("—") },
         { QObject::tr("Report period"), period },
-        { QObject::tr("Nights"),        QString::number(rd.daysUsed) },
+        { QObject::tr("Nights used"),   QString::number(rd.daysUsed) },
         { QObject::tr("Device"),        device.isEmpty() ? QStringLiteral("—") : device },
         { QObject::tr("Serial no."),    rd.serial.isEmpty() ? QStringLiteral("—") : rd.serial },
         { QObject::tr("Mode"),          rd.modeStr.isEmpty() ? QStringLiteral("—") : rd.modeStr },
@@ -1577,35 +1597,81 @@ static void avPage1(QPainter& p, const QRectF& page, const ReportData& rd,
     const double gridH = 2 * 50*s;
     // Proportional columns (cols: Patient/Device · DOB/Serial · Age/Mode · Period/Pressure · Nights/Mask)
     // so the long values (device name, date range, pressure) get the width they need.
-    drawInfoGrid(p, QRectF(cx, y, cw, gridH), info, 5, s, { 1.7, 1.1, 0.6, 1.4, 1.1 });
+    drawInfoGrid(p, QRectF(cx, y, cw, gridH), info, 5, s, { 1.7, 1.1, 0.6, 1.4, 1.1 },
+                 /*roundTop*/true, /*roundBottom*/false);
     y += gridH;
 
-    // (c) Scorecard strip — 6 cells, butted under the info grid.
+    // (c) Scorecard strip — 6 cells, butted under the info grid. Every dot,
+    // tint and top rule is VALUE-DRIVEN (a fixed green dot on a clinical
+    // scorecard is a truthfulness bug). Neutral grey = metric not bandable
+    // (no data, or total-leak device with no seal redline).
     const double scH = 82*s, scW = cw / 6.0;
-    struct Card { QColor dot; QString label, value, unit, caption; bool tint; };
+    const bool leakBandable = !rd.isTotalLeak && rd.leakChan != NoChannel && rd.leakRedline > 0;
+    const QString thrStr = QString::number(rd.complianceThreshold, 'g', 3);
+    // Banding where HIGHER is better (adherence, usage, SpO2): v ≥ okAt → 0,
+    // v ≥ warnAt → 1, else 2. (avBand covers the higher-is-worse indices.)
+    auto bandLow = [](double v, double okAt, double warnAt) -> int {
+        return v >= okAt ? 0 : v >= warnAt ? 1 : 2;
+    };
+    auto dotFor = [](int b) -> QColor {
+        return b >= 2 ? AV::RED : b == 1 ? AV::AMBER : b == 0 ? AV::GREEN : AV::GREY3;
+    };
+    const int adhBand  = bandLow(rd.pctCompliant, 70.0, 50.0);          // CMS-style 70%
+    const int ahiBand  = avBand(rd.AHI, 5.0, 15.0).band;
+    const int useBand  = bandLow(rd.avgHoursUsed, rd.complianceThreshold,
+                                 qMax(0.0, rd.complianceThreshold - 1.0));
+    const int leakBand = leakBandable
+        ? avBand(rd.p95Leak, rd.leakRedline - 4.0, rd.leakRedline).band : -1;
+    const int o2Band   = rd.minSpO2Set ? bandLow(rd.minSpO2, 90.0, 88.0) : -1;
+    const int caiBand  = avBand(rd.CentralAI, 5.0, 10.0).band;
+
+    struct Card { int band; QString label, value, unit, caption; };
     const QVector<Card> cards = {
-        { AV::GREEN, QObject::tr("Adherence"),    QString::number(qRound(rd.pctCompliant)), QStringLiteral("%"),
-          QObject::tr("%1/%2 ≥ 4 h").arg(rd.compliantDays).arg(rd.totalDays), false },
-        { AV::GREEN, QObject::tr("Residual AHI"), QString::number(rd.AHI, 'f', 1), QStringLiteral("/h"),
-          rd.hasBaseline ? QObject::tr("%1% baseline").arg(qRound(rd.baselinePctChange)) : QString(), false },
-        { AV::GREEN, QObject::tr("Avg usage"),    hmm(rd.avgHoursUsed), QStringLiteral("h"),
-          QObject::tr("median %1").arg(hmm(rd.medianHoursUsed)), false },
-        { AV::GREEN, QObject::tr("Leak 95th"),    QString::number(rd.p95Leak, 'f', 1), QStringLiteral("L/m"),
-          QObject::tr("redline %1").arg(qRound(rd.leakRedline)), false },
-        { AV::AMBER, QObject::tr("Lowest SpO₂"),
+        { adhBand,  QObject::tr("Adherence"),    QString::number(qRound(rd.pctCompliant)), QStringLiteral("%"),
+          QObject::tr("%1/%2 ≥ %3 h").arg(rd.compliantDays).arg(rd.totalDays).arg(thrStr) },
+        { ahiBand,  QObject::tr("Residual AHI"), QString::number(rd.AHI, 'f', 1), QStringLiteral("/h"),
+          rd.hasBaseline ? QObject::tr("%1%2% vs baseline")
+                               .arg(rd.baselinePctChange >= 0 ? QStringLiteral("+") : QString())
+                               .arg(qRound(rd.baselinePctChange))
+                         : QString() },
+        { useBand,  QObject::tr("Avg usage"),    hmm(rd.avgHoursUsed), QStringLiteral("h"),
+          QObject::tr("median %1").arg(hmm(rd.medianHoursUsed)) },
+        { leakBand, QObject::tr("Leak %1").arg(avUpperPctLabel()),
+          rd.leakChan != NoChannel ? QString::number(rd.p95Leak, 'f', 1) : QStringLiteral("—"),
+          rd.leakChan != NoChannel ? QStringLiteral("L/m") : QString(),
+          rd.leakChan == NoChannel ? QObject::tr("no leak data")
+              : leakBandable       ? QObject::tr("redline %1").arg(qRound(rd.leakRedline))
+                                   : QObject::tr("total leak") },
+        { o2Band,   QObject::tr("Lowest SpO₂"),
           rd.minSpO2Set ? QString::number(qRound(rd.minSpO2)) : QStringLiteral("—"),
           rd.minSpO2Set ? QStringLiteral("%") : QString(),
-          rd.minSpO2Set ? QObject::tr("T90 %1").arg(minsFromSecs(rd.t90Secs)) : QString(), true },
-        { AV::AMBER, QObject::tr("Central idx"),  QString::number(rd.CentralAI, 'f', 2), QStringLiteral("/h"),
-          QObject::tr("CSR %1%").arg(qRound(rd.avgCsrPctPerNight)), true },
+          rd.minSpO2Set ? QObject::tr("T90 %1").arg(minsFromSecs(rd.t90Secs)) : QString() },
+        { caiBand,  QObject::tr("Clear-airway idx"), QString::number(rd.CentralAI, 'f', 2), QStringLiteral("/h"),
+          // CSR caption only when the device records that channel
+          p_profile->hasChannel(CPAP_CSR)
+              ? QObject::tr("CSR %1%").arg(qRound(rd.avgCsrPctPerNight)) : QString() },
     };
+    // Cells clipped to a bottom-rounded strip; the grid above + this strip
+    // read as one soft-cornered hero block.
+    const double scRad = AV_RAD*s, scA = 0.5*s;
+    QPainterPath scClip;
+    scClip.addRoundedRect(QRectF(cx, y, cw, scH), scRad, scRad);
+    scClip.addRect(QRectF(cx, y, cw, scRad));                 // square the top corners
+    scClip = scClip.simplified();
+    p.save();
+    p.setClipPath(scClip);
     for (int i = 0; i < cards.size(); i++) {
-        drawScorecardCell(p, QRectF(cx + i*scW, y, scW, scH), cards[i].dot,
-                          cards[i].label, cards[i].value, cards[i].unit, cards[i].caption, cards[i].tint, s);
+        drawScorecardCell(p, QRectF(cx + i*scW, y, scW, scH), dotFor(cards[i].band),
+                          cards[i].label, cards[i].value, cards[i].unit, cards[i].caption,
+                          cards[i].band, s);
     }
+    p.restore();
     p.setBrush(Qt::NoBrush);
     p.setPen(QPen(AV::HAIR1, 1*s));
-    p.drawRect(QRectF(cx, y, cw, scH).adjusted(0.5*s, 0.5*s, -0.5*s, -0.5*s));
+    QPainterPath scBorder;
+    scBorder.addRoundedRect(QRectF(cx, y, cw, scH).adjusted(scA, scA, -scA, -scA), scRad, scRad);
+    scBorder.addRect(QRectF(cx + scA, y + scA, cw - 2*scA, scRad));
+    p.drawPath(scBorder.simplified());
     p.setPen(QPen(AV::HAIR2, 1*s));
     for (int i = 1; i < 6; i++)
         p.drawLine(QPointF(cx + i*scW, y), QPointF(cx + i*scW, y + scH));
@@ -1614,30 +1680,33 @@ static void avPage1(QPainter& p, const QRectF& page, const ReportData& rd,
     // (d) Usage section — band, chart card (reserved for Task 9), compliance cells.
     const double bandH = 30*s;
     drawBand(p, QRectF(cx, y, cw, bandH), QObject::tr("Usage"),
-             QObject::tr("Daily therapy hours · compliance threshold 4 h"), s);
+             QObject::tr("Daily therapy hours · compliance threshold %1 h").arg(thrStr), s);
     y += bandH;
 
-    const double chartH = 230*s, cardPadX = 16*s, cardPadTop = 14*s, cardPadBottom = 10*s;
+    // Chart height sized so the section fills the room freed by the slimmer
+    // panels below — a taller plot keeps 90-night bars readable.
+    const double chartH = 300*s, cardPadX = 16*s, cardPadTop = 14*s, cardPadBottom = 10*s;
     const double usageCardH = cardPadTop + chartH + cardPadBottom;
     drawCard(p, QRectF(cx, y, cw, usageCardH), /*joinTop*/true, s);
 
-    // Left stats column (mirrors ResMed AirView's usage summary), bars to the right.
+    // Left stats column (mirrors ResMed AirView's usage summary), bars to the
+    // right. One term everywhere: "nights" (the info grid + page 2 use it too).
     const double uStatsW = 170*s, uStatsGap = 14*s;
     const int notUsed4h = rd.daysUsed - rd.compliantDays;
     auto pctOf = [&](int n){ return rd.totalDays > 0 ? qRound(100.0 * n / rd.totalDays) : 0; };
     const QVector<AvStat> usageStats = {
-        { QObject::tr("Usage days"),
+        { QObject::tr("Nights used"),
           QStringLiteral("%1/%2 (%3%)").arg(rd.daysUsed).arg(rd.totalDays).arg(qRound(rd.pctUsed)), QColor(), nullptr, false },
-        { QObject::tr("\xe2\x89\xa5 4 hour days"),
+        { QObject::tr("\xe2\x89\xa5 %1 h nights").arg(thrStr),
           QStringLiteral("%1 (%2%)").arg(rd.compliantDays).arg(qRound(rd.pctCompliant)), AV::GREEN, nullptr, false },
-        { QObject::tr("< 4 hour days"),
+        { QObject::tr("< %1 h nights").arg(thrStr),
           QStringLiteral("%1 (%2%)").arg(notUsed4h).arg(pctOf(notUsed4h)), notUsed4h > 0 ? AV::RED : QColor(), nullptr, false },
-        { QObject::tr("Days not used"),
+        { QObject::tr("Nights not used"),
           QStringLiteral("%1 (%2%)").arg(rd.daysNotUsed).arg(pctOf(rd.daysNotUsed)), QColor(), nullptr, false },
-        { QObject::tr("Days no data"),
+        { QObject::tr("Nights no data"),
           QStringLiteral("%1 (%2%)").arg(rd.daysNoData).arg(pctOf(rd.daysNoData)), QColor(), nullptr, false },
         { QString(), QString(), QColor(), nullptr, false },  // spacer
-        { QObject::tr("Used/day (avg)"), hmm(rd.avgHoursUsed) + QObject::tr(" h"), QColor(), nullptr, false },
+        { QObject::tr("Used/night (avg)"), hmm(rd.avgHoursUsed) + QObject::tr(" h"), QColor(), nullptr, false },
     };
     drawChartStats(p, QRectF(cx + cardPadX, y + cardPadTop, uStatsW, chartH), usageStats, s);
 
@@ -1646,17 +1715,17 @@ static void avPage1(QPainter& p, const QRectF& page, const ReportData& rd,
     drawUsageBars(p, usageChartRect, rd, s);
     y += usageCardH + 22*s;
 
-    // (e) Two side-by-side panels: Mask & Seal (left) + Respiratory Events (right).
+    // (e) Two side-by-side panels: Mask & Seal (left) + Respiratory Events
+    // (right). Plain KV-row cards: the gauges that used to sit here duplicated
+    // the scorecard verdicts above, and their centred scale labels drifted from
+    // the actual tick positions — dropped for a simpler, honest read.
     const double gap = 18*s, panelW = (cw - gap) / 2.0;
     const double leftX = cx, rightX = cx + panelW + gap;
-    const double panelBandH = 30*s, panelCardH = 238*s, panelTop = y;
+    const double panelBandH = 30*s, panelCardH = 200*s, panelTop = y;
 
     auto drawPanel = [&](double px0, const QString& bandTitle, const QString& bandSub,
                          const QString& miniLabel, const QString& miniNote, const QColor& miniNoteColor,
-                         double fillPct, const QColor& fillColor,
-                         const QVector<QPair<double,QColor>>& ticks,
-                         const QString& scLeft, const QString& scMid, const QColor& scMidColor,
-                         const QString& scRight, const QVector<KVRowDef>& rows) {
+                         const QVector<KVRowDef>& rows) {
         drawBand(p, QRectF(px0, panelTop, panelW, panelBandH), bandTitle, bandSub, s);
         const double cardTop = panelTop + panelBandH;
         drawCard(p, QRectF(px0, cardTop, panelW, panelCardH), /*joinTop*/true, s);
@@ -1671,56 +1740,60 @@ static void avPage1(QPainter& p, const QRectF& page, const ReportData& rd,
             p.setPen(miniNoteColor);
             p.drawText(QRectF(ix, cyy, iw, 14*s), Qt::AlignRight | Qt::AlignVCenter, miniNote);
         }
-        cyy += 14*s + 7*s;
-        // gauge
-        drawGauge(p, QRectF(ix, cyy, iw, 16*s), fillPct, fillColor, ticks, s);
-        cyy += 16*s + 4*s;
-        // scale labels (mono ~8px): left/right GREY2, mid colored
-        p.setFont(avMono(8*s, QFont::Normal));
-        p.setPen(AV::GREY2);
-        p.drawText(QRectF(ix, cyy, iw, 10*s), Qt::AlignLeft  | Qt::AlignTop, scLeft);
-        p.drawText(QRectF(ix, cyy, iw, 10*s), Qt::AlignRight | Qt::AlignTop, scRight);
-        p.setPen(scMidColor);
-        p.drawText(QRectF(ix, cyy, iw, 10*s), Qt::AlignHCenter | Qt::AlignTop, scMid);
-        cyy += 10*s + 6*s;
-        // KV rows
+        cyy += 14*s + 9*s;
         for (const KVRowDef& r : rows) {
             drawKVRow(p, QRectF(ix, cyy, iw, 31*s), r.label, r.value, s, r.swatch);
             cyy += 31*s;
         }
     };
 
-    // LEFT — Mask & Seal
+    // LEFT — Mask & Seal. Redline note and time-over-redline row only where a
+    // seal redline is meaningful; no leak channel at all → explicit "not
+    // recorded" instead of measured-looking zeros.
+    const QColor leakNoteCol = !leakBandable ? AV::GREY2
+        : leakBand >= 2 ? AV::RED : leakBand == 1 ? AV::AMBER_DK : AV::GREEN;
+    QVector<KVRowDef> leakRows;
+    if (rd.leakChan != NoChannel) {
+        leakRows = {
+            { QObject::tr("Median leak"),   QObject::tr("%1 L/min").arg(QString::number(rd.medianLeak, 'f', 1)), nullptr },
+            { QObject::tr("%1 percentile").arg(avUpperPctLabel()),
+              QObject::tr("%1 L/min").arg(QString::number(rd.p95Leak, 'f', 1)), nullptr },
+            { QObject::tr("Maximum (avg)"), QObject::tr("%1 L/min").arg(QString::number(rd.maxLeak, 'f', 1)), nullptr },
+        };
+        if (leakBandable)
+            leakRows.append({ QObject::tr("Time over redline"),
+                              rd.timeAboveRedlineStr + QStringLiteral(" · ")
+                                  + QString::number(rd.pctOverRedline, 'f', 1) + QStringLiteral("%"), nullptr });
+    } else {
+        leakRows = { { QObject::tr("Leak data"), QObject::tr("not recorded"), nullptr } };
+    }
     drawPanel(leftX, QObject::tr("Mask & Seal"), rd.maskDescription,
-              QObject::tr("Unintentional leak"),
-              QObject::tr("%1% over redline").arg(QString::number(rd.pctOverRedline, 'f', 1)), AV::GREEN,
-              qBound(0.0, rd.p95Leak / 30.0, 1.0), AV::GAUGE_LEAK,
-              { { qBound(0.0, rd.leakRedline / 30.0, 1.0), AV::RED },
-                { qBound(0.0, rd.medianLeak / 30.0, 1.0), AV::TICK_MEDIAN } },
-              QStringLiteral("0"), QObject::tr("redline %1").arg(qRound(rd.leakRedline)), AV::RED,
-              QStringLiteral("30 L/m"),
-              { { QObject::tr("Median leak"),     QObject::tr("%1 L/min").arg(QString::number(rd.medianLeak, 'f', 1)), nullptr },
-                { QObject::tr("95th percentile"), QObject::tr("%1 L/min").arg(QString::number(rd.p95Leak, 'f', 1)),    nullptr },
-                { QObject::tr("Maximum"),         QObject::tr("%1 L/min").arg(QString::number(rd.maxLeak, 'f', 1)),     nullptr },
-                { QObject::tr("Time over redline"),
-                  rd.timeAboveRedlineStr + QStringLiteral(" · ") + QString::number(rd.pctOverRedline, 'f', 1) + QStringLiteral("%"), nullptr } });
+              rd.leakChan == NoChannel ? QObject::tr("Leak")
+                  : leakBandable       ? QObject::tr("Unintentional leak")
+                                       : QObject::tr("Total leak (incl. mask vent)"),
+              leakBandable ? QObject::tr("%1% over redline").arg(QString::number(rd.pctOverRedline, 'f', 1))
+                           : QString(),
+              leakNoteCol,
+              leakRows);
 
-    // RIGHT — Respiratory Events
-    const bool ahiOk = rd.AHI < 5.0;
+    // RIGHT — Respiratory Events breakdown (headline AHI sits in the band sub).
+    QVector<KVRowDef> eventRows = {
+        { QObject::tr("Clear-airway apnea (CAI)"), QObject::tr("%1 /h").arg(QString::number(rd.CentralAI, 'f', 2)),     &AV::EV_CENTRAL },
+        { QObject::tr("Hypopnea (HI)"),           QObject::tr("%1 /h").arg(QString::number(rd.HI, 'f', 2)),            &AV::EV_HYP },
+        { QObject::tr("Obstructive apnea (OAI)"), QObject::tr("%1 /h").arg(QString::number(rd.ObstructiveAI, 'f', 2)), &AV::EV_OBS },
+        { QObject::tr("Respiratory effort arousals (RERA)"), QObject::tr("%1 /h").arg(QString::number(rd.ReraIndex, 'f', 1)), nullptr },
+    };
+    if (p_profile->hasChannel(CPAP_CSR))   // CSR only for devices that score it
+        eventRows.append({ QObject::tr("Cheyne–Stokes respiration"),
+                           QObject::tr("%1 min/night · %2%")
+                               .arg(qRound(rd.daysUsed > 0 ? rd.totalCsrMinutes / rd.daysUsed : 0.0))
+                               .arg(qRound(rd.avgCsrPctPerNight)), nullptr });
     drawPanel(rightX, QObject::tr("Respiratory Events"),
               QObject::tr("AHI %1 /h").arg(QString::number(rd.AHI, 'f', 1)),
-              QObject::tr("Residual AHI vs target"),
-              ahiOk ? QObject::tr("within target") : QObject::tr("above target"),
-              ahiOk ? AV::GREEN : AV::AMBER,
-              qBound(0.0, rd.AHI / 10.0, 1.0), AV::EV_CENTRAL,
-              { { 0.5, AV::AMBER } },
-              QStringLiteral("0"), QObject::tr("target 5 /h"), AV::AMBER, QStringLiteral("10 /h"),
-              { { QObject::tr("Central apnea (CAI)"),     QObject::tr("%1 /h").arg(QString::number(rd.CentralAI, 'f', 2)),     &AV::EV_CENTRAL },
-                { QObject::tr("Hypopnea (HI)"),           QObject::tr("%1 /h").arg(QString::number(rd.HI, 'f', 2)),            &AV::EV_HYP },
-                { QObject::tr("Obstructive apnea (OAI)"), QObject::tr("%1 /h").arg(QString::number(rd.ObstructiveAI, 'f', 2)), &AV::EV_OBS },
-                { QObject::tr("Respiratory effort arousals (RERA)"), QObject::tr("%1 /h").arg(QString::number(rd.ReraIndex, 'f', 1)), nullptr },
-                { QObject::tr("Cheyne–Stokes respiration"),
-                  QObject::tr("%1 min · %2%").arg(qRound(rd.totalCsrMinutes)).arg(qRound(rd.avgCsrPctPerNight)), nullptr } });
+              QObject::tr("Residual AHI vs target 5 /h"),
+              ahiBand == 0 ? QObject::tr("within target") : QObject::tr("above target"),
+              ahiBand >= 2 ? AV::RED : ahiBand == 1 ? AV::AMBER_DK : AV::GREEN,
+              eventRows);
 
     // (f) Footer.
     const double footH = 40*s;
@@ -1731,18 +1804,6 @@ static void avPage1(QPainter& p, const QRectF& page, const ReportData& rd,
 // ============================================================================
 // Page 2 — Therapy & Device Settings. Text-heavy page (no charts).
 // ============================================================================
-// ---- Therapy block clinical banding (sleep-medicine thresholds) -------------
-// band 0 = normal, 1 = borderline, 2 = abnormal. capAmber clamps 2→1 for
-// device-estimated/uncalibrated indices (RERA, flow limitation) that must never
-// read as a hard red. Value text uses legible darks; dots use the bright tokens.
-struct AvBand { int band; QColor value; QColor dot; };
-static AvBand avBand(double v, double lo, double hi, bool capAmber = false) {
-    int b = (v >= hi) ? 2 : (v >= lo ? 1 : 0);
-    if (capAmber && b == 2) b = 1;
-    const QColor val = (b == 2) ? AV::RED : (b == 1) ? AV::AMBER_DK : AV::INK;
-    const QColor dot = (b == 2) ? AV::RED : (b == 1) ? AV::AMBER    : AV::GREEN;
-    return { b, val, dot };
-}
 
 // One therapy row: optional status dot, label, right-aligned colored value, and
 // an optional status chip (used on the AHI headline). headline = larger value.
@@ -1823,10 +1884,11 @@ static void avPage2(QPainter& p, const QRectF& page, const ReportData& rd,
     const AvBand leakB = leakBandable
         ? avBand(rd.p95Leak, rd.leakRedline - 4.0, rd.leakRedline)
         : AvBand{0, AV::INK, AV::GREEN};
-    const bool hasFL = p_profile->hasChannel(CPAP_FLG);
+    const bool hasFL  = p_profile->hasChannel(CPAP_FLG);
+    const bool hasCSR = p_profile->hasChannel(CPAP_CSR);
 
     const double subH = 18*s, trowH = 27*s;
-    const int nData = hasFL ? 7 : 6;                 // AHI, residual, RERA, [FL], CAI, CSR, leak
+    const int nData = 5 + (hasFL ? 1 : 0) + (hasCSR ? 1 : 0);  // AHI, residual, RERA, [FL], CAI, [CSR], leak
     const double therapyCardH = padTop + 3*subH + nData*trowH + padBot;
     drawCard(p, QRectF(cx, y, cw, therapyCardH), /*joinTop*/true, s);
 
@@ -1851,11 +1913,15 @@ static void avPage2(QPainter& p, const QRectF& page, const ReportData& rd,
         p.drawText(QRectF(r.left(), r.top(), r.width()*0.4, r.height()),
                    Qt::AlignVCenter | Qt::AlignLeft, QObject::tr("Residual events"));
         struct Seg { QColor c; QString t; };
-        const QVector<Seg> segs = {
+        QVector<Seg> segs = {
             { AV::EV_OBS,     QObject::tr("Obstructive %1").arg(rd.ObstructiveAI, 0, 'f', 1) },
-            { AV::EV_CENTRAL, QObject::tr("Central %1").arg(rd.CentralAI, 0, 'f', 1) },
+            { AV::EV_CENTRAL, QObject::tr("Clear airway %1").arg(rd.CentralAI, 0, 'f', 1) },
             { AV::EV_HYP,     QObject::tr("Hypopnea %1").arg(rd.HI, 0, 'f', 1) },
         };
+        // Unclassified apneas count toward AHI — include them so the breakdown
+        // reconciles with the headline value.
+        if (rd.UnknownAI > 0.005)
+            segs.append({ AV::EV_UNK, QObject::tr("Uncl. %1").arg(rd.UnknownAI, 0, 'f', 1) });
         p.setFont(avMono(11*s, QFont::DemiBold));
         QFontMetricsF fm(p.font());
         const double sw = 8*s, sgap = 5*s, between = 14*s;
@@ -1875,24 +1941,32 @@ static void avPage2(QPainter& p, const QRectF& page, const ReportData& rd,
     drawTherapyRow(p, rowRect(), QObject::tr("Respiratory Effort\xe2\x80\x93Related Arousals (RERA)"),
                    QString::number(rd.ReraIndex, 'f', 1) + QStringLiteral(" /h"), reraB.value, reraB.band, nullptr, s);
     if (hasFL)
-        drawTherapyRow(p, rowRect(), QObject::tr("Flow limitation (95th, device index)"),
+        drawTherapyRow(p, rowRect(), QObject::tr("Flow limitation (%1, device index)").arg(avUpperPctLabel()),
                        QString::number(rd.p95FlowLimit, 'f', 2), flB.value, flB.band, nullptr, s);
 
     // — Central & breathing pattern —
     sub(QObject::tr("Central & breathing pattern"));
-    drawTherapyRow(p, rowRect(), QObject::tr("Central apnea index (CAI)"),
+    drawTherapyRow(p, rowRect(), QObject::tr("Clear-airway apnea index (CAI, device-scored)"),
                    QString::number(rd.CentralAI, 'f', 2) + QStringLiteral(" /h"), caiB.value, caiB.band, &caiB.dot, s);
-    drawTherapyRow(p, rowRect(), QObject::tr("Cheyne\xe2\x80\x93Stokes respiration"),
-                   QString("%1 min \xc2\xb7 %2%").arg(qRound(rd.totalCsrMinutes)).arg(qRound(rd.avgCsrPctPerNight)),
-                   csrB.value, csrB.band, &csrB.dot, s);
+    if (hasCSR)
+        drawTherapyRow(p, rowRect(), QObject::tr("Cheyne\xe2\x80\x93Stokes respiration"),
+                       QString("%1 min/night \xc2\xb7 %2%")
+                           .arg(qRound(rd.daysUsed > 0 ? rd.totalCsrMinutes / rd.daysUsed : 0.0))
+                           .arg(qRound(rd.avgCsrPctPerNight)),
+                       csrB.value, csrB.band, &csrB.dot, s);
 
     // — Mask seal / leak —
     sub(QObject::tr("Mask seal / leak"));
     {
-        const QString lv = QObject::tr("median %1 \xc2\xb7 95th %2 \xc2\xb7 max %3 L/min")
-            .arg(rd.medianLeak, 0, 'f', 1).arg(rd.p95Leak, 0, 'f', 1).arg(rd.maxLeak, 0, 'f', 1);
+        const QString lv = QObject::tr("median %1 \xc2\xb7 %2 %3 \xc2\xb7 max(avg) %4 L/min")
+            .arg(rd.medianLeak, 0, 'f', 1).arg(avUpperPctLabel())
+            .arg(rd.p95Leak, 0, 'f', 1).arg(rd.maxLeak, 0, 'f', 1);
         const QColor* ld = leakBandable ? &leakB.dot : nullptr;
-        drawTherapyRow(p, rowRect(), QObject::tr("Unintentional leak"), lv,
+        // Label by what the device actually reports — calling total leak
+        // "unintentional" would overstate seal leak on F&P/Philips devices.
+        drawTherapyRow(p, rowRect(),
+                       rd.isTotalLeak ? QObject::tr("Total leak (incl. mask vent)")
+                                      : QObject::tr("Unintentional leak"), lv,
                        leakB.band == 2 ? AV::RED : AV::INK, leakB.band, ld, s);
     }
 
@@ -1905,14 +1979,26 @@ static void avPage2(QPainter& p, const QRectF& page, const ReportData& rd,
     drawBand(p, QRectF(cx, y, cw, bandH), QObject::tr("Usage Detail"), QString(), s);
     y += bandH;
 
+    const QString thrStr = QString::number(rd.complianceThreshold, 'g', 3);
+    // CMS-style criterion (≥ threshold h on ≥70% of nights in a consecutive
+    // 30-day window) — the whole-period % above is not the payer test.
+    const AvCmsWindow cms = avBestCmsWindow(rd);
+    const QString cmsStr = !cms.valid
+        ? QObject::tr("period shorter than 30 days")
+        : QObject::tr("%1 \xc2\xb7 best window %2 \xe2\x80\x93 %3 (%4%)")
+              .arg(cms.met ? QObject::tr("Met") : QObject::tr("Not met"))
+              .arg(cms.start.toString("MMM d"))
+              .arg(cms.start.addDays(29).toString("MMM d"))
+              .arg(cms.pct);
     const QVector<QPair<QString,QString>> usageRows = {
-        { QObject::tr("Days used"),
+        { QObject::tr("Nights used"),
           QString("%1 / %2 (%3%)")
             .arg(rd.daysUsed).arg(rd.totalDays).arg(qRound(rd.pctUsed)) },
-        { QObject::tr("Nights \xe2\x89\xa5 4 h"),
+        { QObject::tr("Nights \xe2\x89\xa5 %1 h").arg(thrStr),
           QString("%1 (%2%)").arg(rd.compliantDays).arg(qRound(rd.pctCompliant)) },
-        { QObject::tr("Nights < 4 h"),
+        { QObject::tr("Nights < %1 h").arg(thrStr),
           QString::number(rd.daysUsed - rd.compliantDays) },
+        { QObject::tr("30-day compliance (\xe2\x89\xa5""70%)"), cmsStr },
         { QObject::tr("Total therapy hours"), totalHoursStr },
         { QObject::tr("Average (all \xc2\xb7 used)"),
           hmm(rd.avgHoursTotal) + QString::fromUtf8(" \xc2\xb7 ") + hmm(rd.avgHoursUsed) },
@@ -1992,39 +2078,60 @@ static void avPage2(QPainter& p, const QRectF& page, const ReportData& rd,
     addDevSetting(QObject::tr("Patient View"),         RMAS11_PtView);
 
     const int devCols = 2;
-    const int devRows = qMax(1, (devCells.size() + devCols - 1) / devCols);
-    const double devGridH = devRows * 40*s;   // compact rows so the grid + callout clear the footer
+    // Cap the grid to the rows that fit above callout (64) + footer (40) +
+    // gaps, dropping trailing cells (the least clinically relevant settings sit
+    // at the end of the list) — a full ResMed settings dump must not overlap
+    // the clinical-note callout.
+    const int maxDevRows = qMax(1, (int)qFloor(
+        (page.bottom() - 40*s - 12*s - 64*s - 14*s - y) / (40*s)));
+    int devRows = qMax(1, ((int)devCells.size() + devCols - 1) / devCols);
+    if (devRows > maxDevRows) {
+        devRows = maxDevRows;
+        devCells.resize(devRows * devCols);
+    }
+    const double devGridH = devRows * 40*s;
     if (!devCells.isEmpty())
-        drawInfoGrid(p, QRectF(cx, y, cw, devGridH), devCells, devCols, s);
+        drawInfoGrid(p, QRectF(cx, y, cw, devGridH), devCells, devCols, s,
+                     QVector<double>(), /*roundTop*/false, /*roundBottom*/true);
     y += devGridH + 14*s;
 
-    // (e) Clinical note callout — data-driven, no fabrication
-    // Auto clinical impression, generated from the bands computed above.
-    QString note = QObject::tr("Impression: ");
+    // (e) Clinical note callout — data-driven, no fabrication. The lead-in
+    // states provenance so the text cannot be mistaken for a clinician's read.
+    QString note = QObject::tr("Auto impression (device data): ");
     note += (ahiB.band == 0 ? QObject::tr("AHI well controlled (%1/h)")
            : ahiB.band == 1 ? QObject::tr("mild residual AHI (%1/h)")
                             : QObject::tr("inadequate control, AHI %1/h"))
                 .arg(QString::number(rd.AHI, 'f', 1));
     if (leakBandable) {
         if (leakB.band == 0)
-            note += QObject::tr(", leak acceptable (95th %1 < %2)")
+            note += QObject::tr(", leak acceptable (%1 %2 < %3)")
+                        .arg(avUpperPctLabel())
                         .arg(QString::number(rd.p95Leak, 'f', 1)).arg(qRound(rd.leakRedline));
         else
-            note += QObject::tr(", elevated leak (95th %1 \xe2\x89\xa5 %2) \xe2\x80\x94 AHI may be unreliable")
+            note += QObject::tr(", elevated leak (%1 %2 \xe2\x89\xa5 %3) \xe2\x80\x94 AHI may be unreliable")
+                        .arg(avUpperPctLabel())
                         .arg(QString::number(rd.p95Leak, 'f', 1)).arg(qRound(rd.leakRedline));
     }
     note += QStringLiteral(".");
-    const bool centralPredominant = rd.CentralAI > 0.0 && rd.AHI > 0.0 && rd.CentralAI >= 0.5 * rd.AHI;
-    if (caiB.band >= 1 || centralPredominant)
+    // TECSA-style flag needs absolute burden, not just proportion: treated
+    // AHI ≥ 5 with CAI ≥ 5 and central-predominant (≥ 50% of AHI). A CAI of
+    // 1.2 against an AHI of 2.0 is well-controlled therapy, not a warning.
+    const bool centralPredominant = rd.AHI >= 5.0 && rd.CentralAI >= 5.0
+                                    && rd.CentralAI >= 0.5 * rd.AHI;
+    if (centralPredominant)
         note += QStringLiteral(" ") + QObject::tr(
             "Residual events central-predominant \xe2\x80\x94 monitor for "
             "treatment-emergent central apnea if symptoms recur.");
+    else if (caiB.band >= 1)
+        note += QStringLiteral(" ") + QObject::tr(
+            "Elevated clear-airway apnea index (%1/h) \xe2\x80\x94 review centrals "
+            "if symptoms persist.").arg(QString::number(rd.CentralAI, 'f', 1));
     if (csrB.band >= 2)
         note += QStringLiteral(" ") + QObject::tr(
             "Cheyne\xe2\x80\x93Stokes present (%1%) \xe2\x80\x94 consider cardiac / CSA evaluation.")
             .arg(qRound(rd.avgCsrPctPerNight));
 
-    const double calloutH = 58*s;
+    const double calloutH = 64*s;
     // Never let the callout collide with the footer, even if the device grid runs long.
     const double calloutY = qMin(y, page.bottom() - 40*s - 12*s - calloutH);
     drawInfoCallout(p, QRectF(cx, calloutY, cw, calloutH), note, s);
@@ -2084,16 +2191,7 @@ static void avPage3(QPainter& p, const QRectF& page, const ReportData& rd,
     // left stats column and the chart to its right.
     auto drawChartCard = [&](double cardY, const QString& title, const QVector<AvStat>& stats,
                              auto drawFn) {
-        // HAIR1 outer border
-        p.setBrush(Qt::NoBrush);
-        p.setPen(QPen(AV::HAIR1, 1*s));
-        p.drawRect(QRectF(cx, cardY, cw, cardH).adjusted(0.5*s, 0.5*s, -0.5*s, -0.5*s));
-
-        // FILL_BLUE header strip + HAIR2 bottom rule
-        p.fillRect(QRectF(cx, cardY, cw, hdrH), AV::FILL_BLUE);
-        p.setBrush(Qt::NoBrush);
-        p.setPen(QPen(AV::HAIR2, 1*s));
-        p.drawLine(QPointF(cx, cardY + hdrH), QPointF(cx + cw, cardY + hdrH));
+        avCardChrome(p, QRectF(cx, cardY, cw, cardH), hdrH, s);
 
         // Title: NAVY 10px bold, ~0.09em tracking, uppercase, left-aligned
         p.setFont(avSans(10*s, QFont::Bold, 0.09*10*s));
@@ -2137,16 +2235,18 @@ static void avPage3(QPainter& p, const QRectF& page, const ReportData& rd,
             leakStats.append({ QObject::tr("Set threshold"),
                                QString("%1 L/min").arg(rd.leakRedline, 0, 'f', 1), QColor(), nullptr, false });
         leakStats.append({ QObject::tr("Maximum (avg)"), QString::number(rd.maxLeak, 'f', 1),    QColor(),   nullptr, false });
-        leakStats.append({ QObject::tr("95th % (avg)"),  QString::number(rd.p95Leak, 'f', 1),    AV::AMBER,  nullptr, false });
+        leakStats.append({ QObject::tr("%1 % (avg)").arg(avUpperPctLabel()),  QString::number(rd.p95Leak, 'f', 1),    AV::AMBER,  nullptr, false });
         leakStats.append({ QObject::tr("Median (avg)"),  QString::number(rd.medianLeak, 'f', 1), QColor(),   nullptr, false });
-        leakStats.append({ QObject::tr("Over redline"),  QString::number(rd.pctOverRedline, 'f', 1) + QStringLiteral("%"),
-                           QColor(), nullptr, false });
+        // Redline % only where a seal redline is meaningful (mirrors Classic's
+        // total-leak suppression and this report's own pages 1/7).
+        if (!rd.isTotalLeak)
+            leakStats.append({ QObject::tr("Over redline"),  QString::number(rd.pctOverRedline, 'f', 1) + QStringLiteral("%"),
+                               QColor(), nullptr, false });
         const double redline = rd.isTotalLeak ? 0.0 : rd.leakRedline;
         drawChartCard(y, QObject::tr("Mask Leak Rate \xe2\x80\x94 L / min"), leakStats,
                       [&](const QRectF& r){
-                          drawBoxWhisker(p, r, rd, rd.daysMap, rd.leakChan,
-                                         AV::LEAK_TRIPLE, /*normalBand*/false,
-                                         0.0, 0.0, redline, s);
+                          drawChannelBand(p, r, rd, rd.daysMap, rd.leakChan,
+                                          AV::LEAK_COLORS, redline, s);
                       });
         y += cardH + cardGap;
     }
@@ -2166,14 +2266,13 @@ static void avPage3(QPainter& p, const QRectF& page, const ReportData& rd,
             { QObject::tr("Set pressure"),  setPress.isEmpty() ? QStringLiteral("\xe2\x80\x94") : setPress, QColor(), nullptr, false },
             { QString(), QString(), QColor(), nullptr, false },  // spacer
             { QObject::tr("Maximum (avg)"), QString::number(rd.maxPressure, 'f', 1), QColor(),   nullptr, false },
-            { QObject::tr("95th % (avg)"),  QString::number(rd.p95Pressure, 'f', 1), AV::ACCENT, nullptr, false },
+            { QObject::tr("%1 % (avg)").arg(avUpperPctLabel()),  QString::number(rd.p95Pressure, 'f', 1), AV::ACCENT, nullptr, false },
             { QObject::tr("Median (avg)"),  QString::number(rd.avgPressure, 'f', 1), QColor(),   nullptr, false },
         };
         drawChartCard(y, QObject::tr("Pressure \xe2\x80\x94 cmH\xe2\x82\x82O"), pressStats,
                       [&](const QRectF& r){
-                          drawBoxWhisker(p, r, rd, rd.daysMap, CPAP_Pressure,
-                                         AV::PRESSURE_TRIPLE, /*normalBand*/false,
-                                         0, 0, 0, s);
+                          drawChannelBand(p, r, rd, rd.daysMap, CPAP_Pressure,
+                                          AV::PRESSURE_COLORS, /*redline*/0, s);
                       });
         // no y increment — footer uses page.bottom() directly
     }
@@ -2187,7 +2286,7 @@ static void avPage3(QPainter& p, const QRectF& page, const ReportData& rd,
 // Page 4 — Respiratory Channel Trends. Up to three box-whisker chart cards
 // (Minute Ventilation, Respiratory Rate, Tidal Volume), shown only when the
 // channel is both present on the device profile and selected in the dialog.
-// RR chart shows a green normal-range band (12–20 breaths/min).
+// No reference ranges are drawn — interpretation is left to the clinician.
 // ============================================================================
 static void avPage4(QPainter& p, const QRectF& page, const ReportData& rd,
                     const QList<SelectedChannel>& channels, int pageNo, int pageCount, double s)
@@ -2245,16 +2344,7 @@ static void avPage4(QPainter& p, const QRectF& page, const ReportData& rd,
 
         auto drawChartCard = [&](double cardY, const QString& title, const QVector<AvStat>& stats,
                                  auto drawFn) {
-            // HAIR1 outer border
-            p.setBrush(Qt::NoBrush);
-            p.setPen(QPen(AV::HAIR1, 1*s));
-            p.drawRect(QRectF(cx, cardY, cw, cardH).adjusted(0.5*s, 0.5*s, -0.5*s, -0.5*s));
-
-            // FILL_BLUE header strip + HAIR2 bottom rule
-            p.fillRect(QRectF(cx, cardY, cw, hdrH), AV::FILL_BLUE);
-            p.setBrush(Qt::NoBrush);
-            p.setPen(QPen(AV::HAIR2, 1*s));
-            p.drawLine(QPointF(cx, cardY + hdrH), QPointF(cx + cw, cardY + hdrH));
+            avCardChrome(p, QRectF(cx, cardY, cw, cardH), hdrH, s);
 
             // Title: NAVY 10px bold uppercase left-aligned
             p.setFont(avSans(10*s, QFont::Bold, 0.09*10*s));
@@ -2274,7 +2364,7 @@ static void avPage4(QPainter& p, const QRectF& page, const ReportData& rd,
             auto fmt = [&](double v){ return QString::number(v, 'f', decimals); };
             return {
                 { QObject::tr("Maximum (avg)"), fmt(calcDayAvgMax(cid, rd.daysMap)),               QColor(),   nullptr, false },
-                { QObject::tr("95th % (avg)"),  fmt(calcDayAvgPercentile(cid, avUpperPct(), rd.daysMap)), AV::ACCENT, nullptr, false },
+                { QObject::tr("%1 % (avg)").arg(avUpperPctLabel()),  fmt(calcDayAvgPercentile(cid, avUpperPct(), rd.daysMap)), AV::ACCENT, nullptr, false },
                 { QObject::tr("Median (avg)"),  fmt(calcDayAvgPercentile(cid, 0.5, rd.daysMap)),   QColor(),   nullptr, false },
             };
         };
@@ -2283,20 +2373,18 @@ static void avPage4(QPainter& p, const QRectF& page, const ReportData& rd,
         if (wantMV) {
             drawChartCard(y, QObject::tr("Minute Ventilation \xe2\x80\x94 L / min"), chanStats(CPAP_MinuteVent, 1),
                           [&](const QRectF& r){
-                              drawBoxWhisker(p, r, rd, rd.daysMap, CPAP_MinuteVent,
-                                             AV::MINVENT_TRIPLE, /*normalBand*/false,
-                                             0, 0, 0, s);
+                              drawChannelBand(p, r, rd, rd.daysMap, CPAP_MinuteVent,
+                                              AV::MINVENT_COLORS, /*redline*/0, s);
                           });
             y += cardH + cardGap;
         }
 
-        // Card 2: Respiratory Rate (green normal-range band 12–20)
+        // Card 2: Respiratory Rate
         if (wantRR) {
             drawChartCard(y, QObject::tr("Respiratory Rate \xe2\x80\x94 breaths / min"), chanStats(CPAP_RespRate, 0),
                           [&](const QRectF& r){
-                              drawBoxWhisker(p, r, rd, rd.daysMap, CPAP_RespRate,
-                                             AV::RESPRATE_TRIPLE, /*normalBand*/true,
-                                             12, 20, 0, s);
+                              drawChannelBand(p, r, rd, rd.daysMap, CPAP_RespRate,
+                                              AV::RESPRATE_COLORS, /*redline*/0, s);
                           });
             y += cardH + cardGap;
         }
@@ -2305,9 +2393,8 @@ static void avPage4(QPainter& p, const QRectF& page, const ReportData& rd,
         if (wantTV) {
             drawChartCard(y, QObject::tr("Tidal Volume \xe2\x80\x94 mL"), chanStats(CPAP_TidalVolume, 0),
                           [&](const QRectF& r){
-                              drawBoxWhisker(p, r, rd, rd.daysMap, CPAP_TidalVolume,
-                                             AV::TIDALVOL_TRIPLE, /*normalBand*/false,
-                                             0, 0, 0, s);
+                              drawChannelBand(p, r, rd, rd.daysMap, CPAP_TidalVolume,
+                                              AV::TIDALVOL_COLORS, /*redline*/0, s);
                           });
             // no y increment — last card
         }
@@ -2326,7 +2413,7 @@ static void avPage4(QPainter& p, const QRectF& page, const ReportData& rd,
 // Overnight Oxygen Summary (left) + a compact Lowest-Oxygen Night panel (right).
 // ============================================================================
 static bool avPage5(QPainter& p, const QRectF& page, const ReportData& rd,
-                    int pageNo, int pageCount, double s)
+                    bool selSpo2, bool selPulse, int pageNo, int pageCount, double s)
 {
     if (rd.usedDaysOxiAny == 0) return false;
 
@@ -2347,30 +2434,33 @@ static bool avPage5(QPainter& p, const QRectF& page, const ReportData& rd,
     y += bandH;
 
     // (c) Geometry: reserve the footer + bottom two-up block, split the rest
-    //     between the two chart cards.
+    //     between the chart cards.
     const double footH      = 40*s;
     const double twoUpCardH = 178*s;
     const double twoUpGap   = 14*s;
-    const double twoUpTop    = page.bottom() - footH - twoUpCardH;
-    const double chartsBottom = twoUpTop - twoUpGap;
 
     const double hdrH = 28*s, padX = 14*s, padTop = 10*s, padBot = 8*s, cardGap = 10*s;
-    const int numCards = rd.hasSpO2 ? 2 : 1;
+    // Gate each card on data-in-range (hasSpO2/hasPulse only assert the channel
+    // exists on the profile, not that this period recorded any) AND on the
+    // dialog's channel selection — trend charts honour the checklist exactly
+    // like Classic's channel charts. The summary block below stays data-gated.
+    const bool showSpo2  = rd.hasSpO2 && rd.usedDaysOxi > 0 && selSpo2;
+    const bool showPulse = rd.usedDaysPulse > 0 && selPulse;
+    const int numCards = (showSpo2 ? 1 : 0) + (showPulse ? 1 : 0);
+    // Both charts deselected → the summary block moves up under the band
+    // instead of leaving a page-height hole above it.
+    const double twoUpTop = (numCards == 0) ? y : (page.bottom() - footH - twoUpCardH);
+    const double chartsBottom = twoUpTop - twoUpGap;
     const double available = chartsBottom - y;
-    const double plotH = (available
-                          - numCards * (hdrH + padTop + padBot)
-                          - (numCards - 1) * cardGap) / numCards;
+    const double plotH = numCards > 0
+        ? (available - numCards * (hdrH + padTop + padBot)
+           - (numCards - 1) * cardGap) / numCards
+        : 0.0;
     const double cardH = hdrH + padTop + plotH + padBot;
 
     auto drawChartCard = [&](double cardY, const QString& title, const QString& summary,
                              auto drawFn) {
-        p.setBrush(Qt::NoBrush);
-        p.setPen(QPen(AV::HAIR1, 1*s));
-        p.drawRect(QRectF(cx, cardY, cw, cardH).adjusted(0.5*s, 0.5*s, -0.5*s, -0.5*s));
-        p.fillRect(QRectF(cx, cardY, cw, hdrH), AV::FILL_BLUE);
-        p.setBrush(Qt::NoBrush);
-        p.setPen(QPen(AV::HAIR2, 1*s));
-        p.drawLine(QPointF(cx, cardY + hdrH), QPointF(cx + cw, cardY + hdrH));
+        avCardChrome(p, QRectF(cx, cardY, cw, cardH), hdrH, s);
         p.setFont(avSans(10*s, QFont::Bold, 0.09*10*s));
         p.setPen(AV::NAVY);
         p.drawText(QRectF(cx + padX, cardY, cw - 2*padX, hdrH),
@@ -2383,8 +2473,8 @@ static bool avPage5(QPainter& p, const QRectF& page, const ReportData& rd,
         drawFn(plotRect);
     };
 
-    // Card 1: SpO2 nightly range — only when SpO₂ data is present
-    if (rd.hasSpO2) {
+    // Card 1: SpO2 nightly range — only when SpO₂ data exists in the period
+    if (showSpo2) {
         const QString sum = rd.minSpO2Set
             ? QObject::tr("Avg %1% · low %2%").arg(QString::number(rd.avgSpO2Period, 'f', 1))
                                               .arg(qRound(rd.minSpO2))
@@ -2394,14 +2484,14 @@ static bool avPage5(QPainter& p, const QRectF& page, const ReportData& rd,
         y += cardH + cardGap;
     }
 
-    // Card 2: Pulse rate box-whisker
-    {
+    // Card 2: Pulse rate box-whisker — only when pulse data exists in the period
+    if (showPulse) {
         const QString sum = QObject::tr("Avg %1 · min/max %2/%3 bpm")
             .arg(qRound(rd.avgPulsePeriod)).arg(qRound(rd.minPulsePeriod)).arg(qRound(rd.maxPulsePeriod));
         drawChartCard(y, QObject::tr("Pulse Rate — bpm"), sum,
                       [&](const QRectF& r){
-                          drawBoxWhisker(p, r, rd, rd.oxiDaysMap, OXI_Pulse,
-                                         AV::PULSE_TRIPLE, /*normalBand*/false, 0, 0, 0, s);
+                          drawChannelBand(p, r, rd, rd.oxiDaysMap, OXI_Pulse,
+                                          AV::PULSE_COLORS, /*redline*/0, s);
                       });
     }
 
@@ -2412,13 +2502,7 @@ static bool avPage5(QPainter& p, const QRectF& page, const ReportData& rd,
     // optional right-aligned caption); returns the inner content rect.
     auto cardFrame = [&](double fx, double ft, double fw, const QString& title,
                          const QString& rightText) -> QRectF {
-        p.setBrush(Qt::NoBrush);
-        p.setPen(QPen(AV::HAIR1, 1*s));
-        p.drawRect(QRectF(fx, ft, fw, twoUpCardH).adjusted(0.5*s, 0.5*s, -0.5*s, -0.5*s));
-        p.fillRect(QRectF(fx, ft, fw, hdrH), AV::FILL_BLUE);
-        p.setBrush(Qt::NoBrush);
-        p.setPen(QPen(AV::HAIR2, 1*s));
-        p.drawLine(QPointF(fx, ft + hdrH), QPointF(fx + fw, ft + hdrH));
+        avCardChrome(p, QRectF(fx, ft, fw, twoUpCardH), hdrH, s);
         p.setFont(avSans(10*s, QFont::Bold, 0.09*10*s));
         p.setPen(AV::NAVY);
         p.drawText(QRectF(fx + padX, ft, fw - 2*padX, hdrH),
@@ -2436,23 +2520,32 @@ static bool avPage5(QPainter& p, const QRectF& page, const ReportData& rd,
     {
         const QRectF in = cardFrame(cx, twoUpTop, colW, QObject::tr("Overnight Oxygen Summary"), QString());
         double iy = in.top();
-        if (rd.hasSpO2) {
+        if (showSpo2) {
+            // Round the three zones with drift correction (largest zone absorbs
+            // the residual) so the bar and legend always total exactly 100%.
+            int z95 = qRound(rd.spo2Zones.pctGe95);
+            int z90 = qRound(rd.spo2Zones.pct90to95);
+            int zlt = qRound(rd.spo2Zones.pctLt90);
+            const int drift = 100 - (z95 + z90 + zlt);
+            if      (z95 >= z90 && z95 >= zlt) z95 += drift;
+            else if (z90 >= zlt)               z90 += drift;
+            else                               zlt += drift;
             drawDistributionBar(p, QRectF(in.left(), iy, in.width(), 20*s),
-                                { { rd.spo2Zones.pctGe95,   AV::GREEN },
-                                  { rd.spo2Zones.pct90to95, AV::AMBER },
-                                  { rd.spo2Zones.pctLt90,   AV::RED   } }, s);
+                                { { (double)z95, AV::GREEN },
+                                  { (double)z90, AV::AMBER },
+                                  { (double)zlt, AV::RED   } }, s);
             iy += 20*s + 8*s;
             drawChartLegend(p, QRectF(in.left(), iy, in.width(), 12*s), QVector<AvLegendItem>{
-                { AV::GREEN, QObject::tr("≥95% %1%").arg(qRound(rd.spo2Zones.pctGe95)),   false },
-                { AV::AMBER, QObject::tr("90–95% %1%").arg(qRound(rd.spo2Zones.pct90to95)), false },
-                { AV::RED,   QObject::tr("<90% %1%").arg(qRound(rd.spo2Zones.pctLt90)),    false },
+                { AV::GREEN, QObject::tr("≥95% %1%").arg(z95),   false },
+                { AV::AMBER, QObject::tr("90–95% %1%").arg(z90), false },
+                { AV::RED,   QObject::tr("<90% %1%").arg(zlt),   false },
             }, s);
             iy += 12*s + 10*s;
         }
 
-        const auto spo2 = [&](const QString& v){ return rd.hasSpO2 ? v : QString::fromUtf8("—"); };
+        const auto spo2 = [&](const QString& v){ return showSpo2 ? v : QString::fromUtf8("—"); };
         const QVector<QPair<QString,QString>> kvs = {
-            { QObject::tr("ODI₃"),
+            { QObject::tr("ODI"),
               spo2(QObject::tr("%1 /h (≥%2% dip)").arg(rd.odi, 0, 'f', 1).arg(qRound(rd.dropPct))) },
             { QObject::tr("Time < 90% (T90)"), spo2(rd.t90Str.isEmpty() ? QStringLiteral("—") : rd.t90Str) },
             { QObject::tr("Time < 88%"),       spo2(minsFromSecs(rd.t88Secs)) },
@@ -2478,19 +2571,23 @@ static bool avPage5(QPainter& p, const QRectF& page, const ReportData& rd,
         for (auto it = rd.oxiDaysMap.constBegin(); it != rd.oxiDaysMap.constEnd(); ++it) {
             Day* day = it.value();
             if (day->timeAboveThreshold(OXI_SPO2, 0.0) <= 0.0) continue;
-            const double dmn = day->Min(OXI_SPO2);
-            if (dmn <= 0.0) continue;
-            if (dmn < worstMin) {
-                worstMin  = dmn;
+            // Worst night by DROPOUT-FILTERED nadir (same filter as rd.minSpO2)
+            // so a probe-slip artifact can never select the wrong night.
+            const FilteredStats fs = calcDayFilteredStats(day, OXI_SPO2, rd.oxiSourceType,
+                                                          AV_SPO2_ARTIFACT_FLOOR, 0.0,
+                                                          AV_SPO2_MAX_FALL_PCT_PER_SEC);
+            if (!fs.found || fs.min <= 0.0) continue;
+            if (fs.min < worstMin) {
+                worstMin  = fs.min;
                 worstDate = it.key();
                 worstMed  = day->percentile(OXI_SPO2, 0.5);
-                worstMax  = day->Max(OXI_SPO2);
+                worstMax  = fs.max;
             }
         }
         const QString dateStr = worstDate.isValid() ? worstDate.toString("MMM d") : QStringLiteral("—");
         const QRectF in = cardFrame(cx + colW + colGap, twoUpTop, colW,
                                     QObject::tr("Lowest-Oxygen Night"), dateStr);
-        const double nadir = rd.minSpO2Set ? rd.minSpO2 : worstMin;
+        const double nadir = worstMin;   // this night's own filtered nadir
         const QVector<QPair<QString,QString>> kvs = {
             { QObject::tr("Date"),       dateStr },
             { QObject::tr("Lowest SpO₂"),
@@ -2557,7 +2654,8 @@ static bool avPage6(QPainter& p, const QRectF& page, const ReportData& rd,
         const double cardPadTop = 12*s, cardPadBot = 12*s;
         const double stageCardsH = 54*s, barH = 28*s;
         const double kvRows = 2;       // 6 KV in 3 columns → 2 rows
-        const double contentH = subH + 8*s + stageCardsH + 12*s + barH + 14*s + kvRows*kvRowH;
+        const double caveatH = 16*s;   // consumer-device validity caveat line
+        const double contentH = subH + 8*s + stageCardsH + 12*s + barH + 14*s + kvRows*kvRowH + caveatH;
         const double cardH = cardPadTop + contentH + cardPadBot;
         drawCard(p, QRectF(cx, y, cw, cardH), /*joinTop*/true, s);
 
@@ -2589,6 +2687,12 @@ static bool avPage6(QPainter& p, const QRectF& page, const ReportData& rd,
             const double ky = iy + row * kvRowH;
             drawKVRow(p, QRectF(kx, ky, colW, kvRowH), kvs[i].first, kvs[i].second, s);
         }
+        // Validity caveat: consumer sleep staging is not PSG-scored.
+        p.setFont(avSans(8.5*s, QFont::Normal));
+        p.setPen(AV::GREY3);
+        p.drawText(QRectF(ix, iy + 2*kvRowH + 5*s, iw, 12*s),
+                   Qt::AlignLeft | Qt::AlignTop,
+                   QObject::tr("Sleep stages are consumer-device estimates, not PSG-validated \xe2\x80\x94 interpret as trends only."));
         y += cardH + 18*s;
     }
 
@@ -2596,25 +2700,26 @@ static bool avPage6(QPainter& p, const QRectF& page, const ReportData& rd,
     //     "Usage & saturation" (6 rows) | "Pulse & desaturation" (4 rows).
     if (rd.usedDaysOxiAny > 0) {
         const double cardPadTop = 10*s, cardPadBot = 10*s;
-        const auto spo2 = [&](const QString& v){ return rd.hasSpO2 ? v : QString::fromUtf8("—"); };
+        const auto spo2  = [&](const QString& v){ return (rd.hasSpO2 && rd.usedDaysOxi > 0) ? v : QString::fromUtf8("—"); };
+        const auto pulse = [&](const QString& v){ return rd.usedDaysPulse > 0 ? v : QString::fromUtf8("—"); };
         const QVector<QPair<QString,QString>> usage = {
-            { QObject::tr("Total / used days"),
+            { QObject::tr("Total / used nights"),
               QStringLiteral("%1 / %2").arg(rd.totalDays).arg(rd.usedDaysOxiAny) },
-            { QObject::tr("Days not used"),        QString::number(rd.oxiNotUsedDays) },
+            { QObject::tr("Nights not used"),      QString::number(rd.oxiNotUsedDays) },
             { QObject::tr("Average hours / night"), hmm(rd.oxiRecordingHrsAvg) },
             { QObject::tr("Average SpO₂"),         spo2(QString::number(rd.avgSpO2Period, 'f', 1) + QStringLiteral("%")) },
             { QObject::tr("Minimum SpO₂"),
               rd.minSpO2Set ? QString::number(qRound(rd.minSpO2)) + QStringLiteral("%") : QStringLiteral("—") },
             { QObject::tr("Desaturation drop index"), spo2(QString::number(rd.odi, 'f', 1) + QObject::tr(" /h")) },
         };
-        const QVector<QPair<QString,QString>> pulse = {
-            { QObject::tr("Average pulse rate"), QString::number(qRound(rd.avgPulsePeriod)) + QObject::tr(" bpm") },
+        const QVector<QPair<QString,QString>> pulseRows = {
+            { QObject::tr("Average pulse rate"), pulse(QString::number(qRound(rd.avgPulsePeriod)) + QObject::tr(" bpm")) },
             { QObject::tr("Min / max pulse"),
-              QObject::tr("%1 / %2 bpm").arg(qRound(rd.minPulsePeriod)).arg(qRound(rd.maxPulsePeriod)) },
-            { QObject::tr("Pulse change index"), QString::number(rd.pulseChangeIndex, 'f', 1) + QObject::tr(" /h") },
-            { QObject::tr("% time in desat"),    QString::number(rd.pctTimeInDesat, 'f', 1) + QStringLiteral("%") },
+              pulse(QObject::tr("%1 / %2 bpm").arg(qRound(rd.minPulsePeriod)).arg(qRound(rd.maxPulsePeriod))) },
+            { QObject::tr("Pulse change index"), pulse(QString::number(rd.pulseChangeIndex, 'f', 1) + QObject::tr(" /h")) },
+            { QObject::tr("% time in desat"),    spo2(QString::number(rd.pctTimeInDesat, 'f', 1) + QStringLiteral("%")) },
         };
-        const int maxRows = qMax(usage.size(), pulse.size());
+        const int maxRows = qMax(usage.size(), pulseRows.size());
         const double contentH = subH + 6*s + maxRows * kvRowH;
         const double cardH = cardPadTop + contentH + cardPadBot;
         drawCard(p, QRectF(cx, y, cw, cardH), /*joinTop*/!rd.sleep.present, s);
@@ -2633,7 +2738,7 @@ static bool avPage6(QPainter& p, const QRectF& page, const ReportData& rd,
             ly += kvRowH;
         }
         double ry = topY + subH + 6*s;
-        for (const auto& kv : pulse) {
+        for (const auto& kv : pulseRows) {
             drawKVRow(p, QRectF(rightX, ry, colW, kvRowH), kv.first, kv.second, s);
             ry += kvRowH;
         }
@@ -2652,7 +2757,7 @@ static bool avPage6(QPainter& p, const QRectF& page, const ReportData& rd,
 // (with outcomes). Footer carries the report's methodology paragraph.
 // ============================================================================
 static void avPage7(QPainter& p, const QRectF& page, const ReportData& rd,
-                    int pageNo, int pageCount, double s)
+                    const QList<SelectedChannel>& channels, int pageNo, int pageCount, double s)
 {
     const QRectF content = avContentRect(page, s);
     const double cx = content.left(), cw = content.width();
@@ -2666,15 +2771,19 @@ static void avPage7(QPainter& p, const QRectF& page, const ReportData& rd,
 
     const double bandH = 30*s;
     const double headerH = AV_STAT_HEADER_H*s, statRowH = AV_STAT_ROW_H*s;
+    const double footH = 80*s;   // methodology footer (used by the history cap too)
 
     // (b) Detailed Channel Statistics ----------------------------------------
-    drawBand(p, QRectF(cx, y, cw, bandH), QObject::tr("Detailed Channel Statistics"), QString(), s);
-    y += bandH;
-
     // True iff the channel recorded any data in the supplied day map.
     auto channelHasAnyData = [&](ChannelID cid, const QMap<QDate, Day*>& map) -> bool {
         for (auto it = map.constBegin(); it != map.constEnd(); ++it)
             if (it.value() && it.value()->channelHasData(cid)) return true;
+        return false;
+    };
+    // Respect the dialog's channel checklist, like Classic's detailed table.
+    auto selectedHas = [&](ChannelID cid) -> bool {
+        for (const auto& ch : channels)
+            if ((ChannelID)ch.id == cid) return true;
         return false;
     };
 
@@ -2686,6 +2795,7 @@ static void avPage7(QPainter& p, const QRectF& page, const ReportData& rd,
     QVector<QStringList> statRows;
     for (ChannelID cid : statChans) {
         if (cid == NoChannel || !p_profile->hasChannel(cid)) continue;
+        if (!selectedHas(cid)) continue;
         const bool isOxi = (cid == OXI_SPO2 || cid == OXI_Pulse);
         const QMap<QDate, Day*>& map = isOxi ? rd.oxiDaysMap : rd.daysMap;
         if (!channelHasAnyData(cid, map)) continue;
@@ -2711,12 +2821,18 @@ static void avPage7(QPainter& p, const QRectF& page, const ReportData& rd,
         });
     }
 
-    const double statTableH = headerH + statRows.size() * statRowH;
-    drawStatTable(p, QRectF(cx, y, cw, statTableH),
-                  QStringList{ QObject::tr("Channel"), QObject::tr("Unit"), QObject::tr("Min"),
-                               QObject::tr("Median"), QObject::tr("95th"), QObject::tr("Max") },
-                  statRows, s);
-    y += statTableH + 16*s;
+    // Section drawn only when at least one selected channel has data — an
+    // empty checklist must not print a header-only table.
+    if (!statRows.isEmpty()) {
+        drawBand(p, QRectF(cx, y, cw, bandH), QObject::tr("Detailed Channel Statistics"), QString(), s);
+        y += bandH;
+        const double statTableH = headerH + statRows.size() * statRowH;
+        drawStatTable(p, QRectF(cx, y, cw, statTableH),
+                      QStringList{ QObject::tr("Channel"), QObject::tr("Unit"), QObject::tr("Min"),
+                                   QObject::tr("Median"), avUpperPctLabel(), QObject::tr("Max") },
+                      statRows, s);
+        y += statTableH + 16*s;
+    }
 
     // (c) Additional Indices --------------------------------------------------
     drawBand(p, QRectF(cx, y, cw, bandH), QObject::tr("Additional Indices"), QString(), s);
@@ -2724,17 +2840,30 @@ static void avPage7(QPainter& p, const QRectF& page, const ReportData& rd,
 
     const int ttm = qRound(rd.totalHours * 60.0);
     const QString totalHoursStr = QStringLiteral("%1 h %2 m").arg(ttm / 60).arg(ttm % 60);
-    const QVector<QPair<QString,QString>> indices = {
+    QVector<QPair<QString,QString>> indices = {
         { QObject::tr("Cumulative time in apnea"), rd.timeInApneaStr.isEmpty() ? QStringLiteral("—") : rd.timeInApneaStr },
-        { QObject::tr("Time in Cheyne–Stokes"),    rd.timeInCsrStr.isEmpty()   ? QStringLiteral("—") : rd.timeInCsrStr },
-        { QObject::tr("Over leak redline (24)"),
-          rd.timeAboveRedlineStr + QStringLiteral(" · ") + QString::number(rd.pctOverRedline, 'f', 1) + QStringLiteral("%") },
-        { QObject::tr("Total therapy hours"),      totalHoursStr },
-        { QObject::tr("Minimum SpO₂"),
-          rd.minSpO2Set ? QString::number(qRound(rd.minSpO2)) + QStringLiteral("%") : QStringLiteral("—") },
-        { QObject::tr("Time SpO₂ < 90%"),          rd.t90Str.isEmpty() ? QStringLiteral("—") : rd.t90Str },
-        { QObject::tr("95% flow limitation"),      QString::number(rd.p95FlowLimit, 'f', 2) },
     };
+    // CSR / flow-limitation rows only for devices that record those channels
+    // (mirrors Classic and page 2's own gates) — never print a measured-looking
+    // zero for a channel the device doesn't have.
+    if (p_profile->hasChannel(CPAP_CSR))
+        indices.append({ QObject::tr("Time in Cheyne–Stokes"),
+                         rd.timeInCsrStr.isEmpty() ? QStringLiteral("—") : rd.timeInCsrStr });
+    // Redline row only where a seal redline is meaningful (mirrors Classic's
+    // total-leak suppression); label follows the configurable redline value.
+    if (rd.leakChan != NoChannel && !rd.isTotalLeak && rd.leakRedline > 0)
+        indices.append({ QObject::tr("Over leak redline (%1)").arg(qRound(rd.leakRedline)),
+          rd.timeAboveRedlineStr + QStringLiteral(" · ") + QString::number(rd.pctOverRedline, 'f', 1) + QStringLiteral("%") });
+    indices.append({ QObject::tr("Total therapy hours"),      totalHoursStr });
+    indices.append({ QObject::tr("Minimum SpO₂"),
+          rd.minSpO2Set ? QString::number(qRound(rd.minSpO2)) + QStringLiteral("%") : QStringLiteral("—") });
+    // t90Str is always formatted ("00:00:00" with no data), so gate on actual
+    // SpO₂ nights — a dash, matching the Minimum SpO₂ row above.
+    indices.append({ QObject::tr("Time SpO₂ < 90%"),
+          rd.usedDaysOxi > 0 && !rd.t90Str.isEmpty() ? rd.t90Str : QStringLiteral("—") });
+    if (p_profile->hasChannel(CPAP_FLG))
+        indices.append({ QObject::tr("Flow limitation (%1)").arg(avUpperPctLabel()),
+                         QString::number(rd.p95FlowLimit, 'f', 2) });
     const double idxRowH = 22*s, idxColGap = 28*s, idxColW = (cw - idxColGap) / 2.0;
     const int idxRowsPerCol = (indices.size() + 1) / 2;   // left column gets the extra row
     for (int i = 0; i < indices.size(); i++) {
@@ -2751,14 +2880,17 @@ static void avPage7(QPainter& p, const QRectF& page, const ReportData& rd,
 
     const QString glossary = QObject::tr(
         "AHI — Apnea–Hypopnea Index (events/h).  "
-        "CAI — Central Apnea Index.  HI — Hypopnea Index.  OAI — Obstructive Apnea Index.  "
+        "CAI — Clear-Airway Apnea Index (device-scored open-airway apneas; a proxy "
+        "for, not equivalent to, PSG-scored central apnea).  HI — Hypopnea Index.  "
+        "OAI — Obstructive Apnea Index.  "
         "RERA — Respiratory Effort–Related Arousal.  RDI — Respiratory Disturbance Index "
-        "(AHI + RERA).  ODI₃ — Oxygen Desaturation Index (≥3% dips/h).  "
+        "(AHI + RERA).  ODI — Oxygen Desaturation Index (≥%1% dips/h).  "
         "T90 — time with SpO₂ below 90%.  EPR — Expiratory Pressure Relief.  "
-        "CSR — Cheyne–Stokes Respiration.");
-    const double glossH = 48*s;
-    p.setFont(avSans(9*s, QFont::Normal));
-    p.setPen(AV::BODY);
+        "CSR — Cheyne–Stokes Respiration.").arg(qRound(rd.dropPct));
+    // Footnote-sized: the glossary is reference material, not findings.
+    const double glossH = 44*s;
+    p.setFont(avSans(8.5*s, QFont::Normal));
+    p.setPen(AV::CAPTION);
     p.drawText(QRectF(cx, y, cw, glossH), Qt::TextWordWrap | Qt::AlignTop | Qt::AlignLeft, glossary);
     y += glossH + 16*s;
 
@@ -2774,7 +2906,7 @@ static void avPage7(QPainter& p, const QRectF& page, const ReportData& rd,
     const QStringList histHeaders{
         QObject::tr("Period"), QObject::tr("Days"), QObject::tr("Mode"),
         QObject::tr("Pressure"), QObject::tr("Usage"), QObject::tr("AHI"),
-        QObject::tr("CAI"), QObject::tr("95th Leak"), QObject::tr("Min SpO₂") };
+        QObject::tr("CAI"), QObject::tr("%1 Leak").arg(avUpperPctLabel()), QObject::tr("Min SpO₂") };
     const QVector<double> histWeights{ 2.3, 0.7, 1.0, 1.4, 1.5, 0.7, 0.7, 1.0, 1.0 };
 
     QVector<QStringList> histRows;
@@ -2799,18 +2931,39 @@ static void avPage7(QPainter& p, const QRectF& page, const ReportData& rd,
             block.minSpo2 > 0.0 ? QString::number(qRound(block.minSpo2)) : QStringLiteral("—"),
         });
     }
+    // Fixed-layout page: cap the table to the rows that fit above the
+    // methodology footer, keeping the MOST RECENT setting periods (the list is
+    // chronological). A truncation note replaces silent overflow.
+    const double noteH = 14*s;
+    int omitted = 0;
+    {
+        int fitRows = (int)qFloor((page.bottom() - footH - 6*s - y - headerH) / statRowH);
+        if (fitRows < histRows.size()) {
+            fitRows = qMax(0, (int)qFloor((page.bottom() - footH - 6*s - noteH - y - headerH) / statRowH));
+            omitted = histRows.size() - fitRows;
+            histRows = histRows.mid(omitted);
+        }
+    }
     const double histTableH = headerH + histRows.size() * statRowH;
     drawStatTable(p, QRectF(cx, y, cw, histTableH), histHeaders, histRows, s, histWeights);
+    if (omitted > 0) {
+        p.setFont(avSans(8.5*s, QFont::Normal));
+        p.setPen(AV::GREY3);
+        p.drawText(QRectF(cx, y + histTableH + 2*s, cw, noteH), Qt::AlignLeft | Qt::AlignTop,
+                   QObject::tr("%1 earlier setting period(s) omitted — showing the most recent.").arg(omitted));
+    }
 
     // (f) Footer with methodology paragraph (the page-7 variant).
     const QString methodology = QObject::tr(
         "Indices are device-estimated and do not constitute a diagnostic "
         "polysomnogram. Percentile statistics are computed per night and then "
-        "averaged across the reporting period; the 95th percentile follows "
-        "OSCAR's calculation preference. Channel minimums are period lows with "
+        "averaged across the reporting period; the upper percentile shown (%1) "
+        "follows OSCAR's calculation preference. Channel maxima are likewise "
+        "per-night averages (99.5th percentile when the max-calculation "
+        "preference is enabled). Channel minimums are period lows with "
         "sensor dropout excluded. Setting-change blocks group consecutive nights "
-        "sharing the same device, mode, pressure and relief settings.");
-    const double footH = 80*s;
+        "sharing the same device, mode, pressure and relief settings.")
+        .arg(avUpperPctLabel());
     drawFooter(p, QRectF(page.left(), page.bottom() - footH, page.width(), footH),
                pageNo, pageCount, methodology, s);
 }
@@ -2818,8 +2971,7 @@ static void avPage7(QPainter& p, const QRectF& page, const ReportData& rd,
 } // anonymous namespace
 
 // ============================================================================
-// Renders the AirView V2 PDF. Currently page 1 (Compliance Summary); pages 2–7
-// follow in later tasks.
+// Renders the AirView V2 PDF (all pages; 4/5/6 are gated on selection/data).
 // ============================================================================
 void renderAirViewV2Pdf(const ReportData& rd, QPrinter& printer, const QList<SelectedChannel>& channels)
 {
@@ -2833,19 +2985,32 @@ void renderAirViewV2Pdf(const ReportData& rd, QPrinter& printer, const QList<Sel
     // Mockup artboard is 794px wide (A4@96dpi) → layout scale.
     const double s = page.width() / 794.0;
 
+    // Dialog channel selection: trend-chart pages honour the checklist exactly
+    // like Classic's channel charts do (summary/statistics sections stay
+    // data-gated, also matching Classic).
+    auto selHas = [&](ChannelID cid) -> bool {
+        for (const auto& ch : channels)
+            if ((ChannelID)ch.id == cid) return true;
+        return false;
+    };
+    const bool selSpo2 = selHas(OXI_SPO2), selPulse = selHas(OXI_Pulse);
+
     // Assemble only the pages that will actually be emitted, then number them
-    // n / N over the emitted count so gated pages (5/6) never leave numbering
+    // n / N over the emitted count so gated pages (4/5/6) never leave numbering
     // gaps and footers always show the correct total.
+    const bool hasP4 = (p_profile->hasChannel(CPAP_MinuteVent)  && selHas(CPAP_MinuteVent))
+                    || (p_profile->hasChannel(CPAP_RespRate)    && selHas(CPAP_RespRate))
+                    || (p_profile->hasChannel(CPAP_TidalVolume) && selHas(CPAP_TidalVolume));
     const bool hasP5 = rd.usedDaysOxiAny > 0;
     const bool hasP6 = rd.usedDaysOxiAny > 0 || rd.sleep.present;
     QVector<std::function<void(int,int)>> pages;
     pages.append([&](int n, int N){ avPage1(p, page, rd, n, N, s); });
     pages.append([&](int n, int N){ avPage2(p, page, rd, n, N, s); });
     pages.append([&](int n, int N){ avPage3(p, page, rd, n, N, s); });
-    pages.append([&](int n, int N){ avPage4(p, page, rd, channels, n, N, s); });
-    if (hasP5) pages.append([&](int n, int N){ avPage5(p, page, rd, n, N, s); });
+    if (hasP4) pages.append([&](int n, int N){ avPage4(p, page, rd, channels, n, N, s); });
+    if (hasP5) pages.append([&](int n, int N){ avPage5(p, page, rd, selSpo2, selPulse, n, N, s); });
     if (hasP6) pages.append([&](int n, int N){ avPage6(p, page, rd, n, N, s); });
-    pages.append([&](int n, int N){ avPage7(p, page, rd, n, N, s); });
+    pages.append([&](int n, int N){ avPage7(p, page, rd, channels, n, N, s); });
 
     const int N = pages.size();
     for (int i = 0; i < N; ++i) {
