@@ -113,8 +113,11 @@ void gAHIChart::afterDraw(QPainter & /*painter */, gGraph &graph, QRectF rect)
         break;
     }
 
+    // Label the summary line to match the index the user asked for (RDI includes RERA)
+    const QString & indexLabel = p_profile->general->calculateRDI() ? STR_TR_RDI : STR_TR_AHI;
+
     QStringList txtlist;
-    if (!skip) txtlist.append(QString("%1 %2 / %3 / %4").arg(STR_TR_AHI).arg(min_ahi, 0, 'f', 2).arg(med, 0, 'f', 2).arg(max_ahi, 0, 'f', 2));
+    if (!skip) txtlist.append(QString("%1 %2 / %3 / %4").arg(indexLabel).arg(min_ahi, 0, 'f', 2).arg(med, 0, 'f', 2).arg(max_ahi, 0, 'f', 2));
 
     int i = calcitems.size();
     while (i > 0) {
@@ -178,7 +181,10 @@ QString gAHIChart::tooltipData(Day *day, int idx)
         total += slices[i].value;
         txt += QString("\n%1: %2").arg(slices[i].name).arg(float(slices[i].value) / hour, 0, 'f', 2);
     }
-    return QString("\n%1: %2").arg(STR_TR_AHI).arg(float(total) / hour,0,'f',2)+txt;
+    // Label the total to match the index the user asked for (RDI includes RERA)
+    const QString & indexLabel = p_profile->general->calculateRDI() ? STR_TR_RDI : STR_TR_AHI;
+
+    return QString("\n%1: %2").arg(indexLabel).arg(float(total) / hour,0,'f',2)+txt;
 }
 
 

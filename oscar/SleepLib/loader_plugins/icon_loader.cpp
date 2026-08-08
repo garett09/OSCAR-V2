@@ -15,6 +15,7 @@
 #include <cmath>
 
 #include "icon_loader.h"
+#include "SleepLib/day.h"
 
 // The qt5.15 obsolescence of hex requires this change.
 // this solution to QT's obsolescence is only used in debug statements

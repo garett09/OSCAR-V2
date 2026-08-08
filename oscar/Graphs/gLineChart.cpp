@@ -907,10 +907,36 @@ void gLineChart::paint(QPainter &painter, gGraph &w, const QRegion &region)
                         // Cap within VertexBuffer capacity, one vertex per line point
 //                        int np = (maxz - minz) * 2;
 
+                        // Each pixel column is drawn as a vertical line spanning that
+                        // column's min/max Y. For a slowly-changing signal (pressure,
+                        // leak) every sample in a column maps to the same Y, so that
+                        // line is zero-length and Qt renders nothing -- the trace was
+                        // invisible except at the steps, where min != max produced the
+                        // only visible marks. Joining each column to the previous one
+                        // keeps flat runs drawn without changing how dense waveforms
+                        // (flow rate) look, since their min/max bars already overlap.
+                        bool haveprev = false;
+                        float prevy = 0;
+
                         for (int i = minz; i < maxz; i++, drl++) {
                             ax1 = drl->x();
                             ay1 = drl->y();
+
+                            if (ax1 > ay1) { continue; }    // column received no samples
+
+                            if (haveprev) {
+                                // Bridge the gap to the previous column. Connecting to
+                                // the nearer end of this column's range avoids drawing
+                                // a spurious spike through it.
+                                float joiny = (prevy < ax1) ? ax1 : ((prevy > ay1) ? ay1 : prevy);
+                                lines.append(QLine(xst + i - 1, yst - prevy, xst + i, yst - joiny));
+                            }
+
                             lines.append(QLine(xst + i, yst - ax1, xst + i, yst - ay1));
+
+                            // Carry the end nearest the next column's data forward.
+                            prevy = ay1;
+                            haveprev = true;
                         }
 
                     } else { // Zoomed in Waveform

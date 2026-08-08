@@ -2953,7 +2953,8 @@ void PRS1Loader::initChannels()
         "PRS1HumidLevel",
         QObject::tr("Humidifier"),  // label varies in reports, "Humidifier Setting" in 50-series, "Humidity Level" in 60-series, "Humidifier" in DreamStation
         QObject::tr("PRS1 Humidifier Setting"),
-        QObject::tr("Humid. Level"),
+        // Displayed label standardised across loaders — see GitLab #263.
+        QObject::tr("Humidity Level"),
         "", LOOKUP, Qt::blue));
     chan->addOption(0, STR_TR_Off);
 

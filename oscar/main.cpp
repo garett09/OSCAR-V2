@@ -68,6 +68,7 @@
 #include "SleepLib/loader_plugins/bmc_loader.h"
 #include "SleepLib/loader_plugins/bmcg3x_loader.h"
 #include "SleepLib/loader_plugins/yuwell_loader.h"
+#include "SleepLib/loader_plugins/sefam_loader.h"
 
 #include "database/database_manager.h"
 #include "database/database_schema.h"
@@ -1017,6 +1018,7 @@ int main(int argc, char *argv[]) {
     BmcG3xLoader::Register();
     VREMLoader::Register();
     YuwellLoader::Register();
+    SefamLoader::Register();
 
     ///////////////////////////////////////////////////////////////////////////////////////////
     // Migrate from OSCAR 1.x if needed

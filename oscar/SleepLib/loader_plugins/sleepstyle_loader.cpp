@@ -16,6 +16,7 @@
 #include <QCoreApplication>
 #include <cmath>
 
+#include "SleepLib/day.h"
 #include "sleepstyle_loader.h"
 #include "sleepstyle_EDFinfo.h"
 
@@ -1050,7 +1051,9 @@ void SleepStyleLoader::initChannels()
     chan->addOption(1, STR_TR_On);
 
     channel.add(GRP_CPAP, chan = new Channel(SS_Humidity = 0xf309, SETTING, MT_CPAP,   SESSION,
-        "Humidity-ss", QObject::tr("Humidity"), QObject::tr("Humidity"), QObject::tr("Humidity"),
+        // Displayed label standardised across loaders — see GitLab #263.
+        "Humidity-ss", QObject::tr("Humidity"), QObject::tr("Humidity"),
+        QObject::tr("Humidity Level"),
         "", INTEGER, Qt::black));
     chan->addOption(0, STR_TR_Off);
 }

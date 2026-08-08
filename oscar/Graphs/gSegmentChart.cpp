@@ -8,6 +8,7 @@
  * for more details. */
 
 #include <cmath>
+#include "SleepLib/appsettings.h"
 #include "gSegmentChart.h"
 
 gSegmentChart::gSegmentChart(GraphSegmentType type, QColor gradient_color, QColor outline_color)

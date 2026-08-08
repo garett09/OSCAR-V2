@@ -38,14 +38,12 @@ protected:
     XmlReplay* m_replay;     // nullptr or pointer to replay instance
     bool m_opened;           // true if open() succeeded
 
-    virtual bool open() = 0;
-    friend class DeviceConnectionManager;
-
 public:
     // See DeviceConnectionManager::openConnection() to create connections.
     virtual ~DeviceConnection();
     virtual const QString & type() const = 0;
     const QString & name() const { return m_name; }
+    virtual bool open() = 0;
 
     typedef DeviceConnection* (*FactoryMethod)(const QString & name, XmlRecorder* record, XmlReplay* replay);
 };
@@ -133,8 +131,6 @@ public:
     static class DeviceConnection* createInstance(const QString & type);
 
     // Currently public only so that connections can deregister themselves.
-    // Eventually this could move to protected if that gets handled by the
-    // DeviceConnection destructor and DeviceConnection is declared a friend.
     void connectionClosed(DeviceConnection* conn);
 };
 
@@ -269,6 +265,7 @@ class SerialPortInfo
 {
 public:
     static QList<SerialPortInfo> availablePorts();
+    SerialPortInfo(const QSerialPortInfo & other);
     SerialPortInfo(const SerialPortInfo & other);
     SerialPortInfo(const QString & data);
     SerialPortInfo();
@@ -294,10 +291,7 @@ public:
     SerialPortInfo& operator=(const SerialPortInfo & other) = default;
 
 protected:
-    SerialPortInfo(const class QSerialPortInfo & other);
     QHash<QString,QVariant> m_info;
-
-    friend class DeviceConnectionManager;
 };
 
 #endif // DEVICECONNECTION_H

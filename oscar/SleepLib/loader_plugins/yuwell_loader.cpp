@@ -5,6 +5,7 @@
 #include <QMessageBox>
 #include <QCoreApplication>
 
+#include "SleepLib/day.h"
 #include "SleepLib/loader_plugins/yuwell_loader.h"
 
 /*
@@ -1669,6 +1670,489 @@ int YuwellFormatD::Open() {
     return c;
 }
 
+bool YuwellFormatE::Detect() {
+    /*
+     * root - RunLog.bys (0 byte file)
+     *      | summer.bys <- Truncated concatenation of every session's summary header, not used
+     *      | 00100001 (dir)
+     *        \ 0100001s.bys <- Session summary (start/finish, pressure settings, model/serial)
+     *        | 0100001m.bys <- Per-minute log (pressure, events, SpO2, pulse, etc.)
+     *      | 00100002 (dir)
+     *        \ ...
+     *
+     * Models seen
+     * -----------
+     * YH-920 (YH920E)
+     *
+     * Unlike YuwellFormatD, there is no "MODEL-SERIAL" named folder wrapping RunLog.bys and
+     * the session folders - they sit directly under the SD card root. The session folders
+     * themselves are just numbered, not model/serial named, so GetModelSerials() has to open
+     * a session file to find the source of truth, same as the other formats.
+     */
+    QStringList model_serials = GetModelSerials();
+
+    if (model_serials.size() == 0) {
+        return false;
+    }
+
+    qDebug() << "Found Yuwell format E serial number: " << model_serials;
+    return true;
+}
+
+QStringList YuwellFormatE::GetModelSerials()
+{
+    QStringList model_serials;
+
+    // Support both pointing directly at the machine folder (RunLog.bys alongside the
+    // numbered session folders) and pointing at its parent (SD card root).
+    QStringList candidateDirs;
+    candidateDirs << m_filePath;
+    QDir parent(m_filePath);
+    parent.setFilter(QDir::NoDotAndDotDot | QDir::Dirs | QDir::NoSymLinks);
+    parent.setSorting(QDir::Name);
+    for (const QFileInfo & sub : parent.entryInfoList()) {
+        candidateDirs << sub.absoluteFilePath();
+    }
+
+    for (const QString & candidate : candidateDirs) {
+        QDir cardDir(candidate);
+        if (!cardDir.exists("RunLog.bys")) {
+            continue;
+        }
+
+        cardDir.setFilter(QDir::NoDotAndDotDot | QDir::Dirs | QDir::NoSymLinks);
+        cardDir.setSorting(QDir::Name);
+
+        for (const QFileInfo & sessionDirInfo : cardDir.entryInfoList()) {
+            QDir sessionDir(sessionDirInfo.absoluteFilePath());
+            sessionDir.setFilter(QDir::NoDotAndDotDot | QDir::Files | QDir::NoSymLinks);
+            sessionDir.setSorting(QDir::Name);
+
+            QStringList filters;
+            filters << "*s.bys" << "*S.BYS";
+            sessionDir.setNameFilters(filters);
+
+            QFileInfoList flist = sessionDir.entryInfoList();
+            if (flist.size() == 0) {
+                continue;
+            }
+
+            QFile bysFile(flist.at(0).absoluteFilePath());
+            if (bysFile.open(QFile::ReadOnly)) {
+                QByteArray header = bysFile.read(0x62);
+                bysFile.close();
+
+                if (header.size() == 0x62) {
+                    QByteArray raw_model_serial = header.mid(0x2C, 16);
+                    QString model_serial(raw_model_serial);
+                    if (model_serial.startsWith("YH") && !model_serials.contains(model_serial)) {
+                        model_serials << model_serial;
+                    }
+                }
+            }
+        }
+    }
+
+    return model_serials;
+}
+
+QString YuwellFormatE::FindDataDir(const QString & serial)
+{
+    // Re-walk the same candidate directories as GetModelSerials() and return whichever
+    // one actually contains a session whose s.bys reports this serial.
+    QStringList candidateDirs;
+    candidateDirs << m_filePath;
+    QDir parent(m_filePath);
+    parent.setFilter(QDir::NoDotAndDotDot | QDir::Dirs | QDir::NoSymLinks);
+    parent.setSorting(QDir::Name);
+    for (const QFileInfo & sub : parent.entryInfoList()) {
+        candidateDirs << sub.absoluteFilePath();
+    }
+
+    for (const QString & candidate : candidateDirs) {
+        QDir cardDir(candidate);
+        if (!cardDir.exists("RunLog.bys")) {
+            continue;
+        }
+
+        cardDir.setFilter(QDir::NoDotAndDotDot | QDir::Dirs | QDir::NoSymLinks);
+        cardDir.setSorting(QDir::Name);
+
+        for (const QFileInfo & sessionDirInfo : cardDir.entryInfoList()) {
+            QDir sessionDir(sessionDirInfo.absoluteFilePath());
+            sessionDir.setFilter(QDir::NoDotAndDotDot | QDir::Files | QDir::NoSymLinks);
+            sessionDir.setSorting(QDir::Name);
+
+            QStringList filters;
+            filters << "*s.bys" << "*S.BYS";
+            sessionDir.setNameFilters(filters);
+
+            QFileInfoList flist = sessionDir.entryInfoList();
+            if (flist.size() == 0) {
+                continue;
+            }
+
+            QFile bysFile(flist.at(0).absoluteFilePath());
+            if (bysFile.open(QFile::ReadOnly)) {
+                QByteArray header = bysFile.read(0x62);
+                bysFile.close();
+
+                if (header.size() == 0x62) {
+                    QString model_serial(header.mid(0x2C, 16));
+                    if (model_serial == serial) {
+                        return candidate;
+                    }
+                }
+            }
+        }
+    }
+
+    return QString();
+}
+
+int YuwellFormatE::OpenMachine(Machine *mach, const QString & serial)
+{
+    emit m_loader->updateMessage(QObject::tr("Getting Ready..."));
+    emit m_loader->setProgressValue(0);
+    QCoreApplication::processEvents();
+
+    QString machinePath = FindDataDir(serial);
+    QDir dir(machinePath);
+
+    if (machinePath.isEmpty() || !dir.exists() || (!dir.isReadable())) {
+        return -1;
+    }
+
+    m_loader->backupData(mach, machinePath);
+
+    calc_leaks = p_profile->cpap->calculateUnintentionalLeaks();
+    lpm4 = p_profile->cpap->custom4cmH2OLeaks();
+    lpm20 = p_profile->cpap->custom20cmH2OLeaks();
+
+    dir.setFilter(QDir::NoDotAndDotDot | QDir::Dirs | QDir::NoSymLinks);
+    dir.setSorting(QDir::Name);
+    QFileInfoList flist = dir.entryInfoList();
+
+    emit m_loader->updateMessage(QObject::tr("Reading session directories..."));
+    QCoreApplication::processEvents();
+
+    Sessions.clear();
+
+    emit m_loader->setProgressMax(flist.size());
+
+    for (int i = 0; i < flist.size(); i++) {
+        emit m_loader->setProgressValue(i);
+        OpenSession(mach, flist.at(i).absoluteFilePath());
+    }
+
+    int c = Sessions.size();
+    qDebug() << "Yuwell Format E Loader found" << c << "sessions";
+
+    emit m_loader->updateMessage(QObject::tr("Finishing up..."));
+    QCoreApplication::processEvents();
+
+    m_loader->finish();
+
+    return c;
+}
+
+bool YuwellFormatE::OpenSession(Machine *mach, const QString & sessionDirPath)
+{
+    QDir sessionDir(sessionDirPath);
+
+    QStringList sFilters;
+    sFilters << "*s.bys" << "*S.BYS";
+    sessionDir.setNameFilters(sFilters);
+    sessionDir.setFilter(QDir::NoDotAndDotDot | QDir::Files | QDir::NoSymLinks);
+
+    QFileInfoList slist = sessionDir.entryInfoList();
+    if (slist.size() == 0) {
+        return false;
+    }
+
+    QFile sFile(slist.at(0).absoluteFilePath());
+    if (!sFile.open(QFile::ReadOnly)) {
+        qWarning() << "Yuwell Session Couldn't open " << slist.at(0).absoluteFilePath();
+        return false;
+    }
+
+    // The 98-byte s.bys header. The first 0x3C (60) bytes carry per-session data. Bytes
+    // 0x3C-0x47 just repeat the start date and an unconfirmed byte pair, but 0x48-0x53
+    // hold the device's configured Auto-S pressure limits and pressure support (see
+    // below) - identical across every session on a given device (they're settings, not
+    // per-session data), but still needed since nothing in the first 0x3C carries them.
+    // The remainder up to 0x62 is other fixed, non-session device configuration and
+    // isn't read here.
+    QByteArray header = sFile.read(0x54);
+    sFile.close();
+
+    if (header.size() != 0x54) {
+        qWarning() << "Yuwell Session Short file " << slist.at(0).absoluteFilePath();
+        return false;
+    }
+
+    QDataStream in(header);
+    in.setVersion(QDataStream::Qt_4_8);
+    in.setByteOrder(QDataStream::LittleEndian);
+
+    unsigned char start_year, start_month, start_day, start_hour, start_minute, start_second;
+    unsigned char finish_year, finish_month, finish_day, finish_hour, finish_minute, finish_second;
+
+    in.skipRawData(2);
+    in >> start_year;
+    in >> start_month;
+    in >> start_day;
+    in >> start_hour;
+    in >> start_minute;
+    in >> start_second;
+
+    in >> finish_year;
+    in >> finish_month;
+    in >> finish_day;
+    in >> finish_hour;
+    in >> finish_minute;
+    in >> finish_second;
+
+    QDateTime start = QDateTime(QDate((int)start_year + 2000, start_month, start_day), QTime(start_hour, start_minute, start_second), QTimeZone::systemTimeZone());
+    QDateTime finish = QDateTime(QDate((int)finish_year + 2000, finish_month, finish_day), QTime(finish_hour, finish_minute, finish_second), QTimeZone::systemTimeZone());
+
+    // Bytes 0x0E-0x1F hold several small settings-like u16 values whose exact meaning
+    // isn't confirmed against the official app yet (candidates include ramp time, FPS
+    // level and a mode code). humidity/ramp below are the best-guess picks - the ones
+    // that vary between sessions on the same device the way a user setting would.
+    unsigned short int unknown_0e, unknown_10, unknown_12, humidity_guess;
+    unsigned short int ramp_guess;
+
+    in >> unknown_0e;
+    in >> unknown_10;
+    in >> unknown_12;
+    in >> humidity_guess;
+    in.skipRawData(8); // Always zero in the data seen so far
+    in >> ramp_guess;
+    // Bytes 0x20-0x23: this session's AVERAGE IPAP/EPAP (confirmed against the official
+    // app's "Average IPAP"/"Average EPAP"). Despite looking like a min/max pressure pair,
+    // these are per-session statistics, not the configured pressure limits - IPAP here
+    // minus EPAP here is always exactly the pressure support read at 0x53 below. The
+    // real configured Auto-S limits are read separately further down (0x48/0x4A).
+    in.skipRawData(4);
+    in.skipRawData(4); // Unknown, not consistently zero
+    in.skipRawData(4); // Two more duration-like u16 fields, redundant with finish above
+
+    QByteArray raw_model_serial(16, Qt::Uninitialized);
+    in.readRawData(raw_model_serial.data(), 16);
+    QString model_serial(raw_model_serial);
+    mach->setModel(model_serial);
+
+    in.skipRawData(2); // 0x3C-0x3D: unknown
+    in.skipRawData(6); // 0x3E-0x43: repeats the start datetime, already known above
+
+    unsigned char mode_code;
+    in >> mode_code;   // 0x44: device mode code. The only value seen so far is 6, on every
+                       // session from this YH-920E (a BiPAP-only device) - always "Auto S".
+                       // No sample data with a different code has been seen for Format E,
+                       // so only mode 6 is handled below.
+    in.skipRawData(3); // 0x45-0x47: unknown
+
+    // 0x48-0x4B: the device's CONFIGURED Auto-S pressure limits, confirmed against the
+    // official app's "Maximum IPAP"/"Minimum EPAP". Unlike every other multi-byte field
+    // in this header, these two are big-endian.
+    in.setByteOrder(QDataStream::BigEndian);
+    unsigned short int max_ipap_setting, min_epap_setting;
+    in >> max_ipap_setting;
+    in >> min_epap_setting;
+    in.setByteOrder(QDataStream::LittleEndian);
+
+    in.skipRawData(4); // 0x4C-0x4F: unknown, not consistently zero
+    in.skipRawData(3); // 0x50-0x52: unknown
+
+    unsigned char pressure_support;
+    in >> pressure_support; // 0x53: configured Pressure Support * 10, confirmed against
+                             // the official app's "Pressure Support".
+
+    quint32 ts;
+    ts = start.toSecsSinceEpoch();
+    if (mach->SessionExists(ts)) {
+        return true;
+    }
+
+    Session *sess = new Session(mach, ts);
+    sess->really_set_first(qint64(ts) * 1000L);
+    sess->really_set_last(qint64(finish.toSecsSinceEpoch()) * 1000L);
+
+    // Every session seen so far is bilevel Auto-S: EPAP auto-titrates down to
+    // min_epap_setting while IPAP tracks EPAP plus the fixed pressure_support, up to
+    // max_ipap_setting. This mirrors how OSCAR's BMC loader reports the same mode
+    // (MODE_BILEVEL_AUTO_FIXED_PS, CPAP_EPAPLo/CPAP_IPAPHi for the auto range, CPAP_PS
+    // for the fixed support) - previously this was misdetected as plain CPAP/APAP using
+    // the session's average IPAP/EPAP (0x20-0x23 above) in place of real settings.
+    sess->settings[CPAP_Mode] = (int)MODE_BILEVEL_AUTO_FIXED_PS;
+    sess->settings[CPAP_EPAPLo] = min_epap_setting / 10.0;
+    sess->settings[CPAP_IPAPHi] = max_ipap_setting / 10.0;
+    sess->settings[CPAP_PS] = pressure_support / 10.0;
+    Q_UNUSED(mode_code)
+
+    sess->settings[Yuwell_Humidity] = humidity_guess;
+    sess->settings[Yuwell_Ramp] = ramp_guess;
+    Q_UNUSED(unknown_0e)
+    Q_UNUSED(unknown_10)
+    Q_UNUSED(unknown_12)
+
+    EventList *LK = sess->AddEventList(CPAP_LeakTotal, EVL_Event, 0.1F);
+    EventList *IPAP = sess->AddEventList(CPAP_IPAP, EVL_Event, 0.1F);
+    EventList *EPAP = sess->AddEventList(CPAP_EPAP, EVL_Event, 0.1F);
+    EventList *MV = sess->AddEventList(CPAP_MinuteVent, EVL_Event, 1);
+    EventList *IE = sess->AddEventList(CPAP_IE, EVL_Event, 1);
+    EventList *OA = sess->AddEventList(CPAP_Obstructive, EVL_Event);
+    EventList *CA = sess->AddEventList(CPAP_ClearAirway, EVL_Event);
+    EventList *H =  sess->AddEventList(CPAP_Hypopnea, EVL_Event);
+    EventList *TV = sess->AddEventList(CPAP_TidalVolume, EVL_Event, 1);
+    EventList *RR = sess->AddEventList(CPAP_RespRate, EVL_Event, 1);
+    EventList *P =  sess->AddEventList(OXI_Pulse, EVL_Event);
+    EventList *O =  sess->AddEventList(OXI_SPO2, EVL_Event);
+
+    qint64 ti = qint64(ts) * 1000L;
+
+    // Per-minute log: *m.bys, 8-byte header (start datetime matching the s.bys start,
+    // then a u16 record count), followed by 22-byte records.
+    QStringList mFilters;
+    mFilters << "*m.bys" << "*M.BYS";
+    sessionDir.setNameFilters(mFilters);
+    QFileInfoList mlist = sessionDir.entryInfoList();
+
+    if (mlist.size() > 0) {
+        QFile mFile(mlist.at(0).absoluteFilePath());
+        if (mFile.open(QFile::ReadOnly)) {
+            QByteArray mHeader = mFile.read(0x08);
+
+            if (mHeader.size() == 0x08) {
+                QDataStream min(mHeader);
+                min.setVersion(QDataStream::Qt_4_8);
+                min.setByteOrder(QDataStream::LittleEndian);
+
+                min.skipRawData(6); // Start datetime, already known from the s.bys file
+                short int record_count;
+                min >> record_count;
+
+                // A real apnea/hypopnea event commonly spans more than one logged minute,
+                // and every minute it covers carries the same flag. Track the previous
+                // minute's flag per event type so only the rising edge of a run adds an
+                // OSCAR event, matching the official app's per-night OAI/HI/CAI counts
+                // instead of over-counting one event per flagged minute.
+                bool oai_prev = false, hi_prev = false, cai_prev = false;
+
+                for (int i = 0; i < record_count; i++) {
+                    QCoreApplication::processEvents();
+                    QByteArray record = mFile.read(22);
+
+                    if (record.size() != 22) {
+                        qWarning() << "Yuwell Session Record Short " << mlist.at(0).absoluteFilePath();
+                        break;
+                    }
+
+                    QDataStream rin(record);
+                    rin.setVersion(QDataStream::Qt_4_8);
+                    rin.setByteOrder(QDataStream::LittleEndian);
+
+                    unsigned short int ipap, epap, leak;
+                    unsigned char oai, cai, hi, tidal_volume_lo, tidal_volume_hi, minute_vent, ie_ratio, resp_rate, spo2, pulse;
+
+                    rin >> ipap;             // bytes 0-1: IPAP * 10 (auto-titrates within the Auto-S range)
+                    rin >> epap;             // bytes 2-3: EPAP * 10 (IPAP minus the fixed pressure support)
+                    rin.skipRawData(1);      // byte 4: unconfirmed, not SpO2 (goes above 100)
+                    rin >> oai;              // byte 5: obstructive apnea flag
+                    rin >> cai;              // byte 6: clear airway (central) apnea flag - confirmed against
+                                             // the app's per-night CAI count; previously read (and labelled) as HI
+                    rin >> hi;               // byte 7: hypopnea flag - confirmed against the app's per-night HI
+                                             // count; previously read (and labelled) as CAI
+                    rin.skipRawData(4);      // bytes 8-11: always zero in data seen so far
+                    rin >> leak;             // bytes 12-13: leak * 10, L/min - confirmed against the app's
+                                             // "Leak" average/max; previously skipped as unconfirmed
+                    rin >> tidal_volume_lo;  // bytes 14-15: tidal volume in mL
+                    rin >> tidal_volume_hi;
+                    rin >> minute_vent;      // byte 16: minute ventilation, L - confirmed against the app's
+                                             // "Volume per Minute"; previously misread as leak with the wrong
+                                             // gain, which is what made OSCAR's Leak stats disagree with the app
+                    rin >> ie_ratio;         // byte 17: I/E ratio, % - confirmed against the app's "I/E (%)";
+                                             // previously skipped as unconfirmed
+                    rin >> resp_rate;        // byte 18: respiratory rate, breaths/min
+                    rin >> spo2;             // byte 19
+                    rin >> pulse;            // byte 20
+                    // byte 21: constant 0xFE marker, not read
+
+                    unsigned short int tidal_volume = tidal_volume_lo + (tidal_volume_hi << 8);
+
+                    IPAP->AddEvent(ti + (i * 60000), ipap);
+                    EPAP->AddEvent(ti + (i * 60000), epap);
+                    TV->AddEvent(ti + (i * 60000), tidal_volume);
+                    RR->AddEvent(ti + (i * 60000), resp_rate);
+                    MV->AddEvent(ti + (i * 60000), minute_vent);
+                    IE->AddEvent(ti + (i * 60000), ie_ratio);
+
+                    if (pulse > 0 && pulse < 249) {
+                        P->AddEvent(ti + (i * 60000), pulse);
+                    }
+                    if (spo2 > 0) {
+                        O->AddEvent(ti + (i * 60000), spo2);
+                    }
+                    if (oai > 0 && !oai_prev) {
+                        OA->AddEvent(ti + (i * 60000), 0);
+                    }
+                    if (hi > 0 && !hi_prev) {
+                        H->AddEvent(ti + (i * 60000), 0);
+                    }
+                    if (cai > 0 && !cai_prev) {
+                        CA->AddEvent(ti + (i * 60000), 0);
+                    }
+                    oai_prev = oai > 0;
+                    hi_prev = hi > 0;
+                    cai_prev = cai > 0;
+                    if (leak > 0) {
+                        LK->AddEvent(ti + (i * 60000), leak);
+                    }
+                }
+            }
+            mFile.close();
+        }
+    }
+
+    sess->SetChanged(true);
+    Sessions[ts] = sess;
+    sess->UpdateSummaries();
+    mach->AddSession(sess);
+
+    return true;
+}
+
+int YuwellFormatE::Open() {
+    // Start with m_filePath and do the import
+    QStringList model_serials = GetModelSerials();
+
+    Machine *m;
+
+    int c = 0;
+    for (int i = 0; i < model_serials.size(); i++) {
+        MachineInfo info = m_loader->newInfo();
+        info.serial = model_serials[i];
+        m = p_profile->CreateMachine(info);
+        try {
+            if (m) {
+                c += OpenMachine(m, model_serials[i]);
+                m->Save();
+            }
+        } catch (OneTypePerDay& e) {
+            Q_UNUSED(e)
+            p_profile->DelMachine(m);
+            QMessageBox::warning(nullptr, QObject::tr("Import Error"),
+                                 QObject::tr("This device Record cannot be imported in this profile.")+"\n\n"
+                                     +QObject::tr("The Day records overlap with already existing content."),
+                                 QMessageBox::Ok);
+            delete m;
+        }
+    }
+
+    return c;
+}
+
 YuwellLoader::YuwellLoader() {
     m_type = MT_CPAP;
 
@@ -1698,6 +2182,7 @@ YuwellFormat* YuwellLoader::YuwellFactory(const QString & givenPath) {
     candidates << new YuwellFormatB(*this, givenPath);
     candidates << new YuwellFormatC(*this, givenPath);
     candidates << new YuwellFormatD(*this, givenPath);
+    candidates << new YuwellFormatE(*this, givenPath);
 
     YuwellFormat* match = nullptr;
     for(YuwellFormat* format : candidates) {

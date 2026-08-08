@@ -4,6 +4,76 @@
 **Date:** 2026-03-26
 **Author:** Reverse-engineering investigation
 **Status:** Open — awaiting decision on OSCAR implementation
+**Updated:** 2026-07-29 — third machine added (E5 B25A Plus); see "Update" below
+
+---
+
+## Update 2026-07-29 — E5 B25A Plus: 0x52A is live, this analysis does not apply
+
+A third machine is now available: **E5 B25A Plus**, firmware `E5-1.02.05.02`. It is a
+bilevel (AutoS) device, not a G3.
+
+**Its 0x52A field is populated** — 18.7% of packets non-zero across the first five nights
+(range 6.0%–46.0% per night). So this machine *does* provide unintentional leak and is
+**not** subject to the "unrecoverable for SC.74+" conclusion below. Its statistics match
+PAP-Link closely once zeros are included: 2026-07-18 gives avg 0.56 / median 0.00 /
+95th 3.20 L/min against PAP-Link's 0.70 / 0.00 / 3.00.
+
+**Correction (same day):** an earlier revision of this section claimed the E5 card
+"confirms the 0.16 L/min-per-raw-unit scale". That was wrong. It rested on the medians
+agreeing, and both medians are 0.00 — which holds under *any* scale, so it constrains
+nothing. The E5 scale is in fact **~0.10, not 0.16**; see below.
+
+Its 0x568 field reproduces the behaviour documented below for the G3 machines: a
+pressure-independent ~15.7 L/min baseline, `r(pressure, 0x568) = −0.206`, with the median
+per pressure bucket flat at 15.84 / 15.68 / 15.20 / 17.12 L/min from 7 to 11 cmH₂O. That
+is a third machine supporting the conclusion that **0x568 is not unintentional leak**.
+
+### E5 leak scale is ~0.10 L/min per raw unit, not 0.16
+
+The 0.16 factor was calibrated against PAP-Link on a Luna G3X (config `110A40113`) and
+applied to every G3X device. It **overstates leak on the E5 by roughly 60%**.
+
+Calibration for one night, against a PAP-Link readout of the same night:
+
+| Measure | PAP-Link | Raw units | Implied scale |
+|---|---:|---:|---:|
+| Mean | 0.70 L/min | 6.881 | **0.1017** |
+| Stable graph section | ~2 L/min | ~21.9 | **~0.091** |
+| 95th percentile | 3.0 L/min | 25 | 0.1200 |
+| Maximum | 11.2 L/min | 220 | 0.0509 |
+
+Only the first two are usable. The mean uses every sample and is independent of how the
+two programs define percentiles; the stable-section reading is a direct point comparison
+with no statistics at all. Both give ~0.10.
+
+The 95th percentile and maximum are **not** usable for calibration, because PAP-Link's tail
+statistics are demonstrably not computed the way OSCAR's are: its reported maximum of
+11.2 L/min is below the raw peak under any single linear scale, implying smoothing or
+mask-off exclusion on its side. Expect OSCAR's 95th percentile to read slightly *low* and
+its maximum distinctly *high* against PAP-Link even after the scale fix.
+
+Smoothing alone cannot explain the discrepancy: a moving average preserves the mean, and
+the means differ (1.10 vs 0.70). Verified across 5 s–300 s windows.
+
+**Confidence: medium.** One card, one night, one PAP-Link readout. A second E5 sample would
+establish whether 0.10 is exact or merely close. Implemented as a platform-scoped constant
+in `G3xLeakScaleTenthsPerRawUnit()`, keyed on the `E5` firmware prefix, so G3 devices keep
+the confirmed 0.16.
+
+---
+
+Two OSCAR bugs were found and fixed while investigating this card — see
+`Notes/Developer Notes/BUG_FIXES.md` (2026-07-29). Note that the second one interacts with
+this document:
+
+1. Zero-valued leak samples were discarded before storage, inflating every leak statistic
+   (66.9% of samples on this card read zero).
+2. The 0x52A-vs-0x568 probe ran **per day** on only 200 packets, so it selected 0x568 on
+   4 of 19 nights on this card. **Any prior OSCAR-side leak observation on a machine whose
+   0x52A non-zero fraction sits near the 10% threshold may have been reading a mix of the
+   two fields across nights.** The raw-data analysis in this document read the fields
+   directly and is unaffected.
 
 ---
 
@@ -249,5 +319,5 @@ from more test data, this may reveal the correct interpretation.
 
 ## Test Files
 
-- JCCPAP: `C:/OSCAR/TestFiles/JCCPAP/A3125636308.000` (SC.72)
-- Kavolodin: `C:/OSCAR/TestFiles/Kavolodin BMC G3 A20/A3125A42025.000` (SC.74+)
+- JCCPAP: `C:/OSCAR/TestFiles/JCCPAP/A31.....000` (SC.72)
+- Kavolodin: `C:/OSCAR/TestFiles/Kavolodin BMC G3 A20/A31....000` (SC.74+)

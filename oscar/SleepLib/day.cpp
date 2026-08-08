@@ -18,6 +18,7 @@
 #include <QDebug>
 
 #include "day.h"
+#include "machine.h"
 #include "profiles.h"
 #include "SleepLib/performance_timer.h"
 
@@ -104,7 +105,7 @@ Session *Day::find(SessionID sessid)
 Session *Day::find(SessionID sessid, MachineType mt)
 {
     for (auto & sess : sessions) {
-        if ((sess->session() == sessid) && (sess->s_machtype == mt)) {
+        if ((sess->session() == sessid) && (sess->type() == mt)) {
             return sess;
         }
     }
@@ -117,7 +118,7 @@ void Day::addSession(Session *s)
         qDebug() << "addSession called with null session pointer";
         return;
     }
-    s->m_night = d_date;
+    s->setNight(d_date);
     invalidate();
     auto mi = machines.find(s->type());
     if (mi != machines.end()) {
@@ -268,7 +269,7 @@ EventDataType Day::settings_max(ChannelID code)
     EventDataType value;
 
     for (auto & sess : sessions) {
-        if (sess->enabled() && sess->s_machtype != MT_JOURNAL) {
+        if (sess->enabled() && sess->type() != MT_JOURNAL) {
             value = sess->settings.value(code, min).toFloat();
             if (value > max) {
                 max = value;
@@ -285,7 +286,7 @@ EventDataType Day::settings_min(ChannelID code)
     EventDataType value;
 
     for (auto & sess : sessions) {
-        if (sess->enabled() && sess->s_machtype != MT_JOURNAL) {
+        if (sess->enabled() && sess->type() != MT_JOURNAL) {
             value = sess->settings.value(code, max).toFloat();
             if (value < min) {
                 min = value;
@@ -705,7 +706,7 @@ qint64 Day::total_time()
                     range.insert(last, 1);
                     d_totaltime += sess->length();
                     if (sess->length() == 0) {
-                        qWarning() << sess->s_session << "0 length session";
+                        qWarning() << sess->session() << "0 length session";
                     }
                 }
             } else {
@@ -715,7 +716,7 @@ qint64 Day::total_time()
                         range.insert(slice.end, 1);
                         d_totaltime += slice.end - slice.start;
                         if (slice.end - slice.start == 0) {
-                            qWarning() << sess->s_session << "0 length slice";
+                            qWarning() << sess->session() << "0 length slice";
                         }
                     }
                 }
@@ -781,7 +782,7 @@ qint64 Day::total_time(MachineType type)
                     range.insert(last, 1);
                     d_totaltime += sess->length();
                     if (sess->length() == 0) {
-                        qWarning() << sess->s_session << "0 length session";
+                        qWarning() << sess->session() << "0 length session";
                     }
                 }
             } else {
@@ -791,7 +792,7 @@ qint64 Day::total_time(MachineType type)
                         range.insert(slice.end, 1);
                         d_totaltime += slice.end - slice.start;
                         if (slice.end - slice.start == 0) {
-                            qWarning() << sess->s_session << "0 length slice";
+                            qWarning() << sess->session() << "0 length slice";
                         }
                     }
                 }

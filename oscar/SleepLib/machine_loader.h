@@ -42,9 +42,7 @@ const QString genericPixmapPath = ":/icons/mask.png";
 class MachineLoader: public QObject
 {
     Q_OBJECT
-    //friend class ImportThread;
-    //friend class Machine;
-  public:
+ public:
     MachineLoader();
     virtual ~MachineLoader();
 

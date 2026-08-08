@@ -14,6 +14,7 @@
 #include <QMouseEvent>
 #include <QDebug>
 
+#include "Graphs/glcommon.h"
 #include "sessionbar.h"
 
 SBSeg::SBSeg()
@@ -125,8 +126,6 @@ SegType SessionBar::max()
 
     return max;
 }
-
-QColor brighten(QColor, float f);
 
 void SessionBar::mousePressEvent(QMouseEvent *ev)
 {

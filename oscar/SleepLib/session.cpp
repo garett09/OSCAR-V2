@@ -25,7 +25,6 @@
 #include <QJsonObject>
 
 #include "session.h"
-#include "version.h"
 #include "speedcheck.h"
 #include "SleepLib/machine_common.h"
 #include "SleepLib/calcs.h"
@@ -2166,8 +2165,14 @@ EventDataType Session::avg(ChannelID id)
         EventList &ev = *(evec[i]);
         dptr = ev.rawData();
         gain = ev.gain();
-        cnt = ev.count();
-        eptr = dptr + cnt;
+        // The per-list bound and the final divisor are different quantities:
+        // val accumulates over every list, so cnt must be the total. Assigning
+        // ev.count() here instead of adding it divided the sum of all lists by
+        // the length of the last one, inflating the average of any channel
+        // split across multiple EventLists by roughly (total / last).
+        const int listCount = ev.count();
+        cnt += listCount;
+        eptr = dptr + listCount;
 
         for (; dptr < eptr; dptr++) {
             val += double(*dptr) * gain;
@@ -2223,30 +2228,54 @@ EventDataType Session::timeAboveThreshold(ChannelID id, EventDataType threshold)
     }
     
     // PHASE 1 OPTIMIZATION: Try using m_timesummary if available
-    // This is ~100x faster than loading events from disk
+    // This is ~100x faster than loading events from disk.
+    //
+    // The weights in m_timesummary are NOT in a single unit: updateCountSummary()
+    // accumulates seconds for EVL_Event lists but milliseconds for EVL_Waveform
+    // lists. Every other consumer (wavg, percentiles) uses them as ratios, so the
+    // difference cancels out and was never noticed. Reading them here as absolute
+    // seconds reported waveform-backed channels as 1000x their true duration --
+    // Prisma records leak as a 1 Hz waveform, which put "Time over leak redline"
+    // at figures like 20764% instead of 20.764%.
+    //
+    // So take the fraction of the weight that sits above the threshold, which is
+    // unit-agnostic, and scale it by the channel's actual recorded span. Both
+    // endpoints are cached alongside the summaries and persisted to the database,
+    // so this still avoids touching the event data on disk.
     auto ts = m_timesummary.find(id);
     if (ts != m_timesummary.end() && m_gain.contains(id)) {
         double gain = m_gain[id];
-        qint64 total = 0;
-        
+        double above = 0, total = 0;
+
         // Iterate through time summary hash
         for (auto it = ts.value().begin(); it != ts.value().end(); ++it) {
             EventDataType value = EventDataType(it.key()) * gain;
+            double weight = it.value();
+
+            total += weight;
             if (value >= threshold) {
-                total += it.value();  // time in SECONDS (from updateCountSummary)
+                above += weight;
             }
         }
-        
-        // Convert seconds to minutes
-        EventDataType time = double(total) / 60.0;
-        
-        // Cache the result
-        m_timeAboveTheshold[id] = time;
-        m_upperThreshold[id] = threshold;
-        
-        return time;
+
+        auto fc = m_firstchan.find(id);
+        auto lc = m_lastchan.find(id);
+
+        if ((total > 0) && (fc != m_firstchan.end()) && (lc != m_lastchan.end())
+                && (lc.value() > fc.value())) {
+            // Span is in milliseconds; the result is in decimal minutes.
+            EventDataType time = (above / total) * (double(lc.value() - fc.value()) / 60000.0);
+
+            // Cache the result
+            m_timeAboveTheshold[id] = time;
+            m_upperThreshold[id] = threshold;
+
+            return time;
+        }
+        // No usable span for this channel, so fall through to the exact
+        // event-based calculation rather than return a mis-scaled figure.
     }
-    
+
     // FALLBACK: Load events and calculate (original method)
     bool loaded = s_events_loaded;
 
@@ -3760,7 +3789,7 @@ bool Session::LoadEventsFromDatabase()
         // Set metadata
         eventList->setFirst(listData.firstTime);
         eventList->setLast(listData.lastTime);
-        eventList->m_count = listData.count;
+        eventList->setCount(listData.count);
         eventList->setDimension(listData.dimension);
         
         if (listData.hasSecondField) {
@@ -4222,9 +4251,9 @@ bool Session::LoadEventsFromFile(const QString& filename)
             EventList *elist = AddEventList(code, elt, gain, offset, mn, mx, rate, second_field);
             elist->setDimension(dim);
 
-            elist->m_count = evcount;
-            elist->m_first = ts1;
-            elist->m_last = ts2;
+            elist->setCount(evcount);
+            elist->setFirst(ts1);
+            elist->setLast(ts2);
 
             if (second_field) {
                 EventDataType min, max;
@@ -4242,23 +4271,23 @@ bool Session::LoadEventsFromFile(const QString& filename)
 
         for (int j = 0; j < size2; j++) {
             EventList &evec = *eventlist[code][j];
-            evec.m_data.resize(evec.m_count);
-            EventStoreType *ptr = evec.m_data.data();
+            evec.getData().resize(evec.count());
+            EventStoreType *ptr = evec.getData().data();
 
-            in.readRawData((char *)ptr, evec.m_count << 1);
+            in.readRawData((char *)ptr, evec.count() << 1);
 
             if (evec.hasSecondField()) {
-                evec.m_data2.resize(evec.m_count);
-                ptr = evec.m_data2.data();
+                evec.getData2().resize(evec.count());
+                ptr = evec.getData2().data();
 
-                in.readRawData((char *)ptr, evec.m_count << 1);
+                in.readRawData((char *)ptr, evec.count() << 1);
             }
 
             if (evec.type() != EVL_Waveform) {
-                evec.m_time.resize(evec.m_count);
-                quint32 *tptr = evec.m_time.data();
+                evec.getTime().resize(evec.count());
+                quint32 *tptr = evec.getTime().data();
 
-                in.readRawData((char *)tptr, evec.m_count << 2);
+                in.readRawData((char *)tptr, evec.count() << 2);
             }
         }
     }

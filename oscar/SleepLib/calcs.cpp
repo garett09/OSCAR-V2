@@ -1061,6 +1061,19 @@ int calcAHIGraph(Session *session)
            last = session->last(),
            f;
 
+    // The loops below step through the session in 30-second increments, calling
+    // rangeCount() and adding an event on every pass.  A session whose range has been
+    // corrupted by a loader therefore costs one iteration per minute of the bogus span:
+    // it blocks the import thread for minutes and grows an EventList of gigabytes before
+    // the database layer rejects it.  Refuse to build the graph for any span no real
+    // therapy session can have, and leave the rest of the session's channels intact.
+    const qint64 kMaxSessionSpanMs = 7LL * 24 * 60 * 60 * 1000;  // one week
+    if ((last - first) > kMaxSessionSpanMs) {
+        qWarning() << "calcAHIGraph: skipping AHI graph for session" << session->session()
+                   << "- implausible span" << (last - first) << "ms";
+        return 0;
+    }
+
     EventList *AHI = new EventList(EVL_Event);
     AHI->setGain(0.02F);
     session->eventlist[CPAP_AHI].push_back(AHI);

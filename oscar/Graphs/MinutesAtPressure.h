@@ -12,9 +12,9 @@
 
 #include <QPen>
 #include "Graphs/layer.h"
+#include "SleepLib/appsettings.h"
 #include "SleepLib/day.h"
 #include "SleepLib/schema.h"
-#include "Graphs/gLineChart.h"
 
 class MinutesAtPressure;
 struct PressureInfo

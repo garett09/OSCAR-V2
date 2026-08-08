@@ -12,7 +12,6 @@
 
 #include "SleepLib/common.h"
 #include "SleepLib/machine_common.h"
-#include "SleepLib/machine.h"
 #include "SleepLib/event.h"
 #include "SleepLib/session.h"
 
@@ -24,7 +23,6 @@ class OneTypePerDay
 };
 
 class Machine;
-class Session;
 
 /*! \class Day
     \brief Contains a list of all Sessions for single date, for a single device

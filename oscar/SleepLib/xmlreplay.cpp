@@ -16,7 +16,6 @@
 #include <QXmlStreamWriter>
 #include <QDebug>
 
-
 // Derive the filepath for the given substream ID relative to the parent stream.
 static QString substreamFilepath(QFile* parent, const QString & id)
 {
@@ -126,7 +125,7 @@ void XmlRecorder::flush()
 }
 
 XmlReplay::XmlReplay(QFile* file, const QString & tag)
-    : m_tag(tag), m_file(file), m_pendingSignal(nullptr), m_parent(nullptr)
+    : m_tag(tag), m_file(file), m_firstEvent(nullptr), m_lastEvent(nullptr), m_pendingSignal(nullptr), m_parent(nullptr)
 {
     Q_ASSERT(file);
     QFileInfo info(*file);
@@ -137,14 +136,14 @@ XmlReplay::XmlReplay(QFile* file, const QString & tag)
 }
 
 XmlReplay::XmlReplay(QXmlStreamReader & xml, const QString & tag)
-    : m_tag(tag), m_file(nullptr), m_pendingSignal(nullptr), m_parent(nullptr)
+    : m_tag(tag), m_file(nullptr), m_firstEvent(nullptr), m_lastEvent(nullptr), m_pendingSignal(nullptr), m_parent(nullptr)
 {
     deserialize(xml);
 }
 
 // Protected constructor for substreams
 XmlReplay::XmlReplay(XmlReplay* parent, const QString & id, const QString & tag)
-    : m_tag(tag), m_file(nullptr), m_pendingSignal(nullptr), m_parent(parent)
+    : m_tag(tag), m_file(nullptr), m_firstEvent(nullptr), m_lastEvent(nullptr), m_pendingSignal(nullptr), m_parent(parent)
 {
     Q_ASSERT(m_parent);
 
@@ -184,8 +183,12 @@ QXmlStreamReader* XmlReplay::findSubstream(XmlReplay* child, const QString & id)
 
 XmlReplay::~XmlReplay()
 {
-    for (auto event : m_events) {
-        delete event;
+    // Walk the linkedlist and delete each event
+    XmlReplayEvent* toDel = nullptr;
+    while (m_firstEvent) {
+        toDel = m_firstEvent;
+        m_firstEvent = m_firstEvent->getNext();
+        delete toDel;
     }
     // File substreams manage their own file.
     if (m_parent && m_file) {
@@ -221,13 +224,19 @@ void XmlReplay::deserializeEvents(QXmlStreamReader & xml)
         if (event) {
             xml >> *event;
 
-            // Add to list
-            if (m_events.isEmpty() == false) {
-                m_events.last()->m_next = event;
+            // Add this event to the in-order event arrival list
+            event->setNext(nullptr);
+            if (!m_firstEvent) {
+                Q_ASSERT(m_lastEvent == nullptr);
+                m_firstEvent = m_lastEvent = event;
+            } else {
+                Q_ASSERT(m_lastEvent != nullptr);
+                m_lastEvent->setNext(event);
+                m_lastEvent = event;
             }
-            m_events.append(event);
+            Q_ASSERT(event->getNext() == nullptr);
 
-            // Add to index
+            // Add this event to the index
             const QString & id = event->id();
             auto & events = m_eventIndex[type][id];
             events.append(event);
@@ -268,7 +277,7 @@ void XmlReplay::seekToTime(const QDateTime & time)
             for (pos = 0; pos < events.size(); pos++) {
                 auto & event = events.at(pos);
                 // Random-access events should always start searching from position 0.
-                if (event->randomAccess() || event->m_time >= time) {
+                if (event->randomAccess() || event->getTime() >= time) {
                     break;
                 }
             }
@@ -306,17 +315,22 @@ XmlReplayEvent* XmlReplay::getNextEvent(const QString & type, const QString & id
             }
         }
     }
+
+    if (!event) {
+        return nullptr;
+    }
     
     // If this is a random-access event, we need to update the index positions for all non-random-access events.
-    if (event && event->randomAccess()) {
-        seekToTime(event->m_time);
+    if (event->randomAccess()) {
+        seekToTime(event->getTime());
     }
 
     // If the event following this one is a signal (that replay needs to trigger), save it as pending
     // so that it can be emitted when the replay lock for this event is released.
-    if (event && event->m_next && event->m_next->isSignal()) {
+    XmlReplayEvent * e = event->nextEventIfSignal();
+    if (e) {
         Q_ASSERT(m_pendingSignal == nullptr);  // if this ever fails, we may need m_pendingSignal to be a list
-        m_pendingSignal = event->m_next;
+        m_pendingSignal = e;
     }
 
     return event;
@@ -517,7 +531,6 @@ XmlReplayEvent::operator QString() const
     xml << *this;
     return out;
 }
-
 
 XmlReplayLock::XmlReplayLock(const QObject* obj, XmlReplay* replay)
     : m_target(obj), m_replay(replay)

@@ -966,7 +966,8 @@ void PrismaLoader::initChannels()
         "Prisma_HumidLevel",
         QObject::tr("Humidifier level"),
         QObject::tr("Humidifier level"),
-        QObject::tr("Humidifier level"),
+        // Displayed label standardised across loaders — see GitLab #263.
+        QObject::tr("Humidity Level"),
         "", DEFAULT, Qt::green));
 
     channel.add(GRP_CPAP, new Channel(Prisma_TubeType=0xe40c, SETTING,  MT_CPAP,  SESSION,

@@ -19,6 +19,7 @@
 #include <QApplication>
 #include <QMessageBox>
 #include "dreem_loader.h"
+#include "SleepLib/session.h"
 #include "SleepLib/machine.h"
 #include "csv.h"
 

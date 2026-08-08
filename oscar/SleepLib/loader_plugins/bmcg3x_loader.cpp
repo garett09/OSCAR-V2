@@ -89,18 +89,29 @@ int BmcG3xLoader::Open(const QString& dirpath)
     }
 
     // Warn if the firmware version has not been tested with this loader.
-    // Known user-facing versions: G3-2.11.x.x (SC.72) and G3-2.12.x.x (SC.74/SC.75).
-    // The version string comes from the .log file (e.g. "G3-2.11.02.33") and matches
-    // what PAP-Link and the device display report.  If the .log was unavailable, the
-    // fallback is the IDX internal build string (e.g. "G3-2.SC.72.01").
+    // Tested user-facing versions: G3-2.11.x.x (SC.72), G3-2.12.x.x (SC.74/SC.75) and
+    // E5-1.02.x.x on the E5 B25A Plus.
+    // The version string comes from the .log file (e.g. "G3-2.11.02.33", "E5-1.02.05.02")
+    // and matches what PAP-Link and the device display report.  If the .log was
+    // unavailable, the fallback is the IDX internal build string, which has an "SC" field
+    // in place of the release number (e.g. "G3-2.SC.72.01", "E5-1.SC.00.22.22") — hence the
+    // separate contains() tests below.
     const QString fwVersion = machine_info.properties.value("firmware");
     if (!fwVersion.isEmpty()) {
         const bool knownFirmware = fwVersion.startsWith("G3-2.11.") ||
                                    fwVersion.startsWith("G3-2.12.") ||
-                                   fwVersion.contains("SC.72") ||  // IDX fallback
-                                   fwVersion.contains("SC.74") ||  // IDX fallback
-                                   fwVersion.contains("SC.75");    // IDX fallback
+                                   fwVersion.startsWith("E5-1.02.") ||
+                                   fwVersion.contains("SC.72") ||        // IDX fallback
+                                   fwVersion.contains("SC.74") ||        // IDX fallback
+                                   fwVersion.contains("SC.75") ||        // IDX fallback
+                                   fwVersion.startsWith("E5-1.SC.00.");  // IDX fallback
         if (!knownFirmware) {
+            // Also record this in the debug log: the dialog is transient, but a support
+            // request or bug report will normally include the log rather than a screenshot.
+            qWarning() << "BmcG3xLoader: UNTESTED FIRMWARE" << fwVersion
+                       << "- model" << machine_info.model
+                       << "serial" << machine_info.serial
+                       << "- import will continue";
             QMessageBox::information(QApplication::activeWindow(),
                 QObject::tr("BMC G3X — Untested Firmware"),
                 QObject::tr("Your BMC G3X device is running firmware \"%1\", which has not been tested with this version of OSCAR.").arg(fwVersion) + "\n\n" +
@@ -110,12 +121,19 @@ int BmcG3xLoader::Open(const QString& dirpath)
     }
 
     // Warn if the model has not been tested with this loader.
-    // Known models (from IDX product name field 0x0100): "G3 A20" and "G3 B20A".
+    // Tested models (from IDX product name field 0x0100): "G3 A20", "G3 B20A" and
+    // "E5 B25A Plus" (bilevel; AutoS settings verified against PAP-Link).
     const QString model = machine_info.model;
     if (!model.isEmpty()) {
         const bool knownModel = model == QLatin1String("G3 A20") ||
-                                model == QLatin1String("G3 B20A");
+                                model == QLatin1String("G3 B20A") ||
+                                model == QLatin1String("E5 B25A Plus");
         if (!knownModel) {
+            // Also record this in the debug log — see the firmware check above.
+            qWarning() << "BmcG3xLoader: UNTESTED MODEL" << model
+                       << "- firmware" << fwVersion
+                       << "serial" << machine_info.serial
+                       << "- import will continue";
             QMessageBox::information(QApplication::activeWindow(),
                 QObject::tr("BMC G3X — Untested Model"),
                 QObject::tr("Your BMC G3X device model \"%1\" has not been tested with this version of OSCAR.").arg(model) + "\n\n" +

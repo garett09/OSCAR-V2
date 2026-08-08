@@ -76,10 +76,10 @@ enum class BmcRespiratoryEventType
 class BmcRespiratoryEvent
 {
 public:
-    BmcRespiratoryEventType EventType;
+    BmcRespiratoryEventType EventType = BmcRespiratoryEventType::Unknown;
     QDateTime StartTime;
     QDateTime EndTime;
-    int DurationSeconds;
+    int DurationSeconds = 0;
 };
 
 /// @brief A single flow-limitation point event with a severity grade.
@@ -89,8 +89,8 @@ class BmcFlowLimitEvent
 {
 public:
     QDateTime Timestamp;
-    int Grade;      ///< 1 = Mild, 2 = Moderate, 3 = Severe
-    int DurationMs; ///< Device-reported breath duration in milliseconds (EVT value2)
+    int Grade = 0;      ///< 1 = Mild, 2 = Moderate, 3 = Severe
+    int DurationMs = 0; ///< Device-reported breath duration in milliseconds (EVT value2)
 };
 
 /// @brief A pressure snapshot from an EVT 0x42 record.
@@ -103,12 +103,21 @@ public:
     int IpapHundredths = 0; ///< IPAP in hundredths of cmH2O
 };
 
+/// @brief The longest plausible single BMC recording session, in minutes (48 hours).
+///        Durations beyond this are treated as corrupt and discarded: a bogus value
+///        propagates into Session::really_set_last() and makes calcAHIGraph() iterate
+///        once per minute of the reported span, freezing the UI and exhausting memory.
+constexpr int kBmcMaxSessionDurationMinutes = 48 * 60;
+
 class BmcUsrSession
 {
 public:
     QDateTime StartTimestamp;
     QDateTime EndTimestamp;
-    int DurationMinutes;
+    /// Session length in minutes as reported by the USR record.  Zero when unknown --
+    /// ReadInProgressSession() has no duration field to read, so it must stay 0 rather
+    /// than holding indeterminate stack data.
+    int DurationMinutes = 0;
     QList<BmcRespiratoryEvent> RespiratoryEvents;
 
     BmcUsrSession();
@@ -129,12 +138,12 @@ protected:
 class BmcIdxEntry{
 public:
     QDateTime Timestamp;
-    int Index;
-    quint16 StartOffsetPacket;
-    quint16 StartFileIndex;
-    quint16 NextOffsetPacket;
-    bool HasValidNext;
-    quint8 NextFileIndex;
+    int Index = 0;
+    quint16 StartOffsetPacket = 0;
+    quint16 StartFileIndex = 0;
+    quint16 NextOffsetPacket = 0;
+    bool HasValidNext = false;
+    quint8 NextFileIndex = 0xff;
 
     QDateTime StartWaveformPacketTimestamp;
 
@@ -168,11 +177,15 @@ enum class BmcMaskType
     Other
 };
 
+/// Air tube sizes as BMC names them: the standard hose is "19mm" on the device's own
+/// settings screen and in its manuals (inner diameter), even though it carries the same
+/// 22mm end connectors as everyone else's and other vendors call it 22mm.  OSCAR reports
+/// what the device reports — see GitLab #256.
 enum class BmcAirTubeType
 {
-    Unheated22mm = 0,
+    Unheated19mm = 0,
     Unheated15mm,
-    Heated22mm,
+    Heated19mm,
     Heated15mm
 };
 
@@ -181,58 +194,84 @@ class BmcMachineSettings
 public:
     QDate Timestamp;
 
-    quint8 Reslex;
-    bool ReslexPatient;
+    // All fields carry default initializers: ReadDateSession() default-constructs a
+    // BmcMachineSettings and uses it as-is when AllMachineSettings is empty, so
+    // indeterminate values would otherwise reach the session's Device Settings.
+    quint8 Reslex = 0;
+    bool ReslexPatient = false;
 
-    quint8 RampTimeMinutes;
+    quint8 RampTimeMinutes = 0;
 
-    quint8 HumidifierLevel;
+    quint8 HumidifierLevel = 0;
 
-    float APAP_IntialP;
-    float APAP_MinAPAP;
-    float APAP_MaxAPAP;
-    quint8 APAP_Sensitivity;
-    bool APAP_SmartA;
-
-
-    float CPAP_InitialP;
-    float CPAP_TreatP;
-    float CPAP_ManualP;
-    bool CPAP_SmartC;
+    float APAP_IntialP = 0.0f;
+    float APAP_MinAPAP = 0.0f;
+    float APAP_MaxAPAP = 0.0f;
+    quint8 APAP_Sensitivity = 0;
+    bool APAP_SmartA = false;
 
 
-    float S_InitialEPAP;
-    float S_EPAP;
-    float S_IPAP;
-    int S_ISENS;
-    float S_ESENS;
-    quint8 S_RiseTime;
-    float S_TiMin;
-    float S_TiMax;
-    bool S_BackupRR;
-
-    float AutoS_InitialEPAP;
-    float AutoS_MinEPAP;
-    float AutoS_MinIPAP;
-    float AutoS_MaxIPAP;
-
-    int AutoS_ISENS;
-    float AutoS_ESENS;
-    quint8 AutoS_RiseTime;
-
-    bool AutoS_SmartB;
+    float CPAP_InitialP = 0.0f;
+    float CPAP_TreatP = 0.0f;
+    float CPAP_ManualP = 0.0f;
+    bool CPAP_SmartC = false;
 
 
+    float S_InitialEPAP = 0.0f;
+    float S_EPAP = 0.0f;
+    float S_IPAP = 0.0f;
+    /// Trigger sensitivities: -1 = not known (do not display), 0 = Auto, 1–7 = Very Low
+    /// through Very High.  Zero is a real value here, so -1 rather than 0 is the "unset"
+    /// sentinel — see BMC_ISENS / BMC_ESENS channel options.
+    int S_ISENS = -1;
+    int S_ESENS = -1;
+    /// Rise time in seconds.  -1 = not known; 0 is a real setting ("Min").
+    float S_RiseTime = -1.0f;
+    float S_TiMin = 0.0f;
+    float S_TiMax = 0.0f;
+    bool S_BackupRR = false;
 
-    bool LeakAlert;
-    bool AutoOn;
-    bool AutoOff;
+    float AutoS_InitialEPAP = 0.0f;
+    float AutoS_MinEPAP = 0.0f;
+    float AutoS_MinIPAP = 0.0f;
+    float AutoS_MaxIPAP = 0.0f;
+    /// Fixed pressure support (IPAP − EPAP) in cmH2O.  AutoS is an auto-EPAP mode with
+    /// *fixed* PS, so this is a single value rather than a range.  Zero means "not known"
+    /// — the legacy BMC parser does not currently populate it.
+    float AutoS_PS = 0.0f;
 
-    BmcMode Mode;
+    /// See S_ISENS / S_ESENS: -1 = not known, 0 = Auto, 1–7 = Very Low … Very High.
+    int AutoS_ISENS = -1;
+    int AutoS_ESENS = -1;
+    /// Rise time in **seconds** — the unit BMC_RISE_TIME is declared with.  Float because
+    /// the G3X TS block stores it in milliseconds at sub-second resolution (e.g. 300 ms
+    /// → 0.3).  -1 = not known; 0 is a real setting ("Min").  Note the legacy IDX parser
+    /// puts a 1–4 index here rather than a duration; that predates this field being
+    /// decoded properly and is left alone, since no reference readout exists to convert it.
+    float AutoS_RiseTime = -1.0f;
 
-    BmcMaskType MaskType;
-    BmcAirTubeType AirTubeType;
-    int HeatedTubeLevel;
+    bool AutoS_SmartB = false;
+
+
+
+    bool LeakAlert = false;
+    bool AutoOn = false;
+    bool AutoOff = false;
+
+    /// Pressure response ramp shape: -1 = not known, 1 = Standard, 2 = Soft, 3 = Fast.
+    /// Applies to the auto modes (AutoCPAP, AutoS).
+    int PresResponse = -1;
+
+    BmcMode Mode = BmcMode::CPAP;
+
+    BmcMaskType MaskType = BmcMaskType::Other;
+    BmcAirTubeType AirTubeType = BmcAirTubeType::Unheated19mm;
+    /// False when no air-tube field has been decoded for this device.  The G3X TS block
+    /// layout has no known air-tube offset, and AirTubeType's zero default ("Normal 19mm")
+    /// is a real option — publishing it unconditionally would present a plausible but
+    /// unverified value as though it were read from the device.
+    bool AirTubeTypeKnown = false;
+    int HeatedTubeLevel = 0;
 
     BmcMachineSettings();
     BmcMachineSettings(QDataStream*);
@@ -242,9 +281,9 @@ class BmcWaveformCrumb
 {
 public:
     QString Filepath;
-    quint16 FileIndex;
-    quint64 ByteOffset;
-    quint16 PacketOffset;
+    quint16 FileIndex = 0;
+    quint64 ByteOffset = 0;
+    quint16 PacketOffset = 0;
     QDateTime Timestamp;
 };
 
@@ -391,7 +430,7 @@ class BmcDateSession
 {
 public:
     QDateTime StartTime;
-    int DurationMinutes;
+    int DurationMinutes = 0;
     BmcMachineInfo MachineInfo;
     BmcMachineSettings MacineSettings;
     QList<BmcRespiratoryEvent> RespiratoryEvents;

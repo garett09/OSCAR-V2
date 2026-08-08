@@ -151,6 +151,8 @@ THERAPY/LOG/<xxxx>/<NNNNNN>         Contains a list of log files.
 #include <QStringList>
 #include <cmath>
 
+#include "SleepLib/session.h"
+
 #include "resvent_loader.h"
 extern bool openOk;
 

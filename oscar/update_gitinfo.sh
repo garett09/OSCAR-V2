@@ -7,6 +7,13 @@ git rev-parse --git-dir &>/dev/null
 if [ $? -eq 0 ]; then
     GIT_BRANCH=`git rev-parse --abbrev-ref HEAD`
     [ "$GIT_BRANCH" == "HEAD" ] && GIT_BRANCH=""  # not really a branch
+    # GIT_BRANCH is embedded as semver build metadata (version.cpp), which per
+    # https://semver.org/spec/v2.0.0.html only allows [0-9A-Za-z-] (dot-separated).
+    # Branch names routinely contain "/" (e.g. "fix/foo"), which isn't in that set;
+    # left unsanitized, that makes the resulting version string fail semver parsing
+    # and the app refuses to start ("Version ... is invalid, cannot continue!").
+    # Replace any disallowed character with "-" so the build metadata is always valid.
+    GIT_BRANCH=`echo -n "$GIT_BRANCH" | tr -c 'A-Za-z0-9-' '-' | tr -s '-'`
     GIT_REVISION=`git rev-parse --short HEAD`
     $(git diff-index --quiet HEAD --)
     if [ $? -ne 0 ]; then

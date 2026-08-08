@@ -191,6 +191,8 @@ void ResmedLoader::initChannels()
     chan->addOption(0, STR_TR_Off);
     chan->addOption(1, STR_TR_On);
 
+    // "Humidity Level" is the label every loader uses for this setting — see
+    // GitLab #263. Keep it in step if it is ever reworded.
     channel.add(GRP_CPAP, chan = new Channel(RMS9_HumidLevel = 0xe206, SETTING, MT_CPAP, SESSION,
         "RMS9_HumidLevel", QObject::tr("Humid. Level"), QObject::tr("Humidity Level"), QObject::tr("Humidity Level"), "", LOOKUP, Qt::black));
 

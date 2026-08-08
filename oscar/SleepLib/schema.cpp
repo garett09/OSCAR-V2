@@ -19,6 +19,7 @@
 #include "schema.h"
 #include "common_gui.h"
 
+#include "SleepLib/day.h"
 #include "SleepLib/profiles.h"
 
 QColor adjustcolor(QColor color, float ar=1.0, float ag=1.0, float ab=1.0)

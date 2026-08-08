@@ -28,8 +28,6 @@ enum EventListType { EVL_Waveform, EVL_Event };
     */
 class EventList
 {
-    friend class Session;
-
   public:
     EventList(EventListType et, EventDataType gain = 1.0, EventDataType offset = 0.0,
               EventDataType min = 0.0, EventDataType max = 0.0, double rate = 0.0,

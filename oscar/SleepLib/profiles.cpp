@@ -1060,13 +1060,61 @@ void Profile::LoadMachineData(ProgressDialog *progress)
     if (profileData.id > 0) {
         // Check if we have any daily summaries for this profile
         int existingCount = summaryRepo.countDays(profileData.id, QDate(2000, 1, 1), QDate(2100, 12, 31));
-        
+
         if (existingCount == 0) {
             qDebug() << "Profile::LoadMachineData() - No daily summaries found, calculating from existing data...";
             progress->setMessage(QObject::tr("Calculating Daily Summaries"));
             calculateDailySummaries();
         } else {
-            qDebug() << "Profile::LoadMachineData() - Found" << existingCount << "existing daily summaries";
+            // The table is populated but may be incomplete. The import-time summary
+            // pass (finishAddingSessions() and the post-import call) skips the days
+            // added by the most recent import — their freshly-imported in-memory Day
+            // state does not yield a summary — while a clean reload from the database
+            // computes them fine. Because this path historically only rebuilt when the
+            // table was completely empty, those tail gaps were never repaired and
+            // surfaced as a too-early "last day" in the CSV Export Wizard (issue #239).
+            //
+            // Reconcile now: fill any in-memory day that has summary-eligible data but
+            // no daily_summaries row. The common (healthy) case is cheap — an in-memory
+            // scan of daylist; the heavier database read and per-day recalculation run
+            // only when a gap is actually detected.
+            //
+            // "Summary-eligible" mirrors calculateDailySummaries(): only CPAP, oximetry,
+            // sleep-stage and position days ever produce a row. Days with only enabled
+            // Journal (or other non-eligible) sessions are ignored so they cannot make
+            // the count perpetually mismatch and re-trigger this scan on every load.
+            auto isEligible = [](Day *day) -> bool {
+                return day && (day->hasEnabledSessions(MT_CPAP) ||
+                               day->hasEnabledSessions(MT_OXIMETER) ||
+                               day->hasEnabledSessions(MT_SLEEPSTAGE) ||
+                               day->hasEnabledSessions(MT_POSITION));
+            };
+
+            int expected = 0;
+            for (auto it = daylist.begin(), end = daylist.end(); it != end; ++it) {
+                if (isEligible(it.value())) expected++;
+            }
+
+            if (expected > existingCount) {
+                qDebug() << "Profile::LoadMachineData() - daily_summaries incomplete: have"
+                         << existingCount << "expected" << expected << "- reconciling gaps...";
+                progress->setMessage(QObject::tr("Calculating Daily Summaries"));
+
+                QSet<QString> haveSummary;
+                const QList<DailySummaryData> rows = summaryRepo.findByProfile(profileData.id);
+                for (const DailySummaryData &ds : rows) haveSummary.insert(ds.date);
+
+                int filled = 0;
+                for (auto it = daylist.begin(), end = daylist.end(); it != end; ++it) {
+                    Day *day = it.value();
+                    if (!isEligible(day)) continue;
+                    if (haveSummary.contains(it.key().toString(Qt::ISODate))) continue;
+                    if (summaryRepo.calculateAndStoreFromDay(day, profileData.id)) filled++;
+                }
+                qDebug() << "Profile::LoadMachineData() - Reconciled" << filled << "missing daily summaries";
+            } else {
+                qDebug() << "Profile::LoadMachineData() - Found" << existingCount << "existing daily summaries";
+            }
         }
     } else {
         qWarning() << "Profile::LoadMachineData() - Cannot check daily summaries, profile not in database";

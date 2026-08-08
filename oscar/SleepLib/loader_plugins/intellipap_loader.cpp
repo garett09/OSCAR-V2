@@ -15,6 +15,7 @@
 #include <QTimeZone>
 
 #include "intellipap_loader.h"
+#include "SleepLib/session.h"
 
 //#define DEBUG6
 

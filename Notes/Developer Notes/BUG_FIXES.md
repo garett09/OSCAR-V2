@@ -4,6 +4,753 @@ Notable bugs found and fixed during development/investigation.
 
 ---
 
+## 2026-08-02 — BMC G3X air tube type located and decoded
+
+**Files:** `oscar/SleepLib/loader_plugins/bmcG3xDataParsing.cpp` (`DecodeTsBlock()`),
+`oscar/SleepLib/loader_plugins/bmc_loader.cpp` (channel option label)
+
+Air tube type was the last undecoded field, suppressed since 2026-08-01 rather than guessed.
+A contributor located it at **TS offset 0x8F** by changing the setting on the device,
+powering it off and capturing the IDX.
+
+The byte uses the same encoding as `BmcAirTubeType` and as the legacy BMC IDX field
+(`0` = Unheated 19mm, `1` = Unheated 15mm, `2` = Heated 19mm, `3` = Heated 15mm), so it maps
+across directly and the channel needs no new options.
+
+**Values 1 and 2 are confirmed** — a bilevel reference card carries `1` on all 19 nights and
+PAP-Link reports "15mm normal" for every one, and the heated label for `2` was checked
+against a heated G3. Value 1 is also the direct cause of the original defect: the field was
+never read, so `AirTubeType` kept its zero default and a slim-hose card was reported as the
+standard one. Value `0` is the only remaining unheated option (a G3 A20 card carries it on
+12 of its 172 nights); value `3` has not been seen on any card yet.
+
+**Follow-up the same day (commit 5d0ac0a3):** the sizes were relabelled from 22mm to 19mm.
+BMC states 19mm — inner diameter — in its settings screen and manuals; 22mm describes the
+end connector, which nearly all CPAP tubing shares. OSCAR's rule is to report what the
+device reports, so only the BMC channel changed: `PRS1_HoseDiam` keeps its 22mm labels
+because that is what Philips reports, and ResMed ignores the field entirely. The
+`BmcAirTubeType` enumerators were renamed to match. See GitLab #256, and #257 for why a
+code-side option relabel only reaches existing databases once a new profile is created.
+
+*Caution recorded for future work:* the BMC device UI labels the 22 mm tube "19 mm" — inner
+diameter rather than outer, for the same physical tube. A contributor note taken from the
+device UI listed the two values transposed relative to what the data shows. The card and
+PAP-Link agreeing on all 19 nights settled it.
+
+**Also fixed:** `BMC_AIRTUBE_TYPE` option 3 was a duplicate `"Heated 22mm"`; the
+`BmcAirTubeType` enum says it should be `Heated 15mm`.
+
+---
+
+## 2026-08-01 — BMC G3X device settings now read per-night from the IDX, all modes decoded
+
+**Files:** `oscar/SleepLib/loader_plugins/bmcG3xDataParsing.cpp` / `.h`
+(new `BmcG3xData::DecodeTsBlock()`), `oscar/SleepLib/loader_plugins/bmcDataParsing.h` / `.cpp`,
+`oscar/SleepLib/loader_plugins/bmc_loader.cpp`
+
+**Background:** the 2026-07-29 work decoded four AutoS pressure fields from the `.set` file.
+An external contributor then supplied a complete field map with a reference decoder,
+**validated 15/15 against a PAP-Link readout** — including every field previously listed as
+unidentified. Re-validated here against a second card in a different mode.
+
+### Two corrections to the previous understanding
+
+1. **The comfort settings are in the `TS` block, not `SS`.** Ramp Time (0x82), Reslex (0x86),
+   Humidifier (0x87), Auto On (0x8C), Auto Off (0x8D), Mask Type (0x8E) and Leak Alert
+   (0xB3) all live in `TS`. A flags byte at **0x8A** carries the "Auto" states that have no
+   numeric encoding (bit0 ramp, bit2 humidifier, bit5 I Sens, bit6 E Sens) — which is why
+   Ramp reads "Auto" and no `0xFF` sentinel could be found. An earlier round of single-byte
+   `SS` probes therefore produced no change on any of seven bytes; those candidates were all
+   red herrings.
+2. **The IDX per-day `TS` block uses the same layout as the `.set` `TS` block.** A previous
+   note claimed otherwise, inferring a different format purely from the values differing
+   night to night. They differ because the settings genuinely changed over time.
+
+Also corrected: the `0x30`–`0x32` triple was correctly located but mis-assigned. The order
+is I Sens (0x30), E Sens (0x31), Pres. Response (0x32).
+
+### Change
+
+Settings now come from **this night's own `TS` block at IDX `record+0x280`**, with `.set` as
+a fallback for days whose record carries no such block. `.set` holds only the device's
+*current* configuration, so using it relabels every historical night with today's values.
+That is not hypothetical: the bilevel reference card records **13 settings changes across 19
+nights**, and a G3 A20 card changed *mode* (AutoCPAP → CPAP → AutoCPAP) mid-history — which
+`.set` alone would have hidden entirely.
+
+All four modes are decoded (CPAP, AutoCPAP, S, AutoS) plus the shared comfort settings.
+A single `DecodeTsBlock()` serves both sources since the layout is identical. Each mode
+range-checks its pressures and falls back to the previous inferred behaviour on rejection;
+verified that all 19 and all 172 nights of the two reference cards decode without rejection.
+
+**Applies to all G3X devices**, not just the E5 — the format is shared, confirmed on both
+reference cards.
+
+**Supporting changes:**
+
+- New `Pres. Response` channel (`BMC_CHANNEL_IDX + 34`): Standard / Soft / Fast.
+- `BMC_ISENS` / `BMC_ESENS` converted from INTEGER to LOOKUP so the named levels
+  (Very Low … Very High) and "Auto" display properly. Values with no registered option
+  still render as a bare number, so the legacy loader's 1–8 index is unaffected.
+- Sensitivity and rise-time fields now use **-1** as the "not known" sentinel rather than 0,
+  because 0 is a real value for both (Auto sensitivity, minimum rise time). Guards changed
+  from `> 0` to `>= 0` accordingly.
+- **Air tube type is now suppressed unless actually decoded** (new `AirTubeTypeKnown` flag,
+  set by the legacy IDX parser only). No offset for it is known in the G3X `TS` layout, and
+  the field's zero default is itself a valid option ("Normal 22mm") — so it was reporting a
+  device set to 15 mm as 22 mm. The legacy BMC loader still publishes it as before.
+
+---
+
+## 2026-07-29 — BMC E5 B25A Plus registered as a tested device (no longer warns on import)
+
+**File:** `oscar/SleepLib/loader_plugins/bmcg3x_loader.cpp` (`Open()`)
+
+Not a defect — the "untested firmware" and "untested model" dialogs were behaving correctly,
+but the device has now been validated, so it belongs on the tested lists.
+
+Added to the known-firmware test: `E5-1.02.` (user-facing version from the `.log`, e.g.
+`E5-1.02.05.02`) and `E5-1.SC.00.` (the IDX internal build string used as a fallback when
+the `.log` is unavailable, e.g. `E5-1.SC.00.22.22`). Added to the known-model test:
+`E5 B25A Plus`.
+
+Verified against both reference cards: the E5 now matches on `.log` version, IDX fallback
+and model; the G3 A20 is unchanged. Genuinely new configurations still warn — checked that
+`E5-2.00.01.00`, `E5-1.05.00.00`, `G3-3.01.00.00` and model `G3 C30` all still fail the
+test, so the prefixes are narrow enough to keep flagging unseen firmware families.
+
+Validation covering this device: AutoS settings decoded from `.set` and confirmed 4/4
+against PAP-Link, leak field and scale calibrated, waveform and EVT import exercised over
+19 nights.
+
+---
+
+## 2026-07-29 — All BMC device settings vanish after creating a profile (run-once guard vs schema reset)
+
+**Files:** `oscar/SleepLib/loader_plugins/bmc_loader.cpp` (`initChannels()`),
+`oscar/daily.cpp` (`OXI_SPO2Drop` exclusion)
+
+**Symptom:** On a BMC machine, Daily → Device Settings listed only Min EPAP, Max IPAP and
+PS, plus a single blank row showing `0.00`. Everything BMC-specific — BMC Mode, Air Tube
+Type, Auto On, Auto Off, Humidifier, Leak Alert, Mask, Ramp Time, Reslex, Reslex Mode,
+Reslex Availability, SmartB — disappeared. The three surviving rows are `CPAP_EPAPLo`,
+`CPAP_IPAPHi` and `CPAP_PS`, whose labels happen to read "Min EPAP", "Max IPAP" and "PS";
+no BMC channel was displayed at all.
+
+**Root cause:** `BmcLoader::initChannels()` was guarded by a file-static
+`bmc_channels_initialized` flag that made it a no-op after the first call.
+
+`schema::resetChannels()` (schema.cpp) does `done()` — which **deletes every registered
+Channel** and clears the list — then `init()`, then re-invokes `initChannels()` on every
+registered loader to rebuild them. The guard turned that rebuild into a no-op for BMC, so
+the channels were destroyed and never recreated. For the rest of the session
+`schema::channel` had no entry for `0xe930`–`0xe951`; every BMC setting resolved to a null
+channel with an empty label.
+
+Daily's Device Settings list is keyed by label (`other[schema::channel[code].label()]`), so
+all ~13 BMC settings collapsed onto the single key `""` — one blank row showing whichever
+was processed last. That is the stray `0.00`.
+
+`resetChannels()` runs when a **profile is created** (`profiles.cpp:1559`) and from the
+**"reset channel defaults"** button (`preferencesdialog.cpp`). So the trigger was simply
+creating a second profile in a running OSCAR session.
+
+It also persisted: `Profile::saveChannels()` serialises `schema::channel`, so the new
+profile's `channels` table was written without the BMC entries — 213 rows against 247 in a
+profile created before the reset, the difference being exactly the 34 BMC channels.
+
+**Fix:** removed the guard. BMC was the only loader that had one; every other loader
+re-registers correctly on reset. Registration still happens exactly once per cycle because
+`BmcG3xLoader::initChannels()` is deliberately empty (the two loaders share channels), and
+`schema::ChannelList::add()` already rejects duplicate ids and codes.
+
+No data migration is needed for profiles saved while broken: `loadChannelsFromDatabase()`
+only *applies* stored rows onto schema channels, so missing rows simply fall back to the
+code defaults, and the next `saveChannels()` rewrites the full list.
+
+**Also in this change:** `OXI_SPO2Drop` is now excluded from the Device Settings list.
+`calcSPO2Drop()` (`calcs.cpp:1560`) parks the calculated SpO2 *baseline percentage* in
+session settings under that key; rendered as a device setting it picked up the flag
+channel's label and units and displayed as "SD  96.00 Events/hr" — a percentage shown as an
+event rate. It appears for any device reporting SpO2 (the BMC loader creates `OXI_SPO2`
+lists when the packet carries it) and is presented properly as "SpO2 Baseline Used" in the
+Oximeter Information panel. Note that panel only renders when a separate `MT_OXIMETER`
+machine exists, so for a CPAP-reported SpO2 the baseline may now not be shown anywhere.
+
+---
+
+## 2026-07-29 — BMC G3X leak scale was G3-specific, overstating E5 leak by ~60%
+
+**File:** `oscar/SleepLib/loader_plugins/bmcG3xDataParsing.cpp`
+(`G3xLeakScaleTenthsPerRawUnit()`, `ConvertG3xLeakRawToTenths()`)
+
+**Symptom:** After the zero-sample fix (same date, below), the E5 B25A Plus leak graph was
+much improved but still read high against PAP-Link — a visually stable stretch showed
+~3.5 L/min in OSCAR against ~2 in PAP-Link, and mean leak 1.10 against 0.70.
+
+**Root cause:** the `raw × 0.16 = L/min` factor was calibrated against PAP-Link on a Luna
+G3X (config `110A40113`, firmware G3-2.SC.72.01) and then applied to every G3X device. It
+is not correct for the E5 platform.
+
+**Fix:** `G3xLeakScaleTenthsPerRawUnit()` now takes the firmware version and returns a
+platform-scoped factor — 0.10 L/min per raw unit for `E5` firmware, the confirmed 0.16 for
+everything else, with the existing `OSCAR_BMC_G3X_LEAK_SCALE` override still applying to
+any device. G3 devices are unaffected.
+
+**Derivation:** 0.10 comes from the two measures that do not depend on how the two programs
+define percentiles or treat mask-off periods — mean leak (PAP-Link 0.70 against a raw mean
+of 6.881 → 0.1017) and a direct stable-section graph reading (~2 L/min at ~21.9 raw units →
+~0.091). The same night's 95th percentile implies 0.12 and its maximum implies 0.051, but
+neither is usable: PAP-Link's reported maximum of 11.2 L/min is below the raw peak under
+*any* single linear scale, so its tail statistics are evidently smoothed or exclude
+mask-off time. Smoothing was ruled out as the sole explanation because a moving average
+preserves the mean and the means differ (verified over 5 s–300 s windows).
+
+**Expected residual:** after this change OSCAR's mean and graph levels should match
+PAP-Link closely; its 95th percentile will read slightly low (2.50 vs 3.00) and its maximum
+distinctly high (22.0 vs 11.2) for the reason above. That gap is a difference in statistic
+definition, not in the underlying signal.
+
+**Confidence: medium** — one card, one night, one PAP-Link readout. See
+`Notes/loaders/G3X/leak_field_analysis.md` for the full calibration table. A second E5
+sample would confirm whether 0.10 is exact.
+
+---
+
+## 2026-07-29 — BMC G3X reported invented device settings instead of reading the .set file
+
+**Files:** `oscar/SleepLib/loader_plugins/bmcG3xDataParsing.cpp` / `.h`
+(new `BmcG3xData::ApplySetFileSettings()`), `oscar/SleepLib/loader_plugins/bmcDataParsing.h`
+(new `BmcMachineSettings::AutoS_PS`), `oscar/SleepLib/loader_plugins/bmc_loader.cpp`
+
+**Symptom:** On a BMC E5 B25A Plus (a bilevel machine), OSCAR's Device Settings disagreed
+with PAP-Link on nearly every row — mode shown as AutoCPAP rather than AutoS, max pressure
+10.89 rather than Max IPAP 15.0, initial pressure 7.5 rather than Initial EPAP 5.5, PS
+absent, and spurious "Max APAP"/"Min APAP" rows that do not apply to this mode.
+
+**Root cause:** `BmcG3xData::ReadDateSession()` never opened the `.set` file. It zeroed
+`BmcMachineSettings`, hard-coded `Mode = BmcMode::CPAP`, then *inferred* pressures from the
+IDX **observed daily pressure summary** and re-labelled the mode `AutoCPAP` whenever the
+observed max exceeded the observed min. Every other setting stayed at its zeroed default,
+which is why mask type, tube type, auto on/off and ramp all showed as defaults. The value
+`10.89` was itself the tell: real BMC settings are always multiples of 0.5 cmH₂O.
+
+**Fix:** new `ApplySetFileSettings()` decodes the `.set` file and overrides the inference.
+Format decode and cross-validation are documented in
+`Notes/loaders/G3X/BMC_G3X_SET_FORMAT.md`. The active mode is read from `SS[0x1C]`, and the
+**last** `TS` block carrying that mode is authoritative (the file holds a stale snapshot
+first, then the live per-mode table — PAP-Link matched the last block, not the first).
+
+Scope is deliberately limited to **AutoS**, whose four pressure fields were confirmed
+exactly against a PAP-Link readout of the same card (Min EPAP 7.5, Max IPAP 15.0, Initial
+EPAP 5.5, PS 3.5). CPAP/AutoCPAP/S field offsets are decoded but have no ground-truth
+confirmation, so those modes keep the existing inferred behaviour and existing G3 A20 /
+B20A users are unaffected — verified by simulating the parse against the G3 A20 reference
+card, which reports AutoCPAP and correctly falls through.
+
+`AutoS_MinIPAP` is derived as `minEPAP + PS` (exact for a fixed-PS mode) since no confirmed
+field carries it. A pressure range check guards against a corrupt block, falling back to
+the inferred settings with a warning.
+
+**Also fixed:** the AutoS branch of `bmc_loader.cpp` hard-coded `settings[CPAP_PS] = 0`
+while mapping the session to `MODE_BILEVEL_AUTO_FIXED_PS` — a *fixed pressure-support*
+mode — so PS never displayed. It now reports the configured value. Parsers that cannot
+recover PS leave the new `AutoS_PS` field at 0, preserving previous behaviour for the
+legacy BMC loader.
+
+---
+
+## 2026-07-29 — BMC leak statistics inflated; G3X leak field flipped between nights
+
+**Files:** `oscar/SleepLib/loader_plugins/bmc_loader.cpp` (`BmcLoaderTask` waveform loop),
+`oscar/SleepLib/loader_plugins/bmcG3xDataParsing.cpp` / `.h`
+(new `BmcG3xData::ResolveLeakFieldOffset()`)
+
+**Symptom:** On a BMC E5 B25A Plus card, OSCAR's Leak Rate graph had the same shape as
+PAP-Link's but consistently higher numbers. For one night PAP-Link reported avg 0.7,
+median 0.0, 95th 3.0 L/min while OSCAR reported W.Avg 5.03, median 3.7, 95th 12.50,
+99.5th 35.20 L/min, min 0.2.
+
+### Cause 1 — zero-leak samples were discarded (all BMC devices)
+
+`bmc_loader.cpp` added leak events only when the sample was non-zero:
+
+```cpp
+if (wLeak && bmcWaveform.Raw.Leak > 0)
+    wLeak->AddEvent(timestamp, bmcWaveform.Raw.Leak);
+```
+
+A leak reading of zero is a **valid measurement** — the mask is sealing perfectly. On the
+reference card **66.9% of samples read zero**, so every leak statistic was computed over
+only the worst third of the night. Two independent confirmations that this was the cause:
+
+- The all-samples median is **0.00 on 17 of the 19 recorded nights**, matching PAP-Link
+  exactly. OSCAR's reported median of 3.7 is arithmetically impossible unless zeros were
+  excluded, and sits inside the non-zero-only median range (1.60–8.64).
+- OSCAR's reported minimum of 0.2 L/min is exactly raw 1 (`1 × 1.6` tenths, rounded) — the
+  smallest value that can pass a `> 0` test.
+
+The field (0x52A) and the 0.16 L/min-per-raw-unit scale were already **correct**; neither
+was changed. Recomputing with zeros restored puts several nights on PAP-Link's profile,
+e.g. 2026-07-18 → avg 0.56 / median 0.00 / 95th 3.20 vs PAP-Link 0.70 / 0.00 / 3.00.
+
+**Fix:** store every leak sample. The `> 0` test was really guarding against firmware that
+never populates the field at all (where an all-zero channel would falsely advertise a
+perfect seal), so that condition is now evaluated **once per session** — if no sample in
+the session is non-zero, the channel is not created, otherwise all samples are stored.
+
+*Scope note:* this code is shared by the legacy BMC and G3X loaders, so it corrects leak
+statistics for **all** BMC devices, not only the E5. The change is correct for both — zero
+leak is a valid reading regardless of device — and the per-session guard preserves the
+existing "no channel at all" behaviour for devices that never report leak.
+
+### Cause 2 — leak field re-probed per day, and flipped (G3X only)
+
+`ReadDateSession()` chose between offsets 0x52A and 0x568 by sampling **the first 200
+packets of the day being read**, once per day. Which field a device populates is a property
+of its firmware and cannot change overnight.
+
+On the E5 card the non-zero fraction of 0x52A sits near the 10% decision threshold — 11.5%
+to 25% on most nights, but 3%–5% on four of nineteen — so the probe selected **0x568 on
+2026-07-08, 07-09, 07-17 and 07-20** and 0x52A on the other fifteen. Since 0x568 carries a
+~15.7 L/min pressure-independent baseline while 0x52A sits near zero, the leak graph jumped
+between two unrelated signals from one night to the next on the same device and mask.
+
+**Fix:** new `ResolveLeakFieldOffset()` resolves the offset **once per device** and caches
+it. Firmware-string selection is unchanged for recognised G3 versions; when the version is
+not recognised the probe now samples up to 2000 packets from each of the first 5 days
+instead of 200 packets from one. On the reference card that gives 18.7% aggregate (vs
+per-day figures ranging 6.0%–46.0%), a stable and correct 0x52A for all 19 nights. The
+selection is now logged with `qDebug()` unconditionally — once per import, not per day.
+
+**Not a regression of the 0x568 analysis:** `Notes/loaders/G3X/leak_field_analysis.md`
+concluded that 0x568 is not unintentional leak and that unintentional leak is unrecoverable
+for SC.74+ firmware. That still holds. The E5 is unaffected by it because its 0x52A field
+is **live**, so it has genuine unintentional leak available.
+
+---
+
+## 2026-07-28 — BMC G3X reported a garbled firmware version on non-G3 devices
+
+**Files:** `oscar/SleepLib/loader_plugins/bmcG3xDataParsing.cpp`
+(`ParseMachineInfo()`, `ReadAscii()`), `oscar/SleepLib/loader_plugins/bmcg3x_loader.cpp`
+
+**Symptom:** Importing a BMC **E5 B25A Plus** card, OSCAR's "untested firmware" dialog
+reported the version as `E5-1.SC.00.22.22ÿÿÿ` (transcribed by the reporting user as
+"ES-1.SC.22.22yyy"). The real user-facing firmware version is `E5-1.02.05.02`.
+
+**Root cause — two independent defects:**
+
+1. `ParseMachineInfo()` located the user-facing version in the `.log` file with a hard-coded
+   literal search for `"G3-2."`. That prefix is the Luna **G3** platform tag; the E5 platform
+   writes `E5-1.02.05.02`. The search therefore failed on every non-G3 device and silently
+   fell through to the fallback — the *internal SC build string* at IDX 0x0345, which is a
+   different identifier that neither PAP-Link nor the device display ever shows.
+
+2. `ReadAscii()` truncated only at NUL. BMC pads these IDX fields with **0xFF** (erased-flash
+   filler), and `QString::fromLatin1()` maps 0xFF to U+00FF, appending a run of `ÿ` to the
+   value. `.trimmed()` does not remove them. This affected the fallback path above and any
+   other 0xFF-padded field.
+
+**Fix:**
+
+- Match a general platform version token
+  (`[A-Za-z][A-Za-z0-9]-[0-9]+(?:\.[0-9]+){2,}`) instead of the literal `"G3-2."`, so any
+  BMC platform reports its real firmware version.
+- Widen the `.log` scan from 6 KB to 64 KB. The token sits at 0x1620 on the E5 sample —
+  inside the old 6 KB window, but with almost no margin. Verified on both reference cards
+  that this token is the *only* text in the entire log matching the pattern, so the wider
+  scan cannot introduce a false positive.
+- Truncate `ReadAscii()` at the first NUL **or** 0xFF.
+
+**Verified:** against the E5 B25A Plus reference card → `E5-1.02.05.02`, and the G3 A20
+reference card → `G3-2.12.54.13`, i.e. unchanged for existing G3 devices.
+
+**Also in this change (requested enhancement, not a bug):** the "untested firmware" and
+"untested model" conditions in `BmcG3xLoader::Open()` now also emit `qWarning()` to the
+debug log. Previously they raised a modal dialog only, so a support request or bug report
+containing a debug log carried no record of the condition.
+
+**Follow-up (2026-07-29):** the same report noted that device settings differed from
+PAP-Link (mode shown as AutoCPAP rather than AutoS, wrong max pressure, missing PS). That
+was a separate defect — the G3X parser never read the `.set` file — and is fixed in the
+2026-07-29 entry above; see `Notes/loaders/G3X/BMC_G3X_SET_FORMAT.md` for the format decode.
+
+---
+
+## 2026-07-26 — Qt file-dialog strings untranslated again (oscar_qt_*.qm never compiled or deployed)
+
+**File:** `oscar/oscar.pro` (translation compile/copy block, lines ~207-235)
+
+**Symptom:** In the "Find your CPAP data card" folder picker shown when importing from an SD
+card, the accept button ("Choose"/"Open"), the Cancel button and the "Files of type:" filter
+field stayed in English while the rest of OSCAR was translated. Reported for French; the same
+applied to every language. This is a regression of the 2026-03-17 fix.
+
+**Root cause:** The supplemental Qt catalogues under `Translations/qt/*.ts` were never
+compiled or deployed by the build.
+
+1. `EXTRA_TRANSLATIONS` (oscar.pro:210) is only acted on by qmake's `lrelease` CONFIG
+   feature, which this project does not enable — so the assignment was inert.
+2. The hand-rolled lrelease loop (oscar.pro:216) iterated `TRANSLATIONS` only, i.e.
+   `Translations/*.ts`, never the `qt/` subdirectory.
+3. `TRANSLATIONS_FILES` — the list copied to `$$OUT_PWD/Translations` on Windows/Linux and
+   into `Contents/Resources/translations` on macOS, and from there picked up by
+   `Building/Windows/deploy.bat` — was accumulated inside that same loop, so even a manually
+   compiled `oscar_qt_*.qm` would not have been deployed.
+
+Because `*.qm` is gitignored, the `oscar_qt_*.qm` files present locally were one-off
+artefacts from a manual lrelease run on 2026-05-30, made *before* the `.ts` sources were
+regenerated on 2026-06-01. Decompiling the deployed `oscar_qt_fr.qm` (2349 bytes) showed it
+held no `QFileDialog`, `QPlatformTheme` or `QDialogButtonBox` context at all — only leftover
+OSCAR widget contexts (`MainWindow`, `NewProfile`, …) from a still earlier workaround. So
+`initTranslations()` loaded a catalogue that could not translate a single Qt-internal string.
+On a clean clone the files would not exist at all and the load would simply fail.
+
+The affected strings are Qt's own: the accept button is `QFileDialog::tr("&Choose")` in
+`Directory` file mode (`qfiledialog.cpp:650`), the filter label is
+`QFileDialog::tr("Files of type:")`, and Cancel comes from
+`QPlatformTheme::defaultStandardButtonText()` via `QDialogButtonBox`. None can be reached by
+OSCAR's own `.ts` files. They matter here because `nativeDialogOption()` deliberately forces
+the Qt-rendered dialog whenever the OS UI language differs from the OSCAR language.
+
+**Fix:** Added `ALL_TRANSLATIONS = $${TRANSLATIONS} $${EXTRA_TRANSLATIONS}` and drove the
+existing lrelease loop from it, so the `qt/` catalogues are compiled to
+`oscar/translations/` and appended to `TRANSLATIONS_FILES` alongside the main catalogues.
+`EXTRA_TRANSLATIONS` remains excluded from lupdate scanning, so lupdate still cannot
+overwrite the pre-translated Qt strings. All 30 catalogues now compile to ~4-6 KB with the
+`QPlatformTheme` and `QFileDialog` contexts present (`oscar_qt_en_UK.qm` is 33 bytes, as
+`-removeidentical` correctly strips English-to-English entries).
+
+---
+
+## 2026-07-25 — CSV Export Wizard: last day too early (ImportContext loaders skip just-imported days in daily_summaries) (#239)
+
+**Files:** `oscar/SleepLib/importcontext.cpp` — `ImportContext::Commit()`;
+`oscar/SleepLib/session.h` — added `Session::night()` getter;
+`oscar/SleepLib/profiles.cpp` — `Profile::LoadMachineData()`
+
+**Symptom:** The CSV Export Wizard's auto-selected date range ends several days before the
+profile's real last day (first report: 7/4 vs 7/8; reproducing database: 7/15 vs 7/22).
+The Daily page, Statistics, Version 1 CSV Reports and Profile backup all show the correct
+last day. Manually widening the range does not help — because the wizard also draws its
+rows from `daily_summaries`, the missing days export nothing.
+
+**Why only the wizard:** it is the only consumer that reads exclusively from the
+`daily_summaries` table (`report_exporter.cpp:1047` for the range, `:513` for the rows);
+everything else reads the in-memory `daylist`/sessions. So a stale `daily_summaries` surfaces
+only there.
+
+**Root cause (import ordering):** `daily_summaries` had a clean *tail gap* — the days added
+by the most recent import had enabled sessions but no summary row. Forensics on the
+reproducing database (`OSCAR20_Data tschalk`, profile "Ton") showed all 1030 summary rows
+stamped with the exact last-import time (`calculated_at = 2026-07-23 09:44:36`) yet none for
+2026-07-16..22: the import's single summary pass ran but recomputed only the *pre-existing*
+days and skipped the ones it had just added.
+
+The DreamStation loader (PRS1) uses the **ImportContext** path: `ctx->AddSession()` only
+stashes sessions in `m_sessions`; `Machine::AddSession()` — which inserts the new days into
+`mach->day`/`daylist` — is deferred to `ctx->Commit()` (`importcontext.cpp`), called from
+`importCPAP()` (`mainwindow.cpp:985`) *after* `loader->Open()` returns. But the only summary
+pass, `calculateDailySummaries()` inside `finishAddingSessions()` (`machine_loader.cpp:87`),
+runs *inside* `Open()` — before those days exist in `mach->day` — and nothing recomputes
+after `Commit()`. So the just-imported days never got a row during import. ResMed adds
+sessions with `mach->AddSession()` *during* parsing, and the legacy `addSession()` loaders
+(icon/intellipap/sleepstyle) add in `finishAddingSessions()`'s own loop before its recompute,
+so both add-before-recompute and are unaffected. Only the two ImportContext loaders — **PRS1
+(Philips) and Prisma (Löwenstein/Weinmann)** — exhibit it.
+
+It never self-heals because the load-time rebuild only fired when the table was *completely
+empty* — `if (existingCount == 0)` (`profiles.cpp:1064`); a partially populated table was
+assumed complete. (This also explains the differing gap sizes: the gap equals the day-span of
+each profile's final import, not a fixed offset.)
+
+**Fix (two parts):**
+
+1. *Import-time (primary):* `ImportContext::Commit()` now collects the OSCAR days that
+   received sessions (via the new `Session::night()`, valid once `AddSession()` has assigned
+   it) and, after the `Machine::AddSession()` loop, calls
+   `DailySummaryRepository::calculateAndStore(profileId, date)` for each. The days are now in
+   `daylist` with valid in-memory summaries (`UpdateSummaries()` already ran in
+   `ctx->AddSession()`; only raw events were trashed), so they compute correctly, within the
+   import transaction. Scoped to the imported dates, so cost is proportional to the import,
+   not the whole history, and only ImportContext loaders (PRS1, Prisma) are touched.
+
+2. *Load-time (safety net):* `Profile::LoadMachineData()` now reconciles instead of only
+   rebuilding an empty table — it counts summary-*eligible* in-memory days (enabled
+   CPAP/oximetry/sleep-stage/position, mirroring `calculateDailySummaries()`'s machine-type
+   filter) and, only if that exceeds the stored row count, reads the existing summary dates
+   once and fills any missing eligible day. Healthy launches stay cheap (an in-memory
+   `daylist` scan, no extra DB work beyond the `countDays()` already done). This self-heals
+   every already-affected database in the field on next launch.
+
+---
+
+## 2026-07-25 — Prisma Smart: impossible leak redline percentage and invisible pressure trace
+
+**Files:** `oscar/SleepLib/session.cpp` — `Session::timeAboveThreshold()`,
+`oscar/Graphs/gLineChart.cpp` — accelerated waveform plot
+
+Two unrelated defects, both surfaced by a Prisma Smart import
+(`c:/oscar/Testfiles/shouldercentral`, device 0040151735). Neither is Prisma-specific;
+Prisma just happens to record these channels in the shape that exposes them.
+
+### 1. "Time over leak redline" exceeds 100%
+
+**Symptom:** The Daily page Statistics panel reported values such as 20,764.12% for a
+figure that cannot exceed 100%.
+
+**Root cause:** `Session::updateCountSummary()` builds `m_timesummary` with two different
+units. The `EVL_Event` branch accumulates **seconds** (`len = (time - lasttime) / 1000L`),
+while the `EVL_Waveform` branch accumulates **milliseconds** (`timesum[key] += count *
+rate`, where `EventList::rate()` is ms per sample). Every other consumer — `wavg()`,
+`percentile()`, `calculatePercentiles()` — uses these weights as ratios, so the
+inconsistency cancels and had gone unnoticed.
+
+The fast path added to `Session::timeAboveThreshold()` reads them as absolute seconds and
+divides by 60. Prisma records leak as `AddWaveform(CPAP_Leak, "LeakFlowBreath")`, a 1 Hz
+waveform, so `rate` is 1000 and the result is inflated exactly 1000×. The reported
+20,764.12% is a true 20.764%. Any waveform-backed leak channel is affected, not just
+Prisma; the older `EVL_Event` loaders were correct by accident.
+
+**Fix:** Take the *fraction* of summary weight above the threshold — unit-agnostic, so it
+is right for both branches — and scale it by the channel's recorded span from
+`m_firstchan`/`m_lastchan`. Those endpoints are populated by `UpdateSummaries()` (which
+calls `first(id)`/`last(id)` for every channel) and persisted as
+`session_channels.first_time`/`last_time`, so the disk-avoiding optimisation is retained.
+If a channel has no usable span the code falls through to the exact event-based
+calculation rather than returning a mis-scaled figure. No schema change; existing
+databases give correct numbers without reimport.
+
+### 2. Pressure graph draws only the step transitions
+
+**Symptom:** The Daily pressure graph showed vertical lines at each pressure change with no
+horizontal segments in between.
+
+**Root cause:** Same underlying flaw as the 2026-05-21 DV6 fix below, which was patched in
+the loader rather than the renderer, so it resurfaced. Prisma adds pressure via
+`AddWaveform(CPAP_EPAP, "EPAP")` / `AddWaveform(CPAP_IPAP, "IPAP")`; both are 1 Hz signals
+in the `.wmedf` EDF (confirmed from the sample header). At full-night scale `gLineChart`
+takes the accelerated path, which reduces each pixel column to a min/max Y pair and emits
+one vertical line per column with nothing joining adjacent columns. Where pressure is
+constant, `min_py == max_py`, giving a zero-length line that Qt does not render — so the
+flat runs vanished and only the steps, where min ≠ max, remained visible.
+
+**Fix:** In the accelerated column loop, join each column to the previous one, clamping the
+connector to the nearer end of the current column's range so no spurious spike is drawn.
+Columns that received no samples (still holding the `x = height, y = 0` sentinel) are now
+skipped instead of drawing a bogus full-height line. Dense waveforms such as flow rate are
+visually unchanged, since their min/max bars already overlap; the connector only fills the
+sub-pixel gap along the envelope. Fixing this in the renderer covers every loader and
+every slowly-changing waveform channel, and needs no reimport.
+
+**Do not "fix" the leading zero on Prisma pressure channels.** With the trace rendering
+correctly, each session appears to start at 0 hPa, which looks like the ResMed
+session-boundary zero (#229 below) and invites the same leading-sample trim. It is not the
+same thing. Decoding the `.wmedf` signals directly shows `IPAP`/`EPAP` opening
+`0, 1, 2, 3, 4, 5` hPa and the 2 Hz `Pressure` signal opening `0, 0.5, 1.0, 1.5, 2.0, 2.5`:
+the device records its own blower spin-up, and the zero is the genuine first point of that
+ramp, not end-of-data padding. Zooming in far enough shows a steep slope rather than the
+vertical line it resembles at full-night scale. A trim was written and reverted once this
+was confirmed; the samples are real therapy data and belong in the record.
+
+---
+
+## 2026-07-23 — BMC legacy loader: uninitialized session duration freezes import and corrupts the last day
+
+**Files:** `oscar/SleepLib/loader_plugins/bmcDataParsing.h`,
+`oscar/SleepLib/loader_plugins/bmcDataParsing.cpp` — `BmcData::ReadDateSession()`,
+`oscar/SleepLib/calcs.cpp` — `calcAHIGraph()`
+
+**Symptom:** Importing from a legacy BMC device stalls for a minute or more on the final
+day, long enough for the desktop to raise an "application not responding" dialog. The day
+imports with an absurd mask-on time (Welcome page: "Your device was on for 13277569 hours,
+4 minutes and -8 seconds") and the Daily page shows no waveforms or event graphs.
+Re-running the import re-processes the same day and succeeds roughly three times in four.
+The debug log shows:
+
+```
+Session::StoreEventsToDatabase() - Skipping oversized event list channel 4374 index 0
+  count 2080111177 estimated 12480667062 bytes — corrupted source data
+```
+
+**Root cause:** `BmcUsrSession::DurationMinutes` had no default initializer and
+`BmcUsrSession::BmcUsrSession()` is empty. `ReadHistoricSession()` assigns it from USR
+offset `0x0f`, but `ReadInProgressSession()` — which parses the currently-recording night —
+never does, so the field held indeterminate stack data. `ReadAllSessions()` appends the
+in-progress session last, making it the final `SessionLink` and therefore the last day
+imported.
+
+`ReadDateSession()` then extended the session window with
+`StartTimestamp.addSecs(DurationMinutes * 60)` (added in `f1b48793` to recover events when
+the waveform ring buffer wraps), pushing `EndTimestamp` centuries into the future.
+`Session::UpdateSummaries()` calls `calcAHIGraph()`, which walks `first`→`last` in 60 s
+steps (30 s in the `for` increment plus 30 s again in the body), calling `rangeCount()` and
+`AddEvent()` on every pass. One event per minute means the resulting event count equals the
+bogus duration exactly: the logged `count 2080111177` is the garbage `int` itself
+(`0x7BFBFA49`), and `2080111177 × 6 = 12480667062` matches the logged blob estimate to the
+byte. That single loop accounts for the multi-minute stall (the non-threaded import path in
+`machine_loader.cpp:139` runs on the GUI thread), the ~12 GB allocation, the rejected blob,
+the nonsensical mask-on hours, and the empty Daily graphs — the session's real waveforms are
+present but drawn across a 3,955-year x-axis. The intermittency is simply uninitialized
+memory differing between runs.
+
+**Fix:** `DurationMinutes` now defaults to 0, and `BmcData::ReadDateSession()` discards any
+value outside 0–`kBmcMaxSessionDurationMinutes` (48 h) with a warning before it can reach
+`EndTimestamp`. Default initializers were also added to the remaining POD members of
+`BmcUsrSession`, `BmcIdxEntry`, `BmcWaveformCrumb`, `BmcDateSession` and
+`BmcMachineSettings` — the last is default-constructed and used as-is by
+`ReadDateSession()` when `AllMachineSettings` is empty, which would otherwise put
+indeterminate pressures and modes into Device Settings.
+
+As defence in depth, `calcAHIGraph()` now refuses to build the graph for any session
+spanning more than a week, so a corrupt range from any loader can no longer freeze the UI
+or exhaust memory. `BmcG3xData` derives from `BmcDataParser`, not `BmcData`, and has its
+own `ReadDateSession()`, so the G3X loader is unaffected apart from the shared structs now
+being zero-initialized.
+
+**Verifying the fix — the duration warning is not the signal to look for.** The
+`ignoring implausible USR duration` warning will *not* fire on the path that caused this
+bug. `DurationMinutes` now defaults to 0 and `ReadInProgressSession()` still never assigns
+it, so the value stays 0, and 0 passes the clamp cleanly — the default initializer resolves
+the problem upstream of the range check. The clamp is belt-and-braces for a corrupt
+*historic* record, where the field is read as a `quint16` and can therefore arrive anywhere
+in 0–65535; only 2881–65535 trips the 48-hour limit.
+
+The actual confirmation is negative evidence: no `Skipping oversized event list channel
+4374` in the debug log, no multi-minute stall on the final day, sane mask-on hours on the
+Welcome page, and waveforms and event graphs present in Daily view. Because the pre-fix
+behaviour was already correct in roughly three runs out of four, a single clean import
+proves very little — repeat the import several times with OSCAR restarted between runs,
+since restarting is what re-rolls the stack layout that supplied the garbage value.
+
+Days corrupted by earlier imports self-heal without intervention: `Open()` sets
+`firstImportDay = mach->LastDay()` and re-imports from there, so a previously-in-progress
+day is re-read as a historic record with a valid duration on the next import. A purge and
+full re-import clears anything that somehow persists.
+
+**Follow-up audit (same day):** the G3X loader was swept for the same defect class. Its own
+code is clean — `G3xSampleValues`, `G3xTimedSampleUpdate`, `G3xRawRespEvent`, `G3xDiagRow`
+and `G3xDayEntry` all carry full default initializers, `BmcG3xLoader` has no data members,
+and every event/snapshot construction site assigns every field.
+
+One latent gap was found in the shared packet struct that G3X populates:
+`BmcWaveformPacket(char*)` zeroed `Flow`, `PressureWave` and `FlowAbnormality` for both the
+plain and `Raw` copies but not `MaskPressure`, leaving those 50-element arrays indeterminate
+whenever `ApplyFlowWaveformFromG3xPacket()` returns early (null pointer, or a packet shorter
+than `requiredSize`) and for the synthetic fallback packet at `bmcG3xDataParsing.cpp:1624`,
+which never calls it. No reader exists today — `bmc_loader.cpp:498` sources
+`CPAP_MaskPressure` from `Raw.PressureWave` — so this was never a live bug, but both arrays
+are now zeroed in the constructor.
+
+`BmcRespiratoryEvent::{EventType, DurationSeconds}` and `BmcFlowLimitEvent::{Grade,
+DurationMs}` were also given defaults. Both are correctly assigned at every current site, so
+behaviour is unchanged; each is default-constructed and then filled by a `switch` with no
+`default:` arm (`bmcDataParsing.cpp:202`, `bmcG3xDataParsing.cpp:918`), so one added message
+type would have made them indeterminate. `Unknown` is a safe default — `bmc_loader.cpp:379`
+already logs and drops it.
+
+`MessageItem32/24/16` were left alone: each has a value constructor setting every member and
+no default constructor, so they cannot be default-constructed. `BmcWaveformPacketStruct` was
+also left alone — it is a `#pragma pack` overlay only ever reached by casting a raw buffer,
+never instantiated.
+
+---
+
+## 2026-07-22 — Overview AHI/RDI graph labelled "AHI" when the profile is set to RDI
+
+**File:** `oscar/Graphs/gAHIChart.cpp` — `gAHIChart::afterDraw()`, `gAHIChart::tooltipData()`
+
+**Symptom:** With Preferences → Event index set to RDI, two labels on the Overview page's
+AHI/RDI graph still read "AHI": the min/mid/max summary line drawn above the graph, and the
+heading of the per-day hover popup. The numbers themselves were correct RDI values.
+
+**Root cause:** Both strings hardcoded `STR_TR_AHI`. The graph's own title is chosen
+correctly in `overview.cpp:277`-`282` (`STR_TR_RDI` vs `STR_TR_AHI`), but the layer that
+draws the contents never consulted `p_profile->general->calculateRDI()`. The data was right
+because `gAHIChart`'s constructor (`gAHIChart.h:33`-`34`) adds `CPAP_RERA` to `calcitems`
+in RDI mode, so both the `afterDraw()` min/med/max and the `tooltipData()` total — each
+summed over all slices — already included RERA.
+
+**Fix:** Both sites now select the label with
+`p_profile->general->calculateRDI() ? STR_TR_RDI : STR_TR_AHI`. No change to any computed
+value.
+
+---
+
+## 2026-07-21 — Daily sidebar: zero-AHI "0.0!" image overlays the Event Breakdown title
+
+**File:** `oscar/daily.cpp` — `Daily::getPieChart()`
+
+**Symptom:** On the Daily page left sidebar, a day with zero scored events shows the
+`0.0!` image instead of the pie chart. In 2.0 that image sits ~8px too high and overlaps
+the lower half of the "Event Breakdown" section title. Looks correct in 1.7.1.
+
+**Root cause:** Commit `ebb740e7` (2026-05-14, "tighten spacing in Event Breakdown pie
+chart section") added `style='margin-top:-8px'` to the section's `<table>` and
+`style='margin-top:8px'` to the `<hr/>` below it. That offset was calibrated for the
+`values > 0` branch, which emits an empty spacer row
+(`<tr><td align=center><b></b></td></tr>`) above the chart image; the spacer absorbs the
+pull-up. The zero-AHI branch (`qrc:/docs/0.0.gif`) had no spacer row, so the -8px applied
+to the shared table pulled the image straight up into the title.
+
+**Fix:** Hoisted the empty spacer row out of the `values > 0` branch so it is emitted for
+both branches, immediately after the `<table>` tag. The table and `<hr/>` styling is
+unchanged, so the pie-chart layout is untouched and the `0.0!` image now sits at the same
+vertical offset the pie chart occupies.
+
+**Note:** A first attempt instead made the two margins conditional (dropping the -8px /
++8px for the zero-AHI branch, reproducing 1.7.1's plain markup). That build rendered no
+`0.0!` image at all. The mechanism was not identified — the emission of the `<img>` tag is
+unconditional on the margin change — so the approach was abandoned in favour of the
+minimal-delta spacer-row fix above, which leaves the known-rendering markup intact. The
+"image missing entirely" symptom turned out to be a separate, pre-existing bug (below).
+
+---
+
+## 2026-07-21 — Daily sidebar: zero-AHI "0.0!" image never shown (2.0 regression vs 1.7)
+
+**File:** `oscar/daily.cpp` — `Daily::getPieChart()`, zero-AHI branch
+
+**Symptom:** On a day with zero scored events, OSCAR 1.7 shows the big `0.0!` image in the
+Event Breakdown section; OSCAR 2.0 shows the section title and nothing else. Confirmed by
+the reporter on 2026-03-29 with the same data in both versions.
+
+**Diagnosis (instrumented build, ResMed AirCurve 10 VAuto, profile "Blue Dragon 2025"):**
+all six sessions on the day were enabled, but `Day::channelHasData()` returned false for
+every AHI channel plus RERA/FlowLimit/SensAwake, so `gotsome` was false and the `<img>` tag
+was never emitted. Each session's `m_cnt` held only waveform/data channels — key sets were
+identical in size to `eventlist`, and the database had 100 `session_channels` rows for
+those sessions with **none** for any apnea/RERA/FlowLimit channel.
+
+**Root cause:** Zero-count event channels are not persisted.
+`Session::UpdateSummaries()` (`session.cpp:1350`) clears `m_availableChannels` and rebuilds
+it *only* from `eventlist` keys. `Session::StoreToDatabase()` (`session.cpp:2887`) then
+writes `session_channels` rows only for `m_availableChannels`. A channel that exists in
+`m_cnt` with a count of 0 but has no `EventList` — which is what `Session::count()`'s
+memoisation at `session.cpp:2095` creates — is therefore dropped. On reload,
+`Session::LoadFromDatabase()` (`session.cpp:3138`-`3157`) clears `m_cnt` and repopulates it
+solely from `session_channels`, so the zero entries never come back. OSCAR 1.7 serialised
+the entire hash (`out << m_cnt;`, `session.cpp:379`), so its zero entries survived the
+round trip and `channelHasData()` stayed true.
+
+**Fix:** In the zero-AHI branch, fall back from "did *this day* record the channel" to
+"does this day's device report the channel at all", via
+`Machine::hasChannel()`. `Machine::m_availableChannels` is the union accumulated over every
+session by `Machine::updateChannels()` (called from `AddSession()`, which runs after
+`LoadFromDatabase()` in `Machine::LoadSessionsFromDatabase()`), so a device that scores
+events on other days qualifies, while a device that never reports them still correctly
+shows nothing.
+
+**Not fixed (deliberate):** the underlying persistence gap, tracked as GitLab **#242**
+(label `issue`, no fix planned). Making `StoreToDatabase()` write the union of
+`m_availableChannels` and `m_cnt` keys would restore 1.7 semantics, but it only takes effect
+for sessions saved after the change — existing databases would still need a re-import — and
+it adds rows for every session. See #242 for the diagnostic fingerprint if this shape of bug
+turns up elsewhere.
+
+---
+
 ## 2026-07-08 — 1.x→2.0 import still drops channel customizations: init ordering (#140, reopened)
 
 **Files:** `oscar/main.cpp` — startup sequence in `main()` (schema/loader registration vs. `migrateFromOSCAR()`)
@@ -2561,9 +3308,9 @@ silently mix data from two machines into one profile.
    (`p_profile->GetMachine(MT_CPAP)`).
 3. If both serials are non-empty and differ, show a `QMessageBox::Warning` naming both
    machines and require the user to click **Continue**; **Cancel** aborts the import.
-The check is skipped for folder/hard-drive/network imports (Use Case #3).
-A new "Warn when SD card is from a different machine" checkbox in Preferences → Import lets
-users with two machines on one profile (Use Case #2/4) disable the check.
+   The check is skipped for folder/hard-drive/network imports (Use Case #3).
+   A new "Warn when SD card is from a different machine" checkbox in Preferences → Import lets
+   users with two machines on one profile (Use Case #2/4) disable the check.
 
 ---
 
@@ -3703,7 +4450,7 @@ the database before filesystem cleanup.
 ## 2026-03-25 - G3X: Unclassified hypopnea (0x01) added to CPAP_Hypopnea channel
 
 **Files:** `bmcG3xDataParsing.cpp`
-**Feature:** EVT message type `0x01` confirmed as unclassified hypopnea (2026-03-25, Patient 2 B33BF114508). Added `kG3xEvtTypeUH = 0x01` constant; added to EVT loop and Phase 2 mapping → `BmcRespiratoryEventType::HYP`. Duration uses value2/1000 s clamped to 10–180 s. 58 records observed across Patient 2 nights; absent from JCCPAP.
+**Feature:** EVT message type `0x01` confirmed as unclassified hypopnea (2026-03-25, Patient 2 B33BF12345). Added `kG3xEvtTypeUH = 0x01` constant; added to EVT loop and Phase 2 mapping → `BmcRespiratoryEventType::HYP`. Duration uses value2/1000 s clamped to 10–180 s. 58 records observed across Patient 2 nights; absent from JCCPAP.
 
 ---
 
@@ -4040,7 +4787,8 @@ the database before filesystem cleanup.
 
 **Observation:** On the 2026-03-16 night, the Flow Rate waveform and most CPAP channels (Pressure, Mask Pressure, Tidal Volume, etc.) appear to stop at approximately 08:27, while the OSCAR session timeline and the Oximetry channels (SpO2, Pulse Rate) continue to 09:04.
 
-**Root cause (data, not code):** The patient removed the mask at approximately 08:25–08:27. Binary evidence in the waveform file (B33BF114508.000):
+**Root cause (data, not code):** The patient removed the mask at approximately 08:25–08:27. Binary evidence in the waveform file (B33BF112345.000):
+
 - 08:25:34: Leak jumps from 0 to 15 raw units (mask seal breaking).
 - 08:25:54: Flow spikes to 1159 raw units, leak reaches 1199 (mask coming off).
 - 08:26:28 onward: Flow drops to 0–5 raw units (noise floor); leak stabilises at ~178–193 raw units (ambient air escaping from the running machine with no mask).
@@ -4169,3 +4917,259 @@ ever loading it all into RAM. The `QFile m_file` member (replacing `QByteArray m
 stays open from `Open()` to `Close()`. This allows OSCAR to restore backups of any size,
 including existing archives with the miniz Zip64 writing bug (miniz's reader is lenient about
 local-header Zip64 extras; it skips them by stated length without validation).
+
+## 2026-08-04 - SEFAM: Pressure graph showed mask pressure, including breathing ripple
+
+**Symptom:** Zooming into the Pressure graph on a SEFAM import showed the
+inspiration/expiration ripple — roughly 1.0 cmH2O peak to peak. That is OSCAR's
+Mask Pressure graph, not the plain Pressure graph, which is expected to show the
+therapy pressure without breathing variation.
+
+**Root cause:** The card's `PRE` channel is a mask pressure, and the loader
+mapped it straight to `CPAP_Pressure`. Re-examining the card confirmed there is
+no plain-pressure signal to map instead: `PRE` is the only channel declared with
+`Unit=cmH20`; the other populated channels are bit fields (`NSD` has 4 distinct
+values card-wide, `Y17` has 11, `DET` has 93 but they are bit-structured); no
+`.LOG` record reports a pressure; and the manufacturer's own report publishes
+only an average pressure per session.
+
+**Fix (`sefam_loader.cpp`):** Import `PRE` twice. The raw samples now go to
+`CPAP_MaskPressure`, which is what they are. `CPAP_Pressure` is derived from
+them with a centred 10-second moving average, added as a new static
+`movingAverage()` helper. `CPAP_Pressure` has to keep existing as its own
+channel because it, not `CPAP_MaskPressure`, drives the Pressure graph, the
+overview trend and the pressure statistics.
+
+A moving average was chosen over a median. Measured against a breath-synchronous
+reference across 24 sessions, the 10 s average has mean error 0.053 cmH2O and
+zero bias, where a 10 s median has 0.092 and a systematic +0.031 — the median
+tracks the device's pressure ramps better (0.149 vs 0.222 during slews) but its
+bias would shift every reported session average away from the manufacturer's
+figure. The measured shift from the average is -0.0008 cmH2O mean, 0.0066 worst
+case, so the previously validated pressure statistics are unchanged. Window
+width is 10 s because the device slews up to 2.7 cmH2O in ten seconds and a 20 s
+window more than doubles the tracking error across those ramps.
+
+The smoothed channel keeps its source's validity mask exactly, so both pressure
+channels cover the same span and split at the same gaps; letting the window
+bridge a drop-out would have extended `CPAP_Pressure` half a window past each end
+of every gap in `CPAP_MaskPressure`.
+
+**Known-and-accepted:** the graph still looks slightly coarse when zoomed. The
+cause is quantisation, not leftover ripple — the derived channel is stored at
+gain 0.1, the same step the card uses, so sub-0.1 detail recovered by averaging
+is rounded away and the value toggles between adjacent tenths. A smoother
+variant (three cascaded 6 s boxcars, gain 0.01) was built and measured, but the
+visible gain was slight against a 7.1x increase in `session_channel_values`
+rows, so it was not kept. See `Notes/loaders/SEFAM_LOADER_DESIGN.md` §6 for the
+measurements, so they need not be re-derived.
+
+## 2026-08-04 - SEFAM: blower-off periods counted as therapy (usage time and average pressure)
+
+**Symptom:** On 7/10 the first session reported 19:40 of usage and ended at 22:03,
+while the manufacturer's report gave 16 minutes; the flow graph visibly ended earlier
+than the pressure graph. The same session's average pressure read 3.22 cmH2O against
+the vendor's 4.3 - the only one of 31 sessions that disagreed.
+
+**Root cause:** The card keeps writing 10-second records while the blower is stopped,
+so its files span the time the machine was powered on, not the time it was treating.
+That session contains 269 s of blower-off at ~0.1 cmH2O. Three consequences:
+
+1. `Session::hours()` (`session.h:225`) falls back to `s_last - s_first` when
+   `m_slices` is empty, which the loader never populated - so usage was session span.
+2. The near-zero samples were averaged into the pressure statistics.
+3. Flow alone showed the gap, because flow is computed as `FLW - LK` and only `LK`
+   goes to its 255 sentinel during the outage; `PRE` and `FLW` keep recording. So the
+   pressure graphs spanned the outage while flow did not.
+
+**Fix (`sefam_loader.cpp`):** New `findBlowerOffSpans()` detects stopped stretches from
+the pressure channel - below 2.0 cmH2O (or no data) for at least 10 s. `clearSpans()`
+marks those samples invalid on pressure, leak and flow so all three gap out together,
+and `addMaskSlices()` records MaskOn/MaskOff slices so `hours()` reports usage.
+`bmc_loader.cpp:200` sets a MaskOn slice for the same reason; `prs1_loader.cpp:2684`
+records both statuses, which `gSessionTimesChart` draws and `Day` filters to MaskOn.
+
+Detection cannot use a single value: while stopped the card writes a spread of 0.0-0.4
+cmH2O (1694 s card-wide). Therapy never drops below the device's 4.0 cmH2O minimum, so
+2.0 sits in a wide empty band. **The threshold is an assumption, not read from the
+card** - it has margin only because these devices bottom out at 4.0.
+
+Measured over the whole card: worst session 19:40 -> 15:01 (vendor 16 min) and its mean
+pressure 3.22 -> 4.15 (vendor 4.3); card total 159.003 h span vs 158.557 h usage, a
+26.8 min difference against the vendor's own 28 min between operating and usage time.
+The import debug line now logs span and usage separately.
+
+Side effect: this also removes the ramp artefact at blower transitions. The raw steps
+in 0.6 s, but the centred 10 s average spread that over 7 s and began 4 s early; those
+transitions are now gap edges.
+
+Deliberately not changed: scored events. Only 7 of 1568 fall inside an off-span and
+they sit at the detection boundaries; dropping them would disturb counts validated
+against the vendor to within one event.
+
+Known limitation: a session that is entirely blower-off gets no slices and a warning,
+so its usage falls back to full span (7 min out of 158 h on the validated card). An
+empty slice list means "no slice information", and the alternative is worse -
+`Day::cph()` divides by `hours()` unguarded (`day.cpp:1109`, and `sph()` likewise), so
+a zero-usage day would yield inf/nan.
+
+## 2026-08-04 - Session::avg() divides by only the last EventList's count (#260)
+
+**Symptom:** Channels split across more than one `EventList` stored a wildly inflated
+average. Read back from `session_channels` on a SEFAM import, one session showed
+Pressure `avg=50.625` against `wavg=4.147`, and LeakTotal `avg=288.329` against
+`wavg=23.387`. Sessions whose channels were contiguous showed `avg == wavg` exactly.
+
+**Root cause (`SleepLib/session.cpp`, `Session::avg()`):** `cnt` was used for two
+different things - the per-list loop bound and the final divisor - and was **assigned**
+`ev.count()` on each iteration rather than accumulated. `val` summed every sample across
+every list, but the division used only the last list's count, inflating the result by
+roughly (total samples / last list's samples). The affected session had 4505 pressure
+samples with a final run of 365, giving 4505/365 = 12.34, and 4.147 x 12.34 = 51.2,
+matching the stored 50.625.
+
+**Fix:** Keep a separate per-list bound (`listCount`) and accumulate `cnt` across all
+lists.
+
+Not loader-specific: any loader calling `AddEventList()` more than once for a channel is
+affected - waveform gaps, mask-off splits, per-chunk imports - which includes ResMed and
+PRS1. It surfaced now because the SEFAM loader began splitting channels at blower-off
+gaps. Largely latent in the UI, which uses `wavg()`, and `session_summaries.pressure_avg`
+also stores `wavg`; but `session_channels.avg` was persisted wrong and `Day::avg()`
+aggregates it.
+
+Neighbouring accessors were checked and are correct: `Session::count()`, `Session::sum()`
+and `Session::Min()` all accumulate across lists properly.
+
+**Note:** `m_avg` is cached and persisted, so sessions already imported keep the wrong
+value until re-imported. No migration is provided.
+
+## 2026-08-05 - BMC G3X event times truncated to the second; ramp time of 0 shown as "0 Minutes"
+
+Two items from an end-user report against the BMC beta build.
+
+### 1. EVT offset 0x1A is the timestamp's millisecond part
+
+**Symptom:** OSCAR placed every BMC G3X event up to 999 ms earlier than the device
+recorded it, so event flags could sit a full second away from the matching feature in
+the flow waveform. Reported by a contributor comparing OSCAR against PAP-Link charts.
+
+**Root cause (`SleepLib/loader_plugins/bmcG3xDataParsing.cpp`):** the EVT record
+timestamp was read as the 6-byte whole-second value at 0x14 only. The little-endian
+uint16 immediately after it, at 0x1A, holds the milliseconds within that second. Earlier
+analysis had catalogued it as an unused "value1" wrapping counter, because a millisecond
+field sampled at a fixed record cadence looks like a counter that wraps near 1000.
+
+**Confirmed** against a full card (246,260 records) before changing anything:
+
+- The field never exceeds 999 in any record of any type, and is spread evenly over
+  0-999. A 16-bit payload would not be capped at exactly 999.
+- Within a run of records sharing one whole second it is non-decreasing in file order
+  for 99.7% of pairs; every exception is a transition between two different record
+  types, which are not strictly interleaved in the stream.
+- Decisive: 0x42 pressure records are emitted on a 30 s timer. Including the field
+  resolves that interval to 30,031 ms with an interquartile range of 32 ms. A value
+  unrelated to time could not hold a 30-second interval to +/-32 ms.
+- Inspiration-to-expiration intervals (0x0C -> 0x0D) change from a comb at 0 s / 1 s
+  into a smooth distribution with a median of 842 ms - a plausible inspiratory time.
+
+**Fix:** new `DecodeG3xEvtTimestamp()` folds 0x1A into the QDateTime; both EVT scan
+loops use it. Everything downstream already used `toMSecsSinceEpoch()`, so the
+precision carries through to the event lists unchanged.
+
+One knock-on needed guarding: events are assigned to the session whose window contains
+them, and the window bounds come from waveform packet times, which are whole seconds.
+An event in the closing second of a session would have been dropped as soon as its
+millisecond part became non-zero. Both assignment loops now run the window to the end of
+`EndTimestamp`'s second, preserving the previous boundary behaviour.
+
+Deliberately scoped to EVT records. `DecodeG3xTimestamp()` is also used for waveform
+packet headers at offset 0x04, which have no such field, and is left alone. Session IDs
+are computed with `toSecsSinceEpoch()` and so are unaffected - re-importing does not
+duplicate sessions.
+
+PAP-Link rounds this field to the nearest second for display, so OSCAR and PAP-Link can
+still differ by up to a second on the same event, with OSCAR now the more precise.
+
+### 2. A ramp time of 0 displayed as "0 Minutes"
+
+**Symptom:** where PAP-Link reports ramp "Off", OSCAR's Device Settings read
+"Ramp Time 0 Minutes", which reads as though a ramp were configured.
+
+**Root cause (`daily.cpp`, `getDeviceSettings()`):** the LOOKUP and DEFAULT branches
+consult `chan.option(value)` before falling back to a numeric rendering, but the branch
+that handles INTEGER never did. An INTEGER setting therefore had no way to name a
+special value.
+
+**Fix:** the INTEGER/else branch now checks for a registered option first, mirroring the
+DEFAULT branch, and `BMC_RAMPTIME` registers option 0 = "Off". Channels with no
+registered options are unaffected.
+
+Two other channels change with this: `SS_EPRLevel` and `SS_Humidity` in
+`sleepstyle_loader.cpp` both already declare `addOption(0, STR_TR_Off)` and both already
+have that option persisted in `channel_options`, but the renderer never consulted it.
+They now show "Off" instead of "0 cmH2O" / "0" as their author intended. These are the
+only three INTEGER channels in the codebase that register options - checked exhaustively
+against every `new Channel(...)` site and `docs/channels.xml`.
+
+`BMC_RAMPTIME` was chosen over adding an option to `BMC_RAMPTIME_AUTO` (which carries
+the 0xFF "Auto" state under the same label) because `BMC_RAMPTIME_AUTO` already has
+option 0 stored in the global `channel_options` table. Per #257, a stored option set
+replaces the code's on load, so a newly added option 1 would have been dropped for every
+existing profile and rendered as a bare "1". `BMC_RAMPTIME` has no stored rows -
+verified against a live database - so its new option takes effect everywhere.
+
+## 2026-08-06 - SEFAM humidifier level decoded; humidifier label inconsistent across loaders (#263)
+
+### 1. SEFAM: humidifier level now imported (card byte 22)
+
+**Background:** the SEFAM card's log code-2 settings record was decoded down to four
+confirmed fields (min/max pressure, ramp time, ramp pressure). Byte 22 held the value 4
+on a card whose vendor report said "Humidifier Level 4", but that was a single value
+match on a card where every setting was constant - a coincidence, not a confirmation -
+so it was deliberately left out of the loader.
+
+**Resolution:** a second card was obtained from the same device with *only* the
+humidifier level changed, 4 to 5. The two cards share 468 files, 465 of them
+byte-identical; the only differences are the two encrypted state blobs and the one
+session directory still being written when the first card was copied. Across the second
+card's settings records, byte 22 reads 4 through 07-31 and 5 on 08-05, and **no other
+settings byte changes**. Two points that both map to themselves pin any affine reading
+to identity, so the byte is the level, unscaled.
+
+**Change:** `SefamParsing::Settings` gains `humidifierLevel`, read from code 2 only
+(a code 13 snapshot has a different payload shape and no such field, and leaves it at
+-1 so the session reports no level rather than an inherited one). The loader registers
+`SEFAM_HumidLevel` (`0xe500`) in a new `SefamLoader::initChannels()`.
+
+`CPAP_HumidSetting` was **not** reused: `schema.cpp:397` assigns it
+`schema::channel["HumidSet"].id()`, no channel of that name is ever registered, and a
+name miss returns `EmptyChannel`, which has id 0. It is an empty channel. Filed
+separately as #264 because `icon_loader.cpp:859` writes to it.
+
+Byte 14 was also found to vary - 31 (`0x1F`) everywhere except one night, where it is
+29 (`0x1D`). That night is four before the humidifier record, so it is not the
+humidifier. It remains the best candidate for the patient access lock. Unresolved.
+
+### 2. The same device setting displayed under five different names (#263)
+
+**Symptom:** Daily's Device Settings panel labelled the humidifier level differently
+depending on the machine - "Humidity Level" (ResMed), "Humid. Level" (PRS1),
+"Humidifier level" (Prisma), "Humidity" (SleepStyle), "Humidifier" (BMC).
+
+**Root cause:** there is no shared humidifier channel. Every loader registers its own
+`SETTING` channel and each chose its own label text. The commented-out
+`HumidifierLevel()` / `HumidifierConnected()` accessors in `machine_loader.h:152-153`
+are what remains of an attempt to generalise this.
+
+**Fix:** all six now pass `Humidity Level` as the `label` argument - the field
+`daily.cpp:1447` displays. Channel ids, code names, descriptions and options are
+untouched: ids and code names are persisted identifiers, and descriptions are the
+right place for vendor-specific wording.
+
+**Existing profiles keep their old labels.** Labels are persisted per profile in the
+`channels` table and applied back over the code defaults at load
+(`profiles.cpp:2800-2804`), the same mechanism that bit the option table in #257. The
+new labels take effect for new profiles, after a language change, or after "reset
+channel defaults". Making them visible to existing profiles needs a migration, which
+is not included here.

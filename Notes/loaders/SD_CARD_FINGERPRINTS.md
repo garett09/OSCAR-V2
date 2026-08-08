@@ -20,22 +20,22 @@ Convention for each entry:
 ## BMC G3X (G3 A20)
 
 **Sample:** `V:/TestFiles/JCCPAP G3X-2`
-**Device:** BMC G3 A20, serial `A3125636308`, firmware `G3-2.SC.72.01`, part code `110A40113`.
+**Device:** BMC G3 A20, serial `A3123456789`, firmware `G3-2.SC.72.01`, part code `110A40113`.
 **Loader:** `bmcg3x_loader.cpp` + `bmcG3xDataParsing.cpp`.
 
 ### File set
 
 ```
 <basename = serial>
-├── A3125636308.000          67,108,864 bytes  (exactly 64 MiB)  ─┐
-├── A3125636308.001          67,108,864 bytes                     │  63 numbered waveform
-├── A3125636308.002          67,108,864 bytes                     │  data files (.000–.062),
+├── A3123456789.000          67,108,864 bytes  (exactly 64 MiB)  ─┐
+├── A3123456789.001          67,108,864 bytes                     │  63 numbered waveform
+├── A3123456789.002          67,108,864 bytes                     │  data files (.000–.062),
 │   …                                                             │  each exactly 64 MiB
-├── A3125636308.062          67,108,864 bytes                    ─┘
-├── A3125636308.evt          68,897,920 bytes  (~65.7 MiB, event log)
-├── A3125636308.idx             325,632 bytes  (index; carries identity header)
-├── A3125636308.log             609,280 bytes  (firmware/diagnostic log)
-├── A3125636308.set              17,796 bytes  (device settings)
+├── A3123456789.062          67,108,864 bytes                    ─┘
+├── A3123456789.evt          68,897,920 bytes  (~65.7 MiB, event log)
+├── A3123456789.idx             325,632 bytes  (index; carries identity header)
+├── A3123456789.log             609,280 bytes  (firmware/diagnostic log)
+├── A3123456789.set              17,796 bytes  (device settings)
 ├── nP3-35.CHN                  …                                ─┐
 ├── nP3-35.ENG               4,925,496 bytes                      │  9 UI-language
 ├── nP3-35.ESP                  …                                 │  localization files
@@ -57,21 +57,21 @@ language files) is invisible to `Detect()` but consumed by `BmcG3xData::ReadData
 
 ### IDX header — confirmed byte-precise layout
 
-Read from offset 0 of `A3125636308.idx` (matches the comment block at
+Read from offset 0 of `A3123456789.idx` (matches the comment block at
 `bmcG3xDataParsing.cpp:1695`):
 
 | Offset | Length | Field | Value on this sample |
 |---|---|---|---|
 | `0x0000` | 16 | Magic | `"BMC G/E/P INDEX"` + NUL |
 | `0x0020` | 4 | Sub-marker | `"BMC"` + NUL |
-| `0x0030` | 16 | **Serial** | `A3125636308` |
+| `0x0030` | 16 | **Serial** | `A3123456789` |
 | `0x0048` | 16 | **Part / config code** | `110A40113` (not the human model) |
 | `0x0100` | 16 | **Product name** | `G3 A20` (human-readable model) |
 | `0x0120` | 4 | Compatibility code | `A31` ASCII |
 | `0x0140` | 22 | Cloud endpoint | `data2.icodeconnect.com` (BMC upload server) |
 | `0x0162` | 8 | Sibling model code | `G4600` |
 | `0x0200` | 2 | Record marker | `"SF"` (settings frame, 256-byte block follows) |
-| `0x0233` | 16 | Serial (repeat) | `A3125636308` |
+| `0x0233` | 16 | Serial (repeat) | `A3123456789` |
 | `0x0270` | ~26 | Hyphenated hex group ID | `5B2A4236-43373408-54483441` (looks like device-pairing key) |
 | `0x0300` | 2 | Record marker | `"MF"` (machine frame) |
 | `0x0345` | 20 | **Firmware build** | `G3-2.SC.72.01` (internal SC build string) |
@@ -117,7 +117,7 @@ of each block (`0x0?FE..0x0?FF`) carry a non-`FF` checksum-like trailer
 ## BMC Luna G3 (legacy BMC loader)
 
 **Sample:** `V:/TestFiles/BMC Luna`
-**Device:** BMC Luna G3 ("G3 B25A"), serial `B3924B02412`, firmware `G3-2.00.77.01`.
+**Device:** BMC Luna G3 ("G3 B25A"), serial `B3924B12345`, firmware `G3-2.00.77.01`.
 **Loader:** `bmc_loader.cpp` + `bmcDataParsing.cpp` (the "legacy" BMC loader).
 G3X loader explicitly defers when `*.USR` is present (`bmcg3x_loader.cpp:27`).
 
@@ -157,7 +157,7 @@ The legacy IDX file is **structurally different from G3X**:
 |---|---|---|---|
 | `0x0000` | 8 | Filler — eight ASCII spaces (`0x20`×8) | (no "BMC G/E/P INDEX" magic) |
 | `0x0020` | 16 | Header bytes | `01 00 00 08 00 02 c8 00 c8 00 …` |
-| `0x0034` | 16 | **Full device ID** (model+serial concatenated) | `B3924B02412` |
+| `0x0034` | 16 | **Full device ID** (model+serial concatenated) | `B3924B12345` |
 | `0x005C` | 4 | Data-file extension reference | `.bpd` (not present on this card; older format extension?) |
 | `0x006F` | 4 | Data-file extension reference | `.000` (current extension actually used) |
 | ≥ `0x80` | … | `0xFF` padding then sparse fixed-stride records | |
@@ -178,7 +178,7 @@ The `.USR` is the **legacy-only sentinel**, not present on G3X cards. Header:
 | Offset | Length | Field | Value on this sample |
 |---|---|---|---|
 | `0x0000` | 4 | Header magic | `53 01 47 83` (`S.G.` — possibly "Settings" sub-format `01`, version `0x8347`) |
-| `0x0034` | 16 | Full device ID | `B3924B02412` (also in IDX) |
+| `0x0034` | 16 | Full device ID | `B3924B12345` (also in IDX) |
 | `0x004D` | 3+ | Firmware string fragment | `G3-` (truncated in first 0x80 bytes — full string in `.log`) |
 | `0x0050+` | … | Packed binary settings, mostly `0xFF`-padded | |
 
@@ -194,7 +194,7 @@ Strings extracted from full USR:
 
 | String | Meaning |
 |---|---|
-| `B3924B02412` | Device ID (repeated) |
+| `B3924B12345` | Device ID (repeated) |
 | `G3-2.00.77.01` | **Firmware version** (analogous to G3X's `G3-2.SC.72.01`) |
 | `24B02412.idx`, `24B02412.evt` | Self-references — the firmware logs its own filenames |
 | `310170403583672` | 15-digit numeric ID (IMEI-shaped — likely cellular modem ID for cloud uploads) |
@@ -216,7 +216,7 @@ When fingerprinting an unknown BMC card, these distinguish the two generations:
 | Cloud endpoint | `data.icodeconnect.com` | `data2.icodeconnect.com` |
 | Product naming | `G3 B25A` (Luna) | `G3 A20` |
 | Firmware version pattern | `G3-2.00.77.01` | `G3-2.SC.72.01` |
-| Filename basename | Last 8 chars of full ID (`24B02412` from `B3924B02412`) | Full serial (`A3125636308`) |
+| Filename basename | Last 8 chars of full ID (`24B02412` from `B3924B12345`) | Full serial (`A3123456789`) |
 
 ### Observations / open questions
 
@@ -4467,13 +4467,34 @@ the firmware platforms below are what the loader actually has to dispatch on.)
 
 ---
 
-## SEFAM S.Box AUTO (no existing loader)
+## SEFAM S.Box AUTO (loader now exists — see note below)
 
 **Sample:** `C:/Users/Guy/Downloads/SEFAM-2 Wagmar Barbosa de Souza` (SD card root —
 the user's reference path `…/1263R/24462543` is two levels into the card).
 **Device:** SEFAM S.Box AUTO (sleep diagnostic / autotitration device), model code `1263R`, serial `24462543`, firmware `VER :A020400`.
-**Loader:** **None — no SEFAM loader exists in OSCAR.** No code references `Sefam`,
-`SEFAM`, `S.Box`, or related strings anywhere in `oscar/SleepLib/`.
+**Loader:** `sefam_loader.cpp` / `sefamDataParsing.cpp` (added 2026-08-03).
+The loader accepts **any** SEFAM card matching `<digits><letter>/<digits>/DATA_nnn/`,
+reading sample rates and channel names from each session's `.INI` and detecting
+header length rather than assuming it. Only the **Rêve Auto (`1279R`)** has been
+validated end to end against a manufacturer report, so any other model code —
+including this S.Box AUTO `1263R` — imports on a best-effort basis and raises
+`deviceIsUntested()`.
+
+**Re-tested against the finished loader on 2026-08-03.** Parsing this sample
+required three fixes, all now in the loader:
+
+1. **Format tag is `#02/`, not `#03/`.** The tag is a version field. Matching
+   `#03/` literally rejected the card outright.
+2. **`Created By=S.Box_AUTO`** — punctuation differs from the Rêve's
+   `REVE_AUTO`, so model-name matching normalises out `.`, `_` and spaces.
+3. **Session directories are `DATA_0`, not `DATA_000`.** Unpadded names sort
+   `DATA_10` before `DATA_2`, which would carry therapy settings backwards in
+   time on a card with ten or more sessions. Sorting is now numeric.
+
+What this card yields: **3 sessions, 13.44 h**, flow / pressure / total leak, all
+record checksums passing. It carries **no `.LOG` files at all**, so it has no
+events and no therapy settings — the loader's no-log path, previously untested.
+Model code `1263R` correctly raises `deviceIsUntested()`.
 **Device class:** **Sleep diagnostic / polygraph**, not a CPAP. Channel set includes
 abdominal-effort and thoracic-effort belts, SpO2, pulse rate, body position, heart
 rate — Type-3 PSG-class channels in addition to flow/pressure/leak.
@@ -4612,7 +4633,7 @@ This makes sense for the S.Box AUTO's dual role: when used as a CPAP autotitrati
 device, only FLW/PRE/LK/DET/NSD/Y17 are populated; when used as a Type-3 polygraph,
 the effort belts and oximetry channels would have full data.
 
-### Data appears XOR-scrambled
+### Data is XOR-scrambled — key is `0xBF` (SOLVED)
 
 Raw bytes in the data files are biased toward the high half of the byte range:
 ```
@@ -4620,24 +4641,31 @@ FLW: 9c 8f 8d 90 8e 8d 89 8c ed 8d 8b 8b 89 8d 8a 8b
      8c 9f 9f 9f 9f 9f 9f 9f 90 8d 8a 8e 8d 8e 8c 8d
 ```
 
-Plain 8-bit signed flow data should cluster near zero (most samples = 0x00 or ±small
-values). The bytes here cluster around `0x8C…0x9F`, with `0x9F` appearing repeatedly
-in sequence. The strong bias toward high-bit values, combined with the run of
-identical `0x9F 0x9F 0x9F 0x9F 0x9F 0x9F 0x9F` (suggesting a zero region XORed with
-`0x9F`), points to a simple repeating-key XOR cipher.
-
-The first 16 bytes of `FLW`, `DET`, and `upload.dat` share the same lead-in `0x9C 0x8F
-0x8D 0x90 0x8E 0x8D 0x89 0x8C` — strongly implying a **common XOR pattern is applied
-to every file on the card**, not separate per-file keys. The high-bit-cleared form
-(`0x9C XOR 0x80 = 0x1C`) is approximately ASCII-control-character range, but `0x9F
-XOR ?? = 0x00` for what should be the empty trailing region: `?? = 0x9F` directly.
-This suggests **the XOR key is just `0x9F`** (so the key reveals 0x00 in empty
-regions), but the bytes that look meaningful (`0x8F` ↔ `0x9F XOR 0x8F = 0x10`?) need
-test-decryption to confirm.
-
-A future SEFAM loader will need a small experiment to confirm the XOR scheme. Once
-known, the data is presumably plain signed 8-bit samples per channel (16-bit for
-`.PLS`).
+> **Resolved on a later sample.** The guess recorded here originally — that the
+> key was `0x9F` — was **wrong**. The key is a constant **`0xBF`**, applied to
+> the fixed-length text **header** of every `.LOG` and channel file. The sample
+> body after the header is stored in the clear, and its record checksums only
+> validate against undescrambled bytes. (The `.INI` is cleartext throughout, and
+> `.RAM`/`.BKP` are separately encrypted.) Confirmed by known-plaintext: the file
+> header is text containing the device serial, which also appears in cleartext in
+> the `.INI`.
+>
+> ```
+> '0'(0x30)^0xBF = 0x8F    ' '(0x20)^0xBF = 0x9F    'R'(0x52)^0xBF = 0xED
+> ```
+>
+> The run of `0x9F` above is not a zero region — it is the **run of trailing
+> spaces** in the 20-character serial-number field of the header.
+>
+> The header is a fixed-length text record, not ~100 bytes as estimated in the
+> section above: **71 bytes** for channel files, **38 bytes** for `.LOG`. The
+> body is not a flat sample array either — it is fixed records of 10 seconds of
+> samples plus a checksum and sequence number.
+>
+> Full decode of the container, the header fields, the record framing, the
+> confirmed flow/pressure/leak scalings, and the open questions on events and
+> settings: **`Notes/loaders/SEFAM_REVE_CARD_ANALYSIS.md`** (SEFAM Rêve Auto,
+> model code `1279R` — same firmware platform as the S.Box AUTO documented here).
 
 ### `BKP` and `RAM` files at serial level
 
@@ -4669,6 +4697,14 @@ flagging early in any new loader's verification: never assume `Real Record Durat
 matches sample count.
 
 ### What a future SEFAM loader would need
+
+> **Superseded — the loader was built on 2026-08-03.** The list below was the
+> pre-implementation estimate and is kept only to show what the analysis
+> anticipated. For what was actually built, read
+> `Notes/loaders/SEFAM_LOADER_DESIGN.md`. Two items below turned out wrong: the
+> XOR covers the header only (not the whole file), and `.Y17`/`.NSD` are not
+> merely "ignorable" — `Y17` is the suspected home of the hypopnea durations the
+> log omits.
 
 1. **New Detect path**: walk into `<digits>+R/<digits>/DATA_<N>/` and check for
    `DATA_<N>.INI`. Or anchor on the SD-root combination of `<modelcode>/<serial>/`
@@ -4979,9 +5015,10 @@ main hurdle.
   4. Channel decoder: identify which `0x90` sub-IDs correspond to flow / pressure
      / leak / event channels; correlate with the Report.ini summary values.
   5. Skip `Report/` and treat it as opaque.
-- **Multi-week effort** for a new loader — falls in the same bucket as SEFAM and
-  Prisma VENT as "new format, no existing loader candidate." Distinct task from
-  the Prisma LINE table-entry additions.
+- **Multi-week effort** for a new loader — falls in the same bucket as Prisma
+  VENT as "new format, no existing loader candidate." Distinct task from the
+  Prisma LINE table-entry additions. (SEFAM was formerly in this bucket; its
+  loader was built on 2026-08-03.)
 
 ---
 
@@ -5001,6 +5038,7 @@ the known gaps where future samples would round it out.
 | `prs1_loader.cpp` | Philips Respironics System One / DreamStation | DreamStation 2 (encrypted), DreamStation Go Auto + DreamStation Go (cleartext, two-device card), **DreamStation CPAP 200X110** (brick — 4-year card, 5 Px partitions, 3083 sessions), **BiPAP A40** (PRS1-detected but unsupported — `(F3,V4)` not in tested-model table; real data lives in parallel `BIPAP-A/` EDF+D tree no loader reads) |
 | `resmed_loader.cpp` | ResMed S9 / AirSense / AirCurve (S9/AS10/AS11) | S9 AutoSet (S9 — flat DATALOG), AirCurve 10 VAuto (AS10), AirSense 10 CPAP basic (AS10, summary-only), AirSense 11 AutoSet (AS11) |
 | `resvent_loader.cpp` | Resvent platform (Resvent / BMC iBreeze / Hoffrichter) | BMC iBreeze 20A, Hoffrichter Point 3 AutoCPAP |
+| `sefam_loader.cpp` | SEFAM (also sold as Sanrai in some markets) | **Rêve Auto `1279R`** — validated end to end against a manufacturer *Sefam Analyze* report for the same 31 sessions. S.Box AUTO `1263R` documented above but **not** re-tested since the loader was written. Added 2026-08-03; **awaiting real-user testing** |
 | `yuwell_loader.cpp` | Yuwell YH-series | YH-550A (Format A), YH-580C (Format B — single 64 KB ring-buffer file at root), **YH-825A** (Format C, BiPAP S/T — IPAP/EPAP decode added 2026-05-21; LE u16×10 at record offsets `0x02`/`0x04`), YH-680B (Format D summary-only), YH690F (Format D full) |
 
 ## CPAP loaders with no sample yet (would round out the catalogue)
@@ -5039,7 +5077,6 @@ addition.
 | Format | Sample reference | Notable structural traits |
 |---|---|---|
 | Löwenstein Prisma VENT V50-C | "AKLERK Lowenstein Prisma Vent V50C" | `P34A11` firmware platform; `prismaVENT.sdpvdat` sentinel; per-day ZIPs |
-| SEFAM S.Box AUTO | "SEFAM-2 Wagmar Barbosa de Souza" | Self-describing INI manifest; XOR-scrambled binary data |
 | VentMed DreamSleep DS6 | "Jonathan Cameron - VentMed-DreamSleep-DS6" | Per-day `.ds1` files; 4-byte fixed TLV records starting `80 16` |
 | Philips BiPAP A40 (`BIPAP-A/` tree) | "AKLERK 20240205_Philips_BiPAP_A40" | Standard EDF+D in `BIPAP-A/A*.EDF`/`D*.EDF`/`W*.EDF`; parallel `P-SERIES/` stub triggers PRS1 detect but `(F3,V4)` is unsupported. Hospital NIV family (A-Series — Trilogy/A30/A40 adjacency) |
 

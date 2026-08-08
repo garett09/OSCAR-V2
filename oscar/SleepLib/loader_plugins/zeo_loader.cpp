@@ -19,6 +19,7 @@
 #include <QTextStream>
 #include "zeo_loader.h"
 #include "SleepLib/machine.h"
+#include "SleepLib/session.h"
 #include "csv.h"
 
 ZEOLoader::ZEOLoader()

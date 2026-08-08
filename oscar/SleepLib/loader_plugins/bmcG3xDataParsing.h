@@ -1,6 +1,7 @@
 #ifndef BMCG3XDATAPARSING_H
 #define BMCG3XDATAPARSING_H
 
+#include <QByteArray>
 #include <QDateTime>
 #include <QFile>
 #include <QString>
@@ -57,6 +58,13 @@ private:
 
         int TsPressureMinHundredths = 0;
         int TsPressureMaxHundredths = 0;
+
+        /// Raw 256-byte TS (therapy settings) block from this day's IDX record, captured
+        /// at parse time.  This is the authoritative per-night settings record — it is
+        /// what PAP-Link reports from, and unlike the `.set` file it reflects the settings
+        /// actually in force on this date rather than the device's current configuration.
+        /// Empty when the record carried no TS block.
+        QByteArray TsBlock;
     };
 
     QString dirPath;
@@ -66,6 +74,17 @@ private:
     QList<BmcDataLink> sessionLinks;
     QList<G3xDayEntry> dayEntries;
     BmcMachineInfo machineInfo;
+
+    /// Waveform offset the leak channel is read from (0x52A or 0x568).  Which field a
+    /// device populates is a property of its firmware, not of any individual night, so
+    /// this is resolved once per device and reused for every day of the import.
+    /// -1 means "not yet resolved".
+    int leakFieldOffsetCache = -1;
+
+    int ResolveLeakFieldOffset();
+
+    static bool DecodeTsBlock(const QByteArray& ts, BmcMachineSettings& settings);
+    bool ApplySetFileSettings(BmcMachineSettings& settings) const;
 
     bool ResolveIdxFile();
     void ParseMachineInfo(const QByteArray& idxBytes);

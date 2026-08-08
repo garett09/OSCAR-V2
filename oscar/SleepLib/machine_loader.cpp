@@ -15,6 +15,7 @@
 #include <QDir>
 #include <QThreadPool>
 
+#include "session.h"
 #include "machine_loader.h"
 #include "profiles.h"  // For p_profile global
 #include "performance_timer.h"

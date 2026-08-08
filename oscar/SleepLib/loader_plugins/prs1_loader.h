@@ -9,6 +9,7 @@
 
 #ifndef PRS1LOADER_H
 #define PRS1LOADER_H
+#include "SleepLib/session.h"
 #include "SleepLib/machine_loader.h"
 
 #if defined(UNITTEST_MODE) || defined(UNITTEST_MODE_PRS1)

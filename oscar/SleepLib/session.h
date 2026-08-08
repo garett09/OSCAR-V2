@@ -57,9 +57,7 @@ public:
     */
 class Session
 {
-    friend class Day;
-    friend class Machine;
-  public:
+ public:
     /*! \fn Session(Machine *,SessionID);
         \brief Create a session object belonging to device, with supplied SessionID
         If sessionID is 0, the next in sequence will be picked
@@ -210,6 +208,17 @@ class Session
 
         if (!s_last) { s_last = d; }
         else if (s_last < d) { s_last = d; }
+    }
+
+    //! \brief Set m_night to the given value
+    inline void setNight(QDate & night) {
+        m_night = night;
+    }
+
+    //! \brief Return the OSCAR day (noon-to-noon) this session was assigned to,
+    //!        as set by Day::addSession(); an invalid QDate if not yet assigned.
+    inline QDate night() const {
+        return m_night;
     }
 
     //! \brief Return Session Length in decimal hours

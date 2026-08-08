@@ -22,15 +22,10 @@
 
 #include <QHash>
 #include <QVector>
-#include <list>
 
-#include "SleepLib/preferences.h"
 #include "SleepLib/progressdialog.h"
 #include "SleepLib/machine_common.h"
 #include "SleepLib/event.h"
-#include "SleepLib/session.h"
-#include "SleepLib/schema.h"
-#include "SleepLib/day.h"
 
 
 class Day;
@@ -99,9 +94,6 @@ class MachineLoader;    // forward
     */
 class Machine
 {
-    friend class SaveThread;
-//  friend class MachineLaoder;
-
   public:
     /*! \fn Machine(MachineID id=0);
         \brief Constructs a device object with MachineID id
@@ -323,7 +315,6 @@ class Machine
     int m_donetasks;
 
     int skipped_sessions;
-    volatile bool m_save_threads_running;
 
     QList<ImportTask *> m_tasklist;
 };

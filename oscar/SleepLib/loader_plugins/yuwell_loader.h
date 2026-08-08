@@ -70,6 +70,7 @@ class YuwellFormat
  * BreathCare I: YH-350, YH-360, YH-580, YH-720, YH-725, YH-730
  * BreathCare II: YH-450, YH-480, YH-820, YH-825, YH-830
  * BreathCare III: YH-680, YH-690
+ * Unknown revision, own format (YuwellFormatE): YH-920
  *
  * So far we've only seen one model from each BreathCare revision, so its difficult to say for sure. If we see
  * another machine and it *just works* then we can be closer to saying that this is how the data format are organised.
@@ -121,6 +122,19 @@ class YuwellFormatD : public YuwellFormat
   private:
     int OpenMachine(Machine *mach, const QString & serial);
     bool OpenSession(Machine *mach, const QString & filename);
+};
+
+class YuwellFormatE : public YuwellFormat
+{
+  public:
+    YuwellFormatE(YuwellLoader &loader, const QString &filePath) : YuwellFormat(loader, filePath) {};
+    virtual QStringList GetModelSerials();
+    virtual bool Detect();
+    virtual int Open();
+  private:
+    QString FindDataDir(const QString & serial);
+    int OpenMachine(Machine *mach, const QString & serial);
+    bool OpenSession(Machine *mach, const QString & sessionDirPath);
 };
 
 // class YuwellLoader;

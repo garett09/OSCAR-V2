@@ -207,13 +207,19 @@ macx  {
 TRANSLATIONS = $$files($$PWD/../Translations/*.ts)
 # EXTRA_TRANSLATIONS are compiled by lrelease but excluded from lupdate scanning.
 # The qt/ files are pre-translated Qt-internal strings that must not be modified by lupdate.
+# Note: qmake only acts on EXTRA_TRANSLATIONS when "CONFIG += lrelease" is enabled, which
+# this project does not use.  The loop below therefore compiles and deploys them explicitly,
+# alongside TRANSLATIONS.  Without it the oscar_qt_*.qm catalogues are never produced and
+# every Qt-internal string (QFileDialog labels, standard dialog buttons) stays in English.
 EXTRA_TRANSLATIONS = $$files($$PWD/../Translations/qt/*.ts)
 
 # qtPrepareTool(LRELEASE, lrelease)
 LRELEASE = $$[QT_INSTALL_BINS]/lrelease
 win32: LRELEASE = $${LRELEASE}.exe
 
-for(file, TRANSLATIONS) {
+ALL_TRANSLATIONS = $${TRANSLATIONS} $${EXTRA_TRANSLATIONS}
+
+for(file, ALL_TRANSLATIONS) {
 
     qmfile = $$absolute_path($$basename(file), $$PWD/translations/)
     qmfile ~= s,.ts$,.qm,
@@ -399,6 +405,8 @@ SOURCES += \
     SleepLib/loader_plugins/resmed_EDFinfo.cpp \
     SleepLib/loader_plugins/resmed_loader.cpp \
     SleepLib/loader_plugins/resvent_loader.cpp \
+    SleepLib/loader_plugins/sefamDataParsing.cpp \
+    SleepLib/loader_plugins/sefam_loader.cpp \
     SleepLib/loader_plugins/sleepstyle_EDFinfo.cpp \
     SleepLib/loader_plugins/sleepstyle_loader.cpp \
     SleepLib/loader_plugins/somnopose_loader.cpp \
@@ -578,6 +586,8 @@ HEADERS  += \
     SleepLib/loader_plugins/yuwell_loader.h \
     SleepLib/loader_plugins/zeo_loader.h \
     SleepLib/loader_plugins/resvent_loader.h \
+    SleepLib/loader_plugins/sefamDataParsing.h \
+    SleepLib/loader_plugins/sefam_loader.h \
     SleepLib/thirdparty/botan_all.h \
     SleepLib/thirdparty/botan_windows.h \
     SleepLib/thirdparty/botan_linux.h \

@@ -14,7 +14,7 @@
 #include <QDomElement>
 #include <QDomNode>
 
-
+#include "SleepLib/session.h"
 #include "weinmann_loader.h"
 
 // The qt5.15 obsolescence of hex requires this change.

@@ -34,10 +34,8 @@
 
 #include "machine.h"
 #include "profiles.h"
-#include <algorithm>
-#include "SleepLib/schema.h"
-//#include "SleepLib/session.h"
-#include "SleepLib/day.h"
+#include "schema.h"
+#include "session.h"
 #include "mainwindow.h"
 #include "../database/machine_repository.h"
 #include "../database/profile_repository.h"
@@ -169,12 +167,12 @@ bool Machine::saveSessionInfo()
     out << (int)sessionlist.size();
     for (s = sessionlist.begin(); s != sessionlist.end(); ++s) {
         Session * sess = s.value();
-        if (sess->s_first != 0) {
+        if (sess->realFirst() != 0) {
             out << (quint32) sess->session();
             out << (quint8)(sess->enabled(true));
         } else {
-            qWarning() << "Machine::SaveSessionInfo(): discarding session" << sess->s_session
-                       << "["+QDateTime::fromSecsSinceEpoch(sess->s_session).toString("MMM dd, yyyy hh:mm:ss")+"]"
+            qWarning() << "Machine::SaveSessionInfo(): discarding session" << sess->session()
+                       << "["+QDateTime::fromSecsSinceEpoch(sess->session()).toString("MMM dd, yyyy hh:mm:ss")+"]"
                        << "from machine" << serial() << "with first=0";
         }
 

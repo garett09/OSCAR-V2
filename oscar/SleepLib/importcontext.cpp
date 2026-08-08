@@ -12,8 +12,10 @@
 #include <QApplication>
 #include <QMessageBox>
 
+#include "session.h"
 #include "SleepLib/importcontext.h"
 #include "database/machine_repository.h"
+#include "database/daily_summary_repository.h"
 #include <QSet>
 
 
@@ -96,6 +98,11 @@ bool ImportContext::Commit()
 {
     bool ok = true;
 
+    // Collect the days that receive new sessions and the profile they belong to,
+    // so their daily_summaries rows can be refreshed below.
+    QSet<QDate> affectedDates;
+    qint64 profileId = 0;
+
     // TODO: Remove MachineLoader::finishAddingSessions once all loaders use this.
     // Using a map specifically so they are inserted in order.
     for (auto session : m_sessions) {
@@ -103,7 +110,12 @@ bool ImportContext::Commit()
         if (!added) {
             qWarning() << "Session" << session->session() << "was not addded";
             ok = false;
+            continue;
         }
+        // Machine::AddSession() → Day::addSession() assigns the OSCAR day (noon
+        // split), so night() is valid only after AddSession() has run.
+        affectedDates.insert(session->night());
+        if (profileId == 0) profileId = session->machine()->getProfileId();
     }
 
     // Update lastImported timestamp for each machine that received sessions.
@@ -127,6 +139,22 @@ bool ImportContext::Commit()
     }
 
     m_sessions.clear();
+
+    // Refresh daily_summaries for the just-imported days now that their sessions
+    // are in mach->day/daylist (issue #239). ImportContext loaders (PRS1, Prisma)
+    // defer Machine::AddSession() to here, which runs after the import's
+    // finishAddingSessions() summary pass — so without this the new days would have
+    // no daily_summaries row until the profile is reopened, and the CSV Export
+    // Wizard (which reads that table) would show a too-early last day. Scoped to the
+    // imported dates, so the cost is proportional to the import, not the whole
+    // history. ResMed and the legacy addSession() loaders add sessions before that
+    // pass and are unaffected.
+    if (profileId > 0 && !affectedDates.isEmpty()) {
+        DailySummaryRepository summaryRepo;
+        for (const QDate &date : affectedDates) {
+            if (date.isValid()) summaryRepo.calculateAndStore(profileId, date);
+        }
+    }
 
     // TODO: Move what we can from finishCPAPImport into here,
     // e.g. Profile::StoreMachines and Machine::SaveSummaryCache.

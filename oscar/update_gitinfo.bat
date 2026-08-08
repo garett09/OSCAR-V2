@@ -13,6 +13,10 @@ if errorlevel 1 goto GitFail
 
   for /f %%i in ('git rev-parse --abbrev-ref HEAD') do set GIT_BRANCH=%%i
   if "%GIT_BRANCH%"=="HEAD" set GIT_BRANCH=
+  :: GIT_BRANCH is embedded as semver build metadata (version.cpp), which only allows
+  :: [0-9A-Za-z-] (dot-separated) - see update_gitinfo.sh for the full explanation.
+  :: Branch names routinely contain "/" (e.g. "fix/foo"), so replace it with "-".
+  if defined GIT_BRANCH set "GIT_BRANCH=%GIT_BRANCH:/=-%"
   for /f %%i in ('git rev-parse --short HEAD') do set GIT_REVISION=%%i
 
   git diff-index --quiet HEAD --
