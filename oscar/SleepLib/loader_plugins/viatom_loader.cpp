@@ -180,9 +180,11 @@ Session* ViatomLoader::ParseFilePOD2(const QString & filename, bool *existing)
 
     QList<ViatomPOD2File::Record> records = v->ReadData();
     m_step = 1000L;
+    qint64 start_time = v->timestamp();
     // Import data
     for (auto & rec : records)
     {
+        bool skip = (time_ms - start_time < 180000LL);
         //qDebug() << "Timestamp: " << time_ms << "  POD2 Pulse: " << rec.hr << "  SPO2: " << rec.spo2;
         //I do not know if the POD 2 has the same limits as the other Viatom devices.
         //Lacking better information, I've kept the limit checks from the other Viatom devices.
@@ -190,10 +192,10 @@ Session* ViatomLoader::ParseFilePOD2(const QString & filename, bool *existing)
         //These seem to be invalid measurements.
         // Viatom advertises a range of 30 - 250 bpm.
         if (rec.hr>0 && (rec.hr < 30 || rec.hr > 250)) {
-            UNEXPECTED_VALUE(rec.hr, "30-250");
+            if (!skip) UNEXPECTED_VALUE(rec.hr, "30-250");
         }
         else{
-            if (rec.hr>0){
+            if (rec.hr>0 && !skip){
                 AddEvent(OXI_Pulse, time_ms, rec.hr);
             }
         }
@@ -204,18 +206,18 @@ Session* ViatomLoader::ParseFilePOD2(const QString & filename, bool *existing)
             // When the readings fall below 61%, Viatom devices record 0xFF for SpO2.
             // The official software discards these readings.
             // TODO: Consider whether to import these as 60% since they reflect hypoxia.
-            EndEventList(OXI_SPO2, time_ms);
+            if (!skip) EndEventList(OXI_SPO2, time_ms);
             //qDebug() << "<61% at" << QDateTime::fromMSecsSinceEpoch(time_ms);
         } else {
             // Viatom advertises (and graphs) a range of 70% - 99%, but apparently records down to 61%.
             // The official software graphs 61%-70% as 70%.
             // TODO: Consider whether we should import 61%-70% as 70% to match the official reports.
             if (rec.spo2>0 && (rec.spo2 < 61 || rec.spo2 > 100)) {
-                UNEXPECTED_VALUE(rec.spo2, "61-100%");
+                if (!skip) UNEXPECTED_VALUE(rec.spo2, "61-100%");
             }
             else
             {
-                if (rec.spo2>0)
+                if (rec.spo2>0 && !skip)
                 {
                     AddEvent(OXI_SPO2, time_ms, rec.spo2);
                 }
@@ -232,11 +234,11 @@ Session* ViatomLoader::ParseFilePOD2(const QString & filename, bool *existing)
             //perfusion index values above 20%.
             //Changed to throw a warning at 24% instead of 20%
 
-             UNEXPECTED_VALUE(pi, "0-24%");
+             if (!skip) UNEXPECTED_VALUE(pi, "0-24%");
         }
         else
         {
-            AddEvent(OXI_Perf, time_ms, pi);
+            if (!skip) AddEvent(OXI_Perf, time_ms, pi);
         }
 
         time_ms += m_step;
@@ -343,24 +345,28 @@ Session* ViatomLoader::ParseFileViatom(const QString & filename, bool *existing)
 
     QList<ViatomFile::Record> records = v->ReadData();
     m_step = v->duration() / records.size() * 1000L;
+    qint64 start_time = v->timestamp();
 
     // Import data
     for (auto & rec : records) {
+        bool skip = (time_ms - start_time < 180000LL);
         if (rec.oximetry_invalid) {
-            EndEventList(OXI_Pulse, time_ms);
-            EndEventList(OXI_SPO2, time_ms);
+            if (!skip) {
+                EndEventList(OXI_Pulse, time_ms);
+                EndEventList(OXI_SPO2, time_ms);
+            }
         } else {
             // Viatom advertises a range of 30 - 250 bpm.
             if (rec.hr < 30 || rec.hr > 250) {
-                UNEXPECTED_VALUE(rec.hr, "30-250");
+                if (!skip) UNEXPECTED_VALUE(rec.hr, "30-250");
             }
-            AddEvent(OXI_Pulse, time_ms, rec.hr);
+            if (!skip) AddEvent(OXI_Pulse, time_ms, rec.hr);
 
             if (rec.spo2 == 0xFF) {
                 // When the readings fall below 61%, Viatom devices record 0xFF for SpO2.
                 // The official software discards these readings.
                 // TODO: Consider whether to import these as 60% since they reflect hypoxia.
-                EndEventList(OXI_SPO2, time_ms);
+                if (!skip) EndEventList(OXI_SPO2, time_ms);
                 //qDebug() << "<61% at" << QDateTime::fromMSecsSinceEpoch(time_ms);
             } else {
                 // Viatom advertises (and graphs) a range of 70% - 99%, but apparently records down to 61%.
@@ -368,12 +374,12 @@ Session* ViatomLoader::ParseFileViatom(const QString & filename, bool *existing)
                 // TODO: Consider whether we should import 61%-70% as 70% to match the official reports.
                 // Some devices (e.g. OsRing_S) can record 100%, so the upper limit is 100.
                 if (rec.spo2 < 61 || rec.spo2 > 100) {
-                    UNEXPECTED_VALUE(rec.spo2, "61-100%");
+                    if (!skip) UNEXPECTED_VALUE(rec.spo2, "61-100%");
                 }
-                AddEvent(OXI_SPO2, time_ms, rec.spo2);
+                if (!skip) AddEvent(OXI_SPO2, time_ms, rec.spo2);
             }
         }
-        AddEvent(POS_Movement, time_ms, rec.motion);
+        if (!skip) AddEvent(POS_Movement, time_ms, rec.motion);
         time_ms += m_step;
     }
     EndEventList(OXI_Pulse, time_ms);

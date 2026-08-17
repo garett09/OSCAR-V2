@@ -918,7 +918,7 @@ static void drawUsageBars(QPainter& p, const QRectF& r, const ReportData& rd, do
     p.drawLine(QPointF(plot.left(), ty), QPointF(plot.right(), ty));
     p.setFont(avSans(9*s, QFont::DemiBold));
     const QString tl = QObject::tr("%1 h compliance threshold")
-                           .arg(QString::number(rd.complianceThreshold, 'g', 3));
+                           .arg(complianceThresholdStr(rd.complianceThreshold));
     QFontMetricsF fm(p.font());
     const double tw = fm.horizontalAdvance(tl);
     const QRectF lblBox(plot.right() - tw - 6*s, ty - 14*s, tw + 6*s, 12*s);
@@ -1607,7 +1607,7 @@ static void avPage1(QPainter& p, const QRectF& page, const ReportData& rd,
     // (no data, or total-leak device with no seal redline).
     const double scH = 82*s, scW = cw / 6.0;
     const bool leakBandable = !rd.isTotalLeak && rd.leakChan != NoChannel && rd.leakRedline > 0;
-    const QString thrStr = QString::number(rd.complianceThreshold, 'g', 3);
+    const QString thrStr = complianceThresholdStr(rd.complianceThreshold);
     // Banding where HIGHER is better (adherence, usage, SpO2): v ≥ okAt → 0,
     // v ≥ warnAt → 1, else 2. (avBand covers the higher-is-worse indices.)
     auto bandLow = [](double v, double okAt, double warnAt) -> int {
@@ -1979,7 +1979,7 @@ static void avPage2(QPainter& p, const QRectF& page, const ReportData& rd,
     drawBand(p, QRectF(cx, y, cw, bandH), QObject::tr("Usage Detail"), QString(), s);
     y += bandH;
 
-    const QString thrStr = QString::number(rd.complianceThreshold, 'g', 3);
+    const QString thrStr = complianceThresholdStr(rd.complianceThreshold);
     // CMS-style criterion (≥ threshold h on ≥70% of nights in a consecutive
     // 30-day window) — the whole-period % above is not the payer test.
     const AvCmsWindow cms = avBestCmsWindow(rd);
@@ -2176,7 +2176,13 @@ static void avPage3(QPainter& p, const QRectF& page, const ReportData& rd,
     const double padTop = 10*s;   // gap between header bottom and chart top
     const double padBot =  8*s;   // gap between chart bottom and card bottom
     const double cardGap = 10*s;  // vertical gap between consecutive cards
-    const int numCards = (rd.leakChan != NoChannel) ? 3 : 2;
+    // Card 3 needs the same presence gate the Classic renderer applies to its
+    // pressure chart: rd.avgPressure/p95Pressure/maxPressure are only ever
+    // assigned inside `if (p_profile->hasChannel(CPAP_Pressure))`, so on a
+    // bilevel/ASV profile (which records IPAP/EPAP instead) they stay 0.0 and the
+    // card would render an empty default 6-14 axis beside a stats column of 0.0s.
+    const bool hasPress = p_profile && p_profile->hasChannel(CPAP_Pressure);
+    const int numCards = 1 + (rd.leakChan != NoChannel ? 1 : 0) + (hasPress ? 1 : 0);
     const double available = page.bottom() - footH - y;
     const double plotH = (available
                           - numCards * (hdrH + padTop + padBot)
@@ -2252,7 +2258,8 @@ static void avPage3(QPainter& p, const QRectF& page, const ReportData& rd,
     }
 
     // Card 3: Mask Pressure — fixed line or auto band, with set-pressure stats
-    {
+    // (skipped when the profile has no CPAP_Pressure channel)
+    if (hasPress) {
         const QString epr = rd.relief.isEmpty() ? QObject::tr("Off") : rd.relief;
         // Set pressure from the same reliable source as the device-settings page
         // (rd.pressDisplay → "Min 7.0 Max 11.0"); strip the unit since the chart
@@ -2624,9 +2631,21 @@ static bool avPage5(QPainter& p, const QRectF& page, const ReportData& rd,
 // nothing when absent — no empty card).
 // ============================================================================
 static bool avPage6(QPainter& p, const QRectF& page, const ReportData& rd,
-                    int pageNo, int pageCount, double s)
+                    const QList<SelectedChannel>& channels, int pageNo, int pageCount, double s)
 {
-    if (rd.usedDaysOxiAny == 0 && !rd.sleep.present) return false;
+    bool includeBedtime = false;
+    bool includeSleepStages = false;
+    bool includeOxiStats = false;
+    for (const auto& ch : channels) {
+        if ((ChannelID)ch.id == COMPLIANCE_Bedtime) includeBedtime = true;
+        else if ((ChannelID)ch.id == COMPLIANCE_SleepStages) includeSleepStages = true;
+        else if ((ChannelID)ch.id == COMPLIANCE_OximeterStats) includeOxiStats = true;
+    }
+
+    const bool showSleep = rd.sleep.present && includeSleepStages;
+    const bool showOxi = rd.usedDaysOxiAny > 0 && includeOxiStats;
+
+    if (!showOxi && !showSleep) return false;
 
     const QRectF content = avContentRect(page, s);
     const double cx = content.left(), cw = content.width();
@@ -2640,7 +2659,7 @@ static bool avPage6(QPainter& p, const QRectF& page, const ReportData& rd,
 
     // (b) Section band
     const double bandH = 30*s;
-    const QString bandSub = rd.sleep.present
+    const QString bandSub = showSleep
         ? QObject::tr("per-night averages · %1 sleep-stage nights").arg(rd.sleep.sleepStageNights)
         : QObject::tr("oximeter summary");
     drawBand(p, QRectF(cx, y, cw, bandH), QObject::tr("Sleep Architecture & Oximeter"), bandSub, s);
@@ -2649,7 +2668,7 @@ static bool avPage6(QPainter& p, const QRectF& page, const ReportData& rd,
     const double padX = 16*s, kvRowH = 22*s, subH = 14*s;
 
     // (c) Sleep Architecture — ONLY when sleep-stage data is present.
-    if (rd.sleep.present) {
+    if (showSleep) {
         const SleepStageStats& sl = rd.sleep;
         const double cardPadTop = 12*s, cardPadBot = 12*s;
         const double stageCardsH = 54*s, barH = 28*s;
@@ -2674,9 +2693,9 @@ static bool avPage6(QPainter& p, const QRectF& page, const ReportData& rd,
 
         const QVector<QPair<QString,QString>> kvs = {
             { QObject::tr("Total sleep time"), hmm(sl.tstMin / 60.0) },
-            { QObject::tr("Avg bedtime"),      sl.avgBedtime.isEmpty() ? QStringLiteral("—") : sl.avgBedtime },
+            { QObject::tr("Avg bedtime"),      includeBedtime ? (sl.avgBedtime.isEmpty() ? QStringLiteral("—") : sl.avgBedtime) : QStringLiteral("—") },
             { QObject::tr("Sleep latency"),    QString::number(qRound(sl.sleepLatencyMin)) + QObject::tr(" min") },
-            { QObject::tr("Avg wake"),         sl.avgWake.isEmpty() ? QStringLiteral("—") : sl.avgWake },
+            { QObject::tr("Avg wake"),         includeBedtime ? (sl.avgWake.isEmpty() ? QStringLiteral("—") : sl.avgWake) : QStringLiteral("—") },
             { QObject::tr("REM of TST"),       QString::number(qRound(sl.remOfTstPct)) + QStringLiteral("%") },
             { QObject::tr("Sleep-stage nights"), QString::number(sl.sleepStageNights) },
         };
@@ -2692,13 +2711,13 @@ static bool avPage6(QPainter& p, const QRectF& page, const ReportData& rd,
         p.setPen(AV::GREY3);
         p.drawText(QRectF(ix, iy + 2*kvRowH + 5*s, iw, 12*s),
                    Qt::AlignLeft | Qt::AlignTop,
-                   QObject::tr("Sleep stages are consumer-device estimates, not PSG-validated \xe2\x80\x94 interpret as trends only."));
+                   QObject::tr("Sleep stages are consumer-device estimates, not PSG-validated — interpret as trends only."));
         y += cardH + 18*s;
     }
 
     // (d) Oximeter Statistics — only when oximetry data exists. Two columns:
     //     "Usage & saturation" (6 rows) | "Pulse & desaturation" (4 rows).
-    if (rd.usedDaysOxiAny > 0) {
+    if (showOxi) {
         const double cardPadTop = 10*s, cardPadBot = 10*s;
         const auto spo2  = [&](const QString& v){ return (rd.hasSpO2 && rd.usedDaysOxi > 0) ? v : QString::fromUtf8("—"); };
         const auto pulse = [&](const QString& v){ return rd.usedDaysPulse > 0 ? v : QString::fromUtf8("—"); };
@@ -2722,7 +2741,7 @@ static bool avPage6(QPainter& p, const QRectF& page, const ReportData& rd,
         const int maxRows = qMax(usage.size(), pulseRows.size());
         const double contentH = subH + 6*s + maxRows * kvRowH;
         const double cardH = cardPadTop + contentH + cardPadBot;
-        drawCard(p, QRectF(cx, y, cw, cardH), /*joinTop*/!rd.sleep.present, s);
+        drawCard(p, QRectF(cx, y, cw, cardH), /*joinTop*/!showSleep, s);
 
         const double colGap = 28*s, colW = (cw - 2*padX - colGap) / 2.0;
         const double leftX = cx + padX, rightX = leftX + colW + colGap;
@@ -2995,21 +3014,30 @@ void renderAirViewV2Pdf(const ReportData& rd, QPrinter& printer, const QList<Sel
     };
     const bool selSpo2 = selHas(OXI_SPO2), selPulse = selHas(OXI_Pulse);
 
+    bool includeBedtime = false;
+    bool includeSleepStages = false;
+    bool includeOxiStats = false;
+    for (const auto& ch : channels) {
+        if ((ChannelID)ch.id == COMPLIANCE_Bedtime) includeBedtime = true;
+        else if ((ChannelID)ch.id == COMPLIANCE_SleepStages) includeSleepStages = true;
+        else if ((ChannelID)ch.id == COMPLIANCE_OximeterStats) includeOxiStats = true;
+    }
+
     // Assemble only the pages that will actually be emitted, then number them
     // n / N over the emitted count so gated pages (4/5/6) never leave numbering
     // gaps and footers always show the correct total.
     const bool hasP4 = (p_profile->hasChannel(CPAP_MinuteVent)  && selHas(CPAP_MinuteVent))
                     || (p_profile->hasChannel(CPAP_RespRate)    && selHas(CPAP_RespRate))
                     || (p_profile->hasChannel(CPAP_TidalVolume) && selHas(CPAP_TidalVolume));
-    const bool hasP5 = rd.usedDaysOxiAny > 0;
-    const bool hasP6 = rd.usedDaysOxiAny > 0 || rd.sleep.present;
+    const bool hasP5 = rd.usedDaysOxiAny > 0 && includeOxiStats;
+    const bool hasP6 = (rd.usedDaysOxiAny > 0 && includeOxiStats) || (rd.sleep.present && includeSleepStages);
     QVector<std::function<void(int,int)>> pages;
     pages.append([&](int n, int N){ avPage1(p, page, rd, n, N, s); });
     pages.append([&](int n, int N){ avPage2(p, page, rd, n, N, s); });
     pages.append([&](int n, int N){ avPage3(p, page, rd, n, N, s); });
     if (hasP4) pages.append([&](int n, int N){ avPage4(p, page, rd, channels, n, N, s); });
     if (hasP5) pages.append([&](int n, int N){ avPage5(p, page, rd, selSpo2, selPulse, n, N, s); });
-    if (hasP6) pages.append([&](int n, int N){ avPage6(p, page, rd, n, N, s); });
+    if (hasP6) pages.append([&](int n, int N){ avPage6(p, page, rd, channels, n, N, s); });
     pages.append([&](int n, int N){ avPage7(p, page, rd, channels, n, N, s); });
 
     const int N = pages.size();

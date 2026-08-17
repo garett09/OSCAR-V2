@@ -19,6 +19,10 @@
 #include "SleepLib/day.h"
 #include "SleepLib/common.h"
 
+const ChannelID COMPLIANCE_Bedtime = 0xFFFF0001;
+const ChannelID COMPLIANCE_SleepStages = 0xFFFF0002;
+const ChannelID COMPLIANCE_OximeterStats = 0xFFFF0003;
+
 // Single-pass collector for the dropout-filtered oximetry statistics. The four
 // quantities the report needs — min, max, time-weighted mean, and seconds spent
 // below a threshold — all derive from one walk over the same raw event samples,
@@ -29,7 +33,12 @@
 //
 //  - min / max:      lowest / highest sample above floorVal. `found` is false
 //                    when no non-dropout sample exists (min/max then read 0.0,
-//                    matching the old helpers).
+//                    matching the old helpers). `minSet` is the min's own
+//                    "first value seen" flag: the post-dropout settle window can
+//                    defer the first eligible minimum past the point `found`
+//                    goes true, so min cannot piggyback on `found`. It lives on
+//                    the accumulator because callers reuse one FilteredStats
+//                    across every session and day of the range.
 //  - wavg:           each sample weighted by the interval to the next sample,
 //                    mirroring Profile::calcWavg for evenly-sampled oximetry; the
 //                    trailing sample of each EventList carries no interval and is
@@ -39,6 +48,7 @@
 //                    probe-loss 0% spans that would otherwise inflate T90.
 struct FilteredStats {
     bool   found = false;
+    bool   minSet = false;
     double min = 0.0;
     double max = 0.0;
     double wavg = 0.0;
@@ -135,6 +145,7 @@ struct ReportData {
 
 QColor colorForChannel(ChannelID chanId);
 QString unitForChannel(ChannelID chanId);
+QString complianceThresholdStr(double hours);
 QString getSettingStr(Day* day, ChannelID cid);
 FilteredStats calcFilteredStats(ChannelID code, MachineType mt,
                                 const QDate& start, const QDate& end,

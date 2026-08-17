@@ -119,6 +119,16 @@ ComplianceReportDialog::ComplianceReportDialog(QWidget *parent)
         int type; // MachineType
     };
 
+    bool hasOximetry = false;
+    bool hasSleepStages = false;
+    if (p_profile) {
+        hasOximetry = (p_profile->GetMachine(MT_OXIMETER) != nullptr 
+                       || p_profile->hasChannel(OXI_SPO2) 
+                       || p_profile->hasChannel(OXI_Pulse));
+        hasSleepStages = (p_profile->GetMachine(MT_SLEEPSTAGE) != nullptr
+                          || p_profile->hasChannel(ZEO_SleepStage));
+    }
+
     QList<TempChannelInfo> candidateChannels = {
         {CPAP_Pressure,   tr("Pressure"),    MT_CPAP},
     };
@@ -135,10 +145,22 @@ ComplianceReportDialog::ComplianceReportDialog(QWidget *parent)
     candidateChannels.append({CPAP_TidalVolume, tr("Tidal Volume"), MT_CPAP});
     candidateChannels.append({OXI_Pulse,        tr("Pulse Rate"),   MT_OXIMETER});
     candidateChannels.append({OXI_SPO2,         tr("SpO2"),         MT_OXIMETER});
+    candidateChannels.append({COMPLIANCE_Bedtime, tr("Bedtime / Sleep Timing"), MT_SLEEPSTAGE});
+    candidateChannels.append({COMPLIANCE_SleepStages, tr("Sleep Stage Statistics"), MT_SLEEPSTAGE});
+    candidateChannels.append({COMPLIANCE_OximeterStats, tr("Oximeter Statistics"), MT_OXIMETER});
 
     if (p_profile) {
         for (const auto& ch : candidateChannels) {
-            if (p_profile->hasChannel(ch.id)) {
+            bool include = false;
+            if (ch.id == COMPLIANCE_Bedtime || ch.id == COMPLIANCE_SleepStages) {
+                include = hasSleepStages;
+            } else if (ch.id == COMPLIANCE_OximeterStats) {
+                include = hasOximetry;
+            } else {
+                include = p_profile->hasChannel(ch.id);
+            }
+
+            if (include) {
                 QListWidgetItem *item = new QListWidgetItem(ch.label, m_channelsListWidget);
                 item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
                 item->setCheckState(Qt::Checked); // Checked by default
@@ -376,6 +398,17 @@ static double upperPctValue()
 static QString upperPctLabel()   // e.g. "95th"; tied to the clamped value used in math
 {
     return QString::number(qRound(upperPctValue() * 100.0)) + QStringLiteral("th");
+}
+
+// The compliance threshold is a QDoubleSpinBox preference with one decimal, so
+// 4.5 is a settable value. It MUST NOT be rounded for display: countCompliantDays()
+// counts nights against the true 4.5, so a label reading ">= 4 hours" beside a
+// count taken at >= 4.5 contradicts itself. 'g' with 3 significant digits prints
+// 4 as "4" and 4.5 as "4.5" without a trailing ".0". Shared by both renderers so
+// the two styles can never disagree on the same number.
+QString complianceThresholdStr(double hours)
+{
+    return QString::number(hours, 'g', 3);
 }
 
 QList<SettingsChangeBlock> getSettingsChanges(const QDate& start, const QDate& end, const QList<Day*>& daysList) {
@@ -623,10 +656,12 @@ static void accumulateDayFilteredStats(Day* day, ChannelID code, MachineType mt,
             // dropout below) so it never carries across a gap.
             double slewVal = 0.0; qint64 slewT = 0; bool haveSlew = false;
             // Post-dropout min-suppression window (see SPO2_POST_DROPOUT_SETTLE_MS).
-            // Reset per EventList alongside the slew envelope. haveMin tracks
-            // whether any min-eligible sample has been seen, so the settle window
-            // can defer the first min past r.found (which max/wavg still use).
-            bool haveMin = false; bool inRecovery = false; qint64 settleUntil = 0;
+            // Reset per EventList alongside the slew envelope. The companion
+            // "first min seen" flag is r.minSet, which lives on the accumulator
+            // rather than here: r spans every session and day of the range, so a
+            // per-EventList flag would let each new list overwrite the running
+            // minimum instead of comparing against it.
+            bool inRecovery = false; qint64 settleUntil = 0;
             for (quint32 i = 0; i < cnt; ++i) {
                 ti = el->time(i);
                 double v = el->data(i);
@@ -663,7 +698,7 @@ static void accumulateDayFilteredStats(Day* day, ChannelID code, MachineType mt,
                 if (!r.found) { r.found = true; r.max = v; }
                 else if (v > r.max) { r.max = v; }
                 if (minEligible) {
-                    if (!haveMin) { haveMin = true; r.min = mv; }
+                    if (!r.minSet) { r.minSet = true; r.min = mv; }
                     else if (mv < r.min) { r.min = mv; }
                 }
 
@@ -848,28 +883,12 @@ static void drawXAxisLabels(QPainter& painter, const QRect& chartRect,
     }
 }
 
-// One shaded horizontal reference zone [lo,hi] in plot units. Use a low-alpha
-// QColor so bars/gridlines drawn afterwards remain readable.
-struct RefBand { double lo; double hi; QColor color; };
-
-// Draw reference zones BEHIND everything else. Call right after the SvgChart
-// background, before grid/bars.
-static void drawReferenceBands(QPainter& painter, const QRect& chartRect,
-                               double yMin, double yMax, const QList<RefBand>& bands)
-{
-    double range = yMax - yMin;
-    if (range <= 0.0) return;
-    painter.setPen(Qt::NoPen);
-    for (const RefBand& b : bands) {
-        double lo = qBound(yMin, qMin(b.lo, b.hi), yMax);
-        double hi = qBound(yMin, qMax(b.lo, b.hi), yMax);
-        if (hi <= lo) continue;
-        int yHi = chartRect.bottom() - static_cast<int>(((hi - yMin) / range) * chartRect.height());
-        int yLo = chartRect.bottom() - static_cast<int>(((lo - yMin) / range) * chartRect.height());
-        painter.setBrush(b.color);
-        painter.drawRect(QRect(chartRect.left(), yHi, chartRect.width(), yLo - yHi));
-    }
-}
+// NOTE: shaded "normal / mild / concern" reference zones were deliberately
+// removed from every chart in this file. Tinting a value range green or red is a
+// clinical interpretation, and this report presents measurements only — the
+// reading clinician interprets them. Factual device/preference values (the
+// compliance threshold, the leak redline, the 90%/88% SpO2 markers) are still
+// drawn, as plain threshold LINES via drawThresholdLine.
 
 // glyph: 0 = filled swatch, 1 = solid tick line, 2 = dashed line
 struct LegendItem { int glyph; QColor color; QString label; };
@@ -1437,10 +1456,6 @@ QString renderAhiChart(const QMap<QDate, Day*>& daysMap, const QDate& start, con
     else if (maxAhi > 0.5)  yMax = 2.0;
     else                    yMax = 1.0;
 
-    if (yMax >= 5.0)
-        drawReferenceBands(painter, chartRect, 0.0, yMax,
-                           { { 0.0, 5.0, QColor(34, 197, 94, 38) } }); // controlled ≤5
-
     drawYGridAndLabels(painter, chartRect, yMax, 5);
 
     double colWidth = static_cast<double>(chartRect.width()) / totalDays;
@@ -1511,11 +1526,6 @@ QString renderLeakChart(const QMap<QDate, Day*>& daysMap, const QDate& start, co
     }
     double yMax = qCeil(maxVal / 5.0) * 5.0;
     if (yMax < 10.0) yMax = 10.0;
-
-    if (redline > 0.0)
-        drawReferenceBands(painter, chartRect, 0.0, yMax,
-                           { { 0.0,     redline, QColor(34, 197, 94, 30) },   // good seal
-                             { redline, yMax,    QColor(239, 68, 68, 26) } }); // elevated
 
     drawYGridAndLabels(painter, chartRect, yMax, 4);
 
@@ -1724,13 +1734,6 @@ QString renderChannelBarChart(ChannelID chanId, const QColor& barColor,
         }
     }
 
-    if (chanId == OXI_SPO2) {
-        drawReferenceBands(painter, chartRect, yMin, yMax,
-                           { { 95.0, 100.0, QColor(34, 197, 94, 34) },   // normal
-                             { 90.0,  95.0, QColor(234, 179, 8, 30) },   // mild
-                             { yMin,  90.0, QColor(239, 68, 68, 26) } }); // concern
-    }
-
     drawYGridAndLabels(painter, chartRect, yMax, 4, yMin);
 
     double colWidth = static_cast<double>(chartRect.width()) / totalDays;
@@ -1837,10 +1840,6 @@ QString renderLowestOxygenNight(Day* day, double nadir, const QString& title)
 
     double yMin = qMax(70.0, qMin(85.0, nadir - 5.0));
     double yMax = 100.0;
-    drawReferenceBands(painter, chartRect, yMin, yMax,
-                       { { 95.0, 100.0, QColor(34, 197, 94, 30) },
-                         { 90.0,  95.0, QColor(234, 179, 8, 26) },
-                         { yMin,  90.0, QColor(239, 68, 68, 22) } });
     drawYGridAndLabels(painter, chartRect, yMax, 5, yMin);
     drawThresholdLine(painter, chartRect, yMax, 90.0, QColor("#f59e0b"), yMin);  // amber = first warning
     if (yMin < 88.0) drawThresholdLine(painter, chartRect, yMax, 88.0, QColor("#ef4444"), yMin);  // red = severe
@@ -2176,8 +2175,15 @@ ReportData ComplianceReport::gatherReportData(QDate start, QDate end)
         rd.t90Secs       = spo2.timeBelowSecs;
         rd.minSpO2       = spo2.min;
         rd.avgSpO2Period = spo2.wavg;
+        // Recording time is the DENOMINATOR of the time-in-zone percentages, so
+        // it must reject probe-loss the same way the numerators (secAbove95 /
+        // secAbove90 below) implicitly do. A 0.0 threshold accepts every sample
+        // — timeAboveThreshold tests `value >= threshold` — which folds the
+        // sensor-off 0% spans into the total; spo2ZonePercents then derives
+        // pctLt90 as (total - secAbove90)/total, so every minute the probe was
+        // off the finger would be reported as time spent below 90%.
         for (Day* day : rd.oxiDaysMap)
-            rd.spo2RecordingSecs += day->timeAboveThreshold(OXI_SPO2, 0.0) * 60.0;
+            rd.spo2RecordingSecs += day->timeAboveThreshold(OXI_SPO2, SPO2_ARTIFACT_FLOOR) * 60.0;
     }
     rd.minSpO2Set = (rd.minSpO2 > 0.0);
 
@@ -2209,7 +2215,27 @@ ReportData ComplianceReport::gatherReportData(QDate start, QDate end)
     // unintentional leak, CPAP_LeakTotal is always total leak.
     rd.isTotalLeak = (rd.leakChan == CPAP_LeakTotal);
 
-    rd.lastDay = p_profile->GetGoodDay(p_profile->LastDay(MT_CPAP), MT_CPAP);
+    // Anchor the device-settings snapshot to the REPORT RANGE, not the profile's
+    // newest day. Every setting below (mode, pressure, relief, humidifier, ramp)
+    // and p1Mode/p1IsCpap further down describe "the device as configured during
+    // the reported period" — the Device Settings page even stamps them
+    // "Settings as on <lastDay->date()>". Reading p_profile->LastDay() ignored the
+    // `end` argument entirely, so a report for Jan 2025 exported today would be
+    // stamped with today's date and, worse, p1IsCpap taken from today's mode
+    // gates the whole pressure-statistics row: a patient on APAP during the
+    // period but since switched to fixed CPAP lost those stats retroactively.
+    // Preset ranges hid this because the dialog pins `end` to LastDay(MT_CPAP);
+    // the custom-date path did not.
+    //
+    // rd.daysList is p_profile->getDays(MT_CPAP, start, end), which walks the
+    // range ascending and keeps only days with enabled CPAP sessions, so the last
+    // entry is the newest used day in range. GetGoodDay() re-checks for an enabled
+    // session and performs the OpenSummary() the settings getters below rely on.
+    rd.lastDay = nullptr;
+    for (int i = rd.daysList.size() - 1; i >= 0 && !rd.lastDay; --i) {
+        if (rd.daysList[i])
+            rd.lastDay = p_profile->GetGoodDay(rd.daysList[i]->date(), MT_CPAP);
+    }
     rd.modeStr = rd.lastDay ? rd.lastDay->getCPAPModeStr() : tr("Unknown");
     rd.pressureSettings = rd.lastDay ? rd.lastDay->getPressureSettings() : tr("Unknown");
     rd.relief = rd.lastDay ? rd.lastDay->getPressureRelief() : tr("None");
@@ -2398,6 +2424,15 @@ void ComplianceReport::exportReport(QWidget *parent)
     QList<SelectedChannel> selectedChans = dlg.selectedChannels();
     const bool airView = dlg.airViewFormat();  // mimic ResMed AirView: trim non-AirView sections/rows
 
+    bool includeBedtime = false;
+    bool includeSleepStages = false;
+    bool includeOxiStats = false;
+    for (const auto& ch : selectedChans) {
+        if (ch.id == COMPLIANCE_Bedtime) includeBedtime = true;
+        else if (ch.id == COMPLIANCE_SleepStages) includeSleepStages = true;
+        else if (ch.id == COMPLIANCE_OximeterStats) includeOxiStats = true;
+    }
+
     if (start > end) {
         QMessageBox::warning(parent, tr("Invalid Date Range"), tr("Start date must be before or equal to end date."));
         return;
@@ -2577,6 +2612,7 @@ void ComplianceReport::exportReport(QWidget *parent)
             mtype = oxiSourceType;
         }
         if (fixedChanIds.contains(cid)) continue;
+        if (cid == COMPLIANCE_Bedtime || cid == COMPLIANCE_SleepStages || cid == COMPLIANCE_OximeterStats) continue;
         // AirView's channel-trends page covers only these three respiratory channels.
         if (airView && cid != CPAP_MinuteVent && cid != CPAP_RespRate && cid != CPAP_TidalVolume) continue;
         if (!p_profile->hasChannel(cid)) continue;
@@ -2711,9 +2747,9 @@ void ComplianceReport::exportReport(QWidget *parent)
             "<td colspan='4' align='right' style='padding:5px 8px; font-size:9pt; font-weight:700; color:#ffffff;'>" + dateRangeStr + "</td></tr>";
     html += "<tr><td " + cellL + "><b style='color:#0f172a;'>" + tr("Usage days") + "</b></td>"
             "<td colspan='4' align='right' " + cellRB + ">" + QString("%1/%2 days (%3%)").arg(daysUsed).arg(totalDays).arg(QString::number(pctUsed,'f',0)) + "</td></tr>";
-    html += "<tr><td " + cellL + "><b style='color:#0f172a;'>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;= " + QString::number(complianceThreshold,'f',0) + tr(" hours") + "</b></td>"
+    html += "<tr><td " + cellL + "><b style='color:#0f172a;'>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;= " + complianceThresholdStr(complianceThreshold) + tr(" hours") + "</b></td>"
             "<td colspan='4' align='right' " + cellRB + ">" + QString("%1 days (%2%)").arg(compliantDays).arg(QString::number(pctCompliant,'f',0)) + "</td></tr>";
-    html += "<tr><td " + cellLThick + "><b style='color:#0f172a;'>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&lt; " + QString::number(complianceThreshold,'f',0) + tr(" hours") + "</b></td>"
+    html += "<tr><td " + cellLThick + "><b style='color:#0f172a;'>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&lt; " + complianceThresholdStr(complianceThreshold) + tr(" hours") + "</b></td>"
             "<td colspan='4' align='right' " + cellRBThick + ">" + QString("%1 days (%2%)").arg(nonCompliantUsedDays).arg(QString::number(pctNonCompliant,'f',0)) + "</td></tr>";
     html += "<tr><td " + cellL + ">" + tr("Usage hours") + "</td>"
             "<td colspan='4' align='right' " + cellR + ">"
@@ -2781,18 +2817,26 @@ void ComplianceReport::exportReport(QWidget *parent)
     } else {
         html += "<tr><td " + cellL + ">" + tr("EPR / Pressure Relief") + "</td><td align='right' " + cellR + ">" + relief.toHtmlEscaped() + "</td></tr>";
     }
-    // Humidifier, Ramp and Mask are not part of the AirView device box.
+    // Humidifier and Mask are not part of the AirView device box.
     if (!airView) {
         if (!humidLevel.isEmpty())
             html += "<tr><td " + cellL + ">" + tr("Humidifier Level") + "</td><td align='right' " + cellR + ">" + humidLevel.toHtmlEscaped() + "</td></tr>";
-        if (lastDay && lastDay->settingExists(CPAP_RampTime)
-                && lastDay->settings_wavg(CPAP_RampTime) > 0) {
-            html += "<tr><td " + cellL + ">" + tr("Ramp Time") + "</td><td align='right' " + cellR + ">" + rampTime.toHtmlEscaped() + "</td></tr>";
-            if (!rampPres.isEmpty())
-                html += "<tr><td " + cellL + ">" + tr("Ramp Pressure") + "</td><td align='right' " + cellR + ">" + rampPres.toHtmlEscaped() + "</td></tr>";
-        } else {
-            html += "<tr><td " + cellL + ">" + tr("Ramp") + "</td><td align='right' " + cellR + ">" + tr("Off") + "</td></tr>";
+    }
+
+    if (lastDay && lastDay->settingExists(CPAP_RampTime)
+            && lastDay->settings_wavg(CPAP_RampTime) > 0) {
+        html += "<tr><td " + cellL + ">" + tr("Ramp Time") + "</td><td align='right' " + cellR + ">" + rampTime.toHtmlEscaped() + "</td></tr>";
+        if (!rampPres.isEmpty())
+            html += "<tr><td " + cellL + ">" + tr("Ramp Pressure") + "</td><td align='right' " + cellR + ">" + rampPres.toHtmlEscaped() + "</td></tr>";
+    } else {
+        QString rampVal;
+        if (lastDay && lastDay->settingExists(RMS9_RampEnable)) {
+            rampVal = getSettingStr(lastDay, RMS9_RampEnable);
         }
+        if (rampVal.isEmpty()) {
+            rampVal = tr("Off");
+        }
+        html += "<tr><td " + cellL + ">" + tr("Ramp") + "</td><td align='right' " + cellR + ">" + rampVal.toHtmlEscaped() + "</td></tr>";
     }
 
     // Mask: show if configured in Preferences (omitted in AirView format)
@@ -3027,10 +3071,10 @@ void ComplianceReport::exportReport(QWidget *parent)
             { tr("Usage days"),
               QString("%1/%2 (%3%)").arg(daysUsed).arg(totalDays).arg(QString::number(pctUsed,'f',0)),
               "", false, true },
-            { tr(">= %1 hr days").arg(QString::number(complianceThreshold,'f',0)),
+            { tr(">= %1 hr days").arg(complianceThresholdStr(complianceThreshold)),
               QString("%1 (%2%)").arg(compliantDays).arg(QString::number(pctCompliant,'f',0)),
               "#22c55e", true, true },
-            { tr("&lt; %1 hr days").arg(QString::number(complianceThreshold,'f',0)),
+            { tr("&lt; %1 hr days").arg(complianceThresholdStr(complianceThreshold)),
               QString("%1 (%2%)").arg(nonCompliantUsedDays).arg(QString::number(pctNonCompliant,'f',0)),
               "#ef4444", true, true },
             { tr("Days not used"),
@@ -3237,12 +3281,15 @@ void ComplianceReport::exportReport(QWidget *parent)
         }
     }
 
-    if (usedDaysOxiAny > 0 || stageNights > 0) {
+    bool showOxiStats = includeOxiStats && (usedDaysOxiAny > 0);
+    bool showSleepStages = includeSleepStages && (stageNights > 0);
+
+    if (showOxiStats || showSleepStages) {
         html += "<div style='page-break-before: always;'></div>";
-        QString title = (usedDaysOxiAny > 0 && stageNights > 0) ? tr("Oximetry &amp; Sleep Stage Statistics") : (usedDaysOxiAny > 0 ? tr("Oximeter Statistics") : tr("Sleep Stage Statistics"));
+        QString title = (showOxiStats && showSleepStages) ? tr("Oximetry &amp; Sleep Stage Statistics") : (showOxiStats ? tr("Oximeter Statistics") : tr("Sleep Stage Statistics"));
         html += makePageHeaderHtml(title, patientNameStr, pageSubInfo, logoBase64);
 
-        if (usedDaysOxiAny > 0) {
+        if (showOxiStats) {
             // Sum oximetry session durations from the source machine. session->hours()
             // (whole-session span) is the right denominator for "Average Hours per
             // Night" and indices (events / recording-hour); it also sidesteps the
@@ -3284,18 +3331,20 @@ void ComplianceReport::exportReport(QWidget *parent)
             }
             html += "</table>";
         }
-        if (usedDaysOxiAny > 0 && stageNights > 0) html += "<div style='line-height: 2pt;'>&nbsp;</div>";
-        if (stageNights > 0) {
+        if (showOxiStats && showSleepStages) html += "<div style='line-height: 2pt;'>&nbsp;</div>";
+        if (showSleepStages) {
             double totalMin = avgWakeMin + avgTSTMin;
             auto pct = [&](double part) -> QString { return totalMin <= 0 ? tr("N/A") : QString::number(100.0 * part / totalMin, 'f', 1) + "%"; };
             html += "<div style='font-size: 11pt; font-weight: 700; color: #0f172a; margin-bottom: 2px;'>" + tr("Sleep Stage Statistics").toUpper() + "</div>";
             html += "<div style='font-size: 8.5pt; color: #64748b; margin-bottom: 4px;'>" + tr("Averaged per night across %1 night(s) of sleep stage data").arg(stageNights) + "</div>";
             html += "<table width='100%' cellpadding='2' cellspacing='0' style='border: none; border-collapse: collapse; font-size: 8.5pt; line-height: 1.1; margin-bottom: 6px; page-break-inside: avoid;'>";
             html += "<tr style='background-color: #454545; color: #ffffff;'><th align='left' style='padding: 1.5px 6px; color: #ffffff; font-weight: bold; border-bottom: 1px solid #f1f5f9;'>" + tr("Statistics Group") + "</th><th align='left' style='padding: 1.5px 6px; color: #ffffff; font-weight: bold; border-bottom: 1px solid #f1f5f9;'>" + tr("Metric Description") + "</th><th align='right' style='padding: 1.5px 6px; color: #ffffff; font-weight: bold; border-bottom: 1px solid #f1f5f9;'>" + tr("Avg per Night") + "</th></tr>";
-            html += "<tr><td rowspan='4' valign='top' style='font-weight: bold; color: #454545; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px; background-color: #f8fafc;'>" + tr("Sleep Timing") + "</td><td style='color: #475569; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + tr("Average Bedtime") + "</td><td align='right' style='font-weight: bold; color: #0f172a; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + bedtimeStr + "</td></tr>";
-            html += "<tr><td style='color: #475569; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + tr("Average Sleep Latency") + "</td><td align='right' style='font-weight: bold; color: #0f172a; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + minsToHM(avgLatencyMin) + "</td></tr>";
-            html += "<tr><td style='color: #475569; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + tr("Average Wake Time") + "</td><td align='right' style='font-weight: bold; color: #0f172a; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + wakeupStr + "</td></tr>";
-            html += "<tr><td style='color: #475569; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + tr("Average Total Sleep Time") + "</td><td align='right' style='font-weight: bold; color: #0f172a; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + minsToHM(avgTSTMin) + "</td></tr>";
+            if (includeBedtime) {
+                html += "<tr><td rowspan='4' valign='top' style='font-weight: bold; color: #454545; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px; background-color: #f8fafc;'>" + tr("Sleep Timing") + "</td><td style='color: #475569; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + tr("Average Bedtime") + "</td><td align='right' style='font-weight: bold; color: #0f172a; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + bedtimeStr + "</td></tr>";
+                html += "<tr><td style='color: #475569; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + tr("Average Sleep Latency") + "</td><td align='right' style='font-weight: bold; color: #0f172a; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + minsToHM(avgLatencyMin) + "</td></tr>";
+                html += "<tr><td style='color: #475569; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + tr("Average Wake Time") + "</td><td align='right' style='font-weight: bold; color: #0f172a; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + wakeupStr + "</td></tr>";
+                html += "<tr><td style='color: #475569; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + tr("Average Total Sleep Time") + "</td><td align='right' style='font-weight: bold; color: #0f172a; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + minsToHM(avgTSTMin) + "</td></tr>";
+            }
             html += "<tr><td rowspan='4' valign='top' style='font-weight: bold; color: #454545; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px; background-color: #f8fafc;'>" + tr("Stage % of Night") + "</td><td style='color: #475569; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + tr("Awake") + "</td><td align='right' style='font-weight: bold; color: #0f172a; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + pct(avgWakeMin) + " (" + minsToHM(avgWakeMin) + ")</td></tr>";
             html += "<tr><td style='color: #475569; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + tr("REM Sleep") + "</td><td align='right' style='font-weight: bold; color: #0f172a; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + pct(avgREMMin) + " (" + minsToHM(avgREMMin) + ")</td></tr>";
             html += "<tr><td style='color: #475569; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + tr("Light Sleep") + "</td><td align='right' style='font-weight: bold; color: #0f172a; border-bottom: 1px solid #e8edf2; padding: 1.5px 6px;'>" + pct(avgLightMin) + " (" + minsToHM(avgLightMin) + ")</td></tr>";
@@ -3327,20 +3376,35 @@ void ComplianceReport::exportReport(QWidget *parent)
         html += "<th width='15%' align='right' style='font-size: 9pt; font-weight: 700; color: #ffffff; padding: 2px 5px;'>Maximum</th>";
         html += "</tr>";
  
+        // True iff the channel recorded any data inside the report range. Mirrors
+        // avPage7's identical gate in compliancereport_airviewv2.cpp.
+        auto channelHasAnyData = [&](ChannelID cid, const QMap<QDate, Day*>& map) -> bool {
+            for (auto it = map.constBegin(); it != map.constEnd(); ++it)
+                if (it.value() && it.value()->channelHasData(cid)) return true;
+            return false;
+        };
+
         int chRowIdx = 0;
         for (const auto& ch : selectedChans) {
             ChannelID chId = static_cast<ChannelID>(ch.id);
+            if (chId == COMPLIANCE_Bedtime || chId == COMPLIANCE_SleepStages || chId == COMPLIANCE_OximeterStats) continue;
             // EPAP is only a distinct clinical pressure in BiLevel/ASV modes.
             if (chId == CPAP_EPAP && (p1Mode == MODE_CPAP || p1Mode == MODE_APAP)) continue;
 
             // Oximetry channels: exclude sensor dropout artifacts from the minimum
             // (SpO2 <= 50%, pulse <= 30 bpm) so the table never shows 0.0.
             MachineType chMt = (MachineType)ch.type;
+            const QMap<QDate, Day*>& chMap = (chMt == MT_OXIMETER || chMt == MT_UNKNOWN) ? oxiDaysMap : daysMap;
+            // The dialog only gates on p_profile->hasChannel(), which is true for
+            // anything the profile has EVER recorded. Without this second gate a
+            // channel absent from the selected range emits a row of 0.00s that
+            // reads as a measurement — "Minimum SpO2 0.00" on a clinical report.
+            if (!channelHasAnyData(chId, chMap)) continue;
+
             double cMin;
             if (ch.id == OXI_SPO2)       cMin = minSpO2;          // period low, computed once above
             else if (ch.id == OXI_Pulse) cMin = minPulsePeriod;   // period low, computed once above
             else                          cMin = p_profile->calcMin(ch.id, chMt, start, end);
-            const QMap<QDate, Day*>& chMap = (chMt == MT_OXIMETER || chMt == MT_UNKNOWN) ? oxiDaysMap : daysMap;
             double cMed = calcDayAvgPercentile(ch.id, 0.5,  chMap, chMt);
             double c95  = calcDayAvgPercentile(ch.id, upperPctValue(), chMap, chMt);
             double cMax = calcDayAvgMax(ch.id, chMap, chMt);  // respects OSCAR max-calc pref
