@@ -782,9 +782,13 @@ Statistics::Statistics(QObject *parent) :
         rows.push_back(StatisticsRow(STR_TR_AHI ,        SC_AHI_ONLY ,     MT_CPAP));
     }
     rows.push_back(StatisticsRow(tr("AHI Median"),  SC_MEDIAN_AHI,MT_CPAP));
+    rows.push_back(StatisticsRow(STR_TR_OAHI, SC_OAHI, MT_CPAP));
+    rows.push_back(StatisticsRow(STR_TR_CAHI, SC_CAHI, MT_CPAP));
     rows.push_back(StatisticsRow("AllApnea",   SC_CPH,     MT_CPAP));
     rows.push_back(StatisticsRow("Obstructive",   SC_CPH,     MT_CPAP));
     rows.push_back(StatisticsRow("Hypopnea",   SC_CPH,     MT_CPAP));
+    rows.push_back(StatisticsRow("ObstructiveHypopnea",   SC_CPH,     MT_CPAP));
+    rows.push_back(StatisticsRow("CentralHypopnea",   SC_CPH,     MT_CPAP));
     rows.push_back(StatisticsRow("Apnea",   SC_CPH,     MT_CPAP));
     rows.push_back(StatisticsRow("ClearAirway",   SC_CPH,     MT_CPAP));
     rows.push_back(StatisticsRow("RERA",       SC_CPH,     MT_CPAP));
@@ -1082,6 +1086,31 @@ EventDataType calcAHIorRDI(QDate start, QDate end , RDI_MODE mode)
 
 EventDataType calcAHI(QDate start, QDate end) {
   return calcAHIorRDI(start,end,p_profile->general->calculateRDI()?RDI_MODE::RM_RDI:RDI_MODE::RM_AHI);
+}
+
+// Index over one bucket of the AHI channels, as total # of events / total hours used.
+// RERA is never included: an arousal is neither obstructive nor central, so unlike
+// calcAHIorRDI() these do not vary with the RDI preference. calcOAHI + calcCAHI == AHI.
+static EventDataType calcAhiBucket(const QVector<ChannelID> & channels, QDate start, QDate end)
+{
+    EventDataType cnt = 0;
+
+    for (int i = 0; i < channels.size(); i++)
+    {
+        cnt += p_profile->calcCount(channels.at(i), MT_CPAP, start, end);
+    }
+
+    EventDataType hours = p_profile->calcHours(MT_CPAP, start, end);
+
+    return (hours > 0) ? (cnt / hours) : 0;
+}
+
+static EventDataType calcOAHI(QDate start, QDate end) {
+  return calcAhiBucket(oahiChannels, start, end);
+}
+
+static EventDataType calcCAHI(QDate start, QDate end) {
+  return calcAhiBucket(cahiChannels, start, end);
 }
 
 // Calculate flow limits per hour
@@ -1588,6 +1617,10 @@ QString Statistics::GenerateCPAPUsage()
         } else if (row.calc == SC_HOURS) {
             name = row.src;
         } else if (row.calc == SC_MEDIAN_AHI) {
+            name = row.src;
+        } else if (row.calc == SC_OAHI) {
+            name = row.src;
+        } else if (row.calc == SC_CAHI) {
             name = row.src;
         } else if (row.calc == SC_MEDIAN_HOURS) {
             name = row.src;
@@ -2245,6 +2278,10 @@ QString StatisticsRow::value(QDate start, QDate end, MachineType typeOverride)
         }
     } else if (calc == SC_AHI_ONLY) {
         value = QString("%1").arg((calcAHIorRDI(start, end, RDI_MODE::RM_AHI)), 0, 'f', decimals);
+    } else if (calc == SC_OAHI) {
+        value = QString("%1").arg(calcOAHI(start, end), 0, 'f', decimals);
+    } else if (calc == SC_CAHI) {
+        value = QString("%1").arg(calcCAHI(start, end), 0, 'f', decimals);
     } else if (calc == SC_MEDIAN_HOURS) {
         EventDataType median = calcMedian(start, end,  &getHours );
         if (median==MEDIAN_NULL) { value = QString("-"); } else {

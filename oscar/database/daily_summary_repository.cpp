@@ -39,12 +39,14 @@ qint64 DailySummaryRepository::create(const DailySummaryData& data)
             profile_id, date,
             session_count, enabled_session_count,
             total_hours, mask_on_hours,
-            ahi, rdi, obstructive_count, unclassified_count, hypopnea_count, rera_count, clear_airway_count,
+            ahi, rdi, oahi, cahi,
+            obstructive_count, unclassified_count, hypopnea_count, rera_count, clear_airway_count,
+            obstructive_hypopnea_count, central_hypopnea_count, all_apnea_count,
             pressure_avg, pressure_min, pressure_max, pressure_95th,
             leak_total_avg, leak_total_95th, leak_total_max, leak_unintentional_avg,
             spo2_avg, spo2_min, pulse_avg, pulse_min, pulse_max,
             is_compliant, has_oximetry, sessions_hash
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     )");
 
     query.addBindValue(data.profileId);
@@ -55,11 +57,16 @@ qint64 DailySummaryRepository::create(const DailySummaryData& data)
     query.addBindValue(data.maskOnHours);
     query.addBindValue(data.ahi);
     query.addBindValue(data.rdi);
+    query.addBindValue(data.oahi);
+    query.addBindValue(data.cahi);
     query.addBindValue(data.obstructiveCount);
     query.addBindValue(data.unclassifiedCount);
     query.addBindValue(data.hypopneaCount);
     query.addBindValue(data.reraCount);
     query.addBindValue(data.clearAirwayCount);
+    query.addBindValue(data.obstructiveHypopneaCount);
+    query.addBindValue(data.centralHypopneaCount);
+    query.addBindValue(data.allApneaCount);
     query.addBindValue(data.pressureAvg);
     query.addBindValue(data.pressureMin);
     query.addBindValue(data.pressureMax);
@@ -278,6 +285,8 @@ DailySummaryData DailySummaryRepository::calculateFromDay(Day* day)
     if (day->hasMachine(MT_CPAP) && data.totalHours > 0) {
         EventDataType ahi = day->calcAHI();
         EventDataType rdi = day->calcRDI();
+        EventDataType oahi = day->calcOAHI();
+        EventDataType cahi = day->calcCAHI();
         // Only set if valid numbers (not NaN or inf)
         if (!qIsNaN(ahi) && !qIsInf(ahi)) {
             data.ahi = ahi;
@@ -285,14 +294,25 @@ DailySummaryData DailySummaryRepository::calculateFromDay(Day* day)
         if (!qIsNaN(rdi) && !qIsInf(rdi)) {
             data.rdi = rdi;
         }
+        if (!qIsNaN(oahi) && !qIsInf(oahi)) {
+            data.oahi = oahi;
+        }
+        if (!qIsNaN(cahi) && !qIsInf(cahi)) {
+            data.cahi = cahi;
+        }
     }
-    
+
     // Event counts using Day's count() method
     data.obstructiveCount = static_cast<int>(day->count(CPAP_Obstructive));
     data.unclassifiedCount = static_cast<int>(day->count(CPAP_Apnea));
     data.hypopneaCount = static_cast<int>(day->count(CPAP_Hypopnea));
     data.reraCount = static_cast<int>(day->count(CPAP_RERA));
     data.clearAirwayCount = static_cast<int>(day->count(CPAP_ClearAirway));
+    data.obstructiveHypopneaCount = static_cast<int>(day->count(CPAP_ObstructiveHypopnea));
+    data.centralHypopneaCount = static_cast<int>(day->count(CPAP_CentralHypopnea));
+    // CPAP_AllApnea contributes to AHI but was never stored before schema v18, which
+    // is why SQL sums over these columns used to disagree with the stored ahi.
+    data.allApneaCount = static_cast<int>(day->count(CPAP_AllApnea));
     
     // Pressure statistics using Day's aggregation methods
     if (day->channelHasData(CPAP_Pressure)) {
@@ -466,11 +486,16 @@ DailySummaryData DailySummaryRepository::mapResultToData(const QSqlQuery& query)
     
     data.ahi = query.value("ahi").toDouble();
     data.rdi = query.value("rdi").toDouble();
+    data.oahi = query.value("oahi").toDouble();
+    data.cahi = query.value("cahi").toDouble();
     data.obstructiveCount = query.value("obstructive_count").toInt();
     data.unclassifiedCount = query.value("unclassified_count").toInt();
     data.hypopneaCount = query.value("hypopnea_count").toInt();
     data.reraCount = query.value("rera_count").toInt();
     data.clearAirwayCount = query.value("clear_airway_count").toInt();
+    data.obstructiveHypopneaCount = query.value("obstructive_hypopnea_count").toInt();
+    data.centralHypopneaCount = query.value("central_hypopnea_count").toInt();
+    data.allApneaCount = query.value("all_apnea_count").toInt();
     
     data.pressureAvg = query.value("pressure_avg").toDouble();
     data.pressureMin = query.value("pressure_min").toDouble();

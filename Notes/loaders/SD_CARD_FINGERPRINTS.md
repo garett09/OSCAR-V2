@@ -4467,7 +4467,7 @@ the firmware platforms below are what the loader actually has to dispatch on.)
 
 ---
 
-## SEFAM S.Box AUTO (loader now exists — see note below)
+## SEFAM S.Box AUTO — model codes `1263R` and `1200R` (loader exists)
 
 **Sample:** `C:/Users/Guy/Downloads/SEFAM-2 Wagmar Barbosa de Souza` (SD card root —
 the user's reference path `…/1263R/24462543` is two levels into the card).
@@ -4511,8 +4511,9 @@ rate — Type-3 PSG-class channels in addition to flow/pressure/leak.
 │       ├── DATA_1/                       …
 │       └── DATA_2/
 ├── System Volume Information/            Windows NTFS metadata (ignore)
-└── upload.dat                  568 bytes — cloud-upload staging or session manifest
-                                          (binary, possibly encoded — see below)
+└── upload.dat                  568 bytes — XOR-0xBF; a settings write-back file
+                                          holding a patient ID and the therapy
+                                          prescription — see below
 ```
 
 The two-level `<model>/<serial>/` nesting under the SD root is the canonical layout.
@@ -4677,9 +4678,15 @@ state files at the serial-number folder level.
 
 ### `upload.dat` at SD root
 
-568 bytes, byte distribution similar to the channel data files (looks XOR-scrambled).
-Naming suggests it's a **cloud-upload staging file** or per-card manifest of what's
-been transferred. Not consumed by any loader; ignore for now.
+568 bytes, XOR-0xBF like the channel-file headers. The name is misleading: it is
+how the clinician's *Sefam Analyze* software **pushes a settings change onto the
+card** for the device to apply. It carries a patient identity string and the full
+therapy settings block in the clear.
+
+Not consumed by any loader, and it should stay that way — it records what was
+*sent*, not what the device accepted, and is present only when someone happened to
+write settings. **Treat it as personal data**: it exposes a named patient's
+prescription. Decoded byte map in `Notes/loaders/SEFAM_SBOX_CARD_ANALYSIS.md`.
 
 ### Recording-duration anomaly
 
@@ -4749,6 +4756,41 @@ matches sample count.
 - **No OSCAR loader candidate exists** — this is a request for a new loader, not
   a model-table addition. Implementation would be a multi-week effort starting with
   XOR-key reverse engineering, then channel-by-channel decoder.
+
+> Several guesses above were settled by later work and are **wrong**: the XOR key
+> is `0xBF`, not `0x9F`, and it covers the header only; the header is 71 or 38
+> bytes, not "~100"; and the loader exists. See
+> `Notes/loaders/SEFAM_REVE_CARD_ANALYSIS.md` and
+> `Notes/loaders/SEFAM_SBOX_CARD_ANALYSIS.md`.
+
+### Second S.Box model seen — `1200R`
+
+| | model code | `Created By` | OSCAR model name | firmware |
+|---|---|---|---|---|
+| S.Box AUTO | `1263R` | `S.Box_AUTO` | S.Box Auto | `VER :A020400` |
+| S.Box AUTO | **`1200R`** | `S.Box_AUTO` | S.Box Auto | `VER :A020400` |
+
+Same firmware version and same card layout as `1263R`, so both are covered by the
+existing detection (digits-then-letter model directory, `#02/` header tag). The
+`1200R` is the first S.Box sample from a real user rather than a bench card, and
+it is the one that showed where this device keeps its events: **not on the card's
+session directories at all**, but in the `<serial>.RAM` memory image. It also
+carries a manufacturer report, which made the decode checkable.
+
+Both S.Box cards confirm the family trait that distinguishes them from the Rêve:
+
+- **no `.LOG` file anywhere**, so events and settings are absent from the session
+  directories;
+- **short 38-byte channel headers** with no UTC epoch field;
+- **`FLW`/`DET`/`NSD`/`Y17` at 25 Hz**, against the Rêve's 10 Hz;
+- **`.RAM`/`.BKP` unencrypted**, against the Rêve's, which are opaque.
+
+The `1200R` card also carries an `upload.dat` at the card root — small, XOR-0xBF,
+containing a **patient-identification field and that patient's therapy
+settings**. Nothing in OSCAR should read it, but be aware it exists before
+archiving or sharing a card image.
+
+Full format and evidence: `Notes/loaders/SEFAM_SBOX_CARD_ANALYSIS.md`.
 
 ---
 
@@ -5038,7 +5080,7 @@ the known gaps where future samples would round it out.
 | `prs1_loader.cpp` | Philips Respironics System One / DreamStation | DreamStation 2 (encrypted), DreamStation Go Auto + DreamStation Go (cleartext, two-device card), **DreamStation CPAP 200X110** (brick — 4-year card, 5 Px partitions, 3083 sessions), **BiPAP A40** (PRS1-detected but unsupported — `(F3,V4)` not in tested-model table; real data lives in parallel `BIPAP-A/` EDF+D tree no loader reads) |
 | `resmed_loader.cpp` | ResMed S9 / AirSense / AirCurve (S9/AS10/AS11) | S9 AutoSet (S9 — flat DATALOG), AirCurve 10 VAuto (AS10), AirSense 10 CPAP basic (AS10, summary-only), AirSense 11 AutoSet (AS11) |
 | `resvent_loader.cpp` | Resvent platform (Resvent / BMC iBreeze / Hoffrichter) | BMC iBreeze 20A, Hoffrichter Point 3 AutoCPAP |
-| `sefam_loader.cpp` | SEFAM (also sold as Sanrai in some markets) | **Rêve Auto `1279R`** — validated end to end against a manufacturer *Sefam Analyze* report for the same 31 sessions. S.Box AUTO `1263R` documented above but **not** re-tested since the loader was written. Added 2026-08-03; **awaiting real-user testing** |
+| `sefam_loader.cpp` | SEFAM (also sold as Sanrai in some markets). OSCAR **displays the Rêve Auto as "Sanrai"** and every other model as "Sefam" — the card carries no brand string, so `sefamBrandName()` decides it per model; see `SEFAM_REVE_CARD_ANALYSIS.md` | **Rêve Auto `1279R`** — validated end to end against a manufacturer *Sefam Analyze* report for the same 31 sessions, but **not yet imported by a real user**. **S.Box AUTO `1200R` / `1263R`** — events and settings decoded from the device memory image, reconciled against a manufacturer report, and **confirmed on a real card 2026-08-10**. Loader added 2026-08-03 |
 | `yuwell_loader.cpp` | Yuwell YH-series | YH-550A (Format A), YH-580C (Format B — single 64 KB ring-buffer file at root), **YH-825A** (Format C, BiPAP S/T — IPAP/EPAP decode added 2026-05-21; LE u16×10 at record offsets `0x02`/`0x04`), YH-680B (Format D summary-only), YH690F (Format D full) |
 
 ## CPAP loaders with no sample yet (would round out the catalogue)

@@ -730,6 +730,8 @@ QString STR_TR_STASV;
 QString STR_TR_Humidifier;
 
 QString STR_TR_H;       // Short form of Hypopnea
+QString STR_TR_OH;      // Short form of Obstructive Hypopnea
+QString STR_TR_CH;      // Short form of Central Hypopnea
 QString STR_TR_OA;      // Short form of Obstructive Apnea
 QString STR_TR_A;       // Short form of Apnea
 QString STR_TR_UA;      // Short form of Unspecified Apnea
@@ -756,6 +758,8 @@ QString STR_TR_UF3;     // Short form for User Flag 3
 
 QString STR_TR_PS;     // Short form of Pressure Support
 QString STR_TR_AHI;    // Short form of Apnea Hypopnea Index
+QString STR_TR_OAHI;   // Short form of Obstructive Apnea Hypopnea Index
+QString STR_TR_CAHI;   // Short form of Central Apnea Hypopnea Index
 QString STR_TR_RDI;    // Short form of Respiratory Distress Index
 QString STR_TR_AI;     // Short form of Apnea Index
 QString STR_TR_HI;     // Short form of Hypopnea Index
@@ -942,6 +946,8 @@ void initializeStrings()
     STR_TR_Humidifier = QObject::tr("Humidifier");
 
     STR_TR_H = QObject::tr("H");      // Short form of Hypopnea
+    STR_TR_OH = QObject::tr("OH");    // Short form of Obstructive Hypopnea
+    STR_TR_CH = QObject::tr("CH");    // Short form of Central Hypopnea
     STR_TR_OA = QObject::tr("OA");    // Short form of Obstructive Apnea
     STR_TR_A = QObject::tr("A");     // Short form of All Apnea
     STR_TR_UA = QObject::tr("UA");     // Short form of Unspecified Apnea
@@ -967,6 +973,8 @@ void initializeStrings()
 
     STR_TR_PS = QObject::tr("PS");    // Short form of Pressure Support
     STR_TR_AHI = QObject::tr("AHI");  // Short form of Apnea Hypopnea Index
+    STR_TR_OAHI = QObject::tr("OAHI");// Short form of Obstructive Apnea Hypopnea Index
+    STR_TR_CAHI = QObject::tr("CAHI");// Short form of Central Apnea Hypopnea Index
     STR_TR_RDI = QObject::tr("RDI");  // Short form of Respiratory Distress Index
     STR_TR_AI = QObject::tr("AI");    // Short form of Apnea Index
     STR_TR_HI = QObject::tr("HI");    // Short form of Hypopnea Index

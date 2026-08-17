@@ -10,14 +10,27 @@
 
 #include "machine_common.h"
 
-ChannelID AllAhiChannels = 0xffff;
+ChannelID AllAhiChannels  = 0xffff;
+ChannelID AllOahiChannels = 0xfffe;
+ChannelID AllCahiChannels = 0xfffd;
+
 QVector<ChannelID> ahiChannels;
+QVector<ChannelID> oahiChannels;
+QVector<ChannelID> cahiChannels;
+
+const QVector<ChannelID> * ahiChannelGroup(ChannelID id)
+{
+    if (id == AllAhiChannels)  { return &ahiChannels; }
+    if (id == AllOahiChannels) { return &oahiChannels; }
+    if (id == AllCahiChannels) { return &cahiChannels; }
+    return nullptr;
+}
 
 ChannelID NoChannel, SESSION_ENABLED, CPAP_SummaryOnly;
 ChannelID CPAP_IPAP, CPAP_IPAPLo, CPAP_IPAPHi, CPAP_EPAP, CPAP_EPAPLo, CPAP_EPAPHi, CPAP_Pressure,
           CPAP_PS, CPAP_Mode, CPAP_AHI,
           CPAP_PressureMin, CPAP_PressureMax, CPAP_Ramp, CPAP_RampTime, CPAP_RampPressure, CPAP_Obstructive,
-          CPAP_Hypopnea, CPAP_AllApnea,
+          CPAP_Hypopnea, CPAP_ObstructiveHypopnea, CPAP_CentralHypopnea, CPAP_AllApnea,
           CPAP_ClearAirway, CPAP_Apnea, CPAP_PB, CPAP_CSR, CPAP_LeakFlag, CPAP_ExP, CPAP_NRI, CPAP_VSnore,
           CPAP_VSnore2,
           CPAP_RERA, CPAP_PressurePulse, CPAP_FlowLimit, CPAP_SensAwake, CPAP_FlowRate, CPAP_MaskPressure,

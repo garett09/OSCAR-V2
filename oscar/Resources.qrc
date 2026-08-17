@@ -75,6 +75,10 @@
         <file>icons/empty_box.png</file>
         <file>icons/resvent.png</file>
         <file>icons/bmc.png</file>
+        <file>icons/apex-xt-auto.png</file>
+        <file>icons/sanrai-reve.png</file>
+        <file>icons/sefam-sbox.png</file>
+        <file>icons/sefam-nea.png</file>
         <file>icons/time_alignment_example.png</file>
         <file>docs/system_reports.orf</file>
     </qresource>

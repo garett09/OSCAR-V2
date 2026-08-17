@@ -311,6 +311,8 @@ extern QString STR_TR_STASV;
 extern QString STR_TR_Humidifier;
 
 extern QString STR_TR_H;       // Short form of Hypopnea
+extern QString STR_TR_OH;      // Short form of Obstructive Hypopnea
+extern QString STR_TR_CH;      // Short form of Central Hypopnea
 extern QString STR_TR_OA;      // Short form of Obstructive Apnea
 extern QString STR_TR_A;       // Short form of Apnea
 extern QString STR_TR_UA;      // Short form of Unspecified Apnea
@@ -338,6 +340,8 @@ extern QString STR_TR_UF3;     // Short form for User Flag 3
 
 extern QString STR_TR_PS;     // Short form of Pressure Support
 extern QString STR_TR_AHI;    // Short form of Apnea Hypopnea Index
+extern QString STR_TR_OAHI;   // Short form of Obstructive Apnea Hypopnea Index
+extern QString STR_TR_CAHI;   // Short form of Central Apnea Hypopnea Index
 extern QString STR_TR_RDI;    // Short form of Respiratory Distress Index
 extern QString STR_TR_AI;     // Short form of Apnea Index
 extern QString STR_TR_HI;     // Short form of Hypopnea Index

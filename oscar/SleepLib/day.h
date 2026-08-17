@@ -254,6 +254,25 @@ class Day
         return (c * 60.0) / minutes;
     }
 
+    //! \brief Calculate OAHI (Obstructive Apnea Hypopnea Index)
+    //! Counts every AHI-contributing channel that is not centrally scored, so the
+    //! unclassified events (UA, A, plain H) land here and calcOAHI() + calcCAHI()
+    //! always equals calcAHI().
+    EventDataType calcOAHI() {
+        EventDataType c = count(AllOahiChannels);
+        EventDataType minutes = hours(MT_CPAP) * 60.0;
+        if (minutes <= 0) return 0;
+        return (c * 60.0) / minutes;
+    }
+
+    //! \brief Calculate CAHI (Central Apnea Hypopnea Index)
+    EventDataType calcCAHI() {
+        EventDataType c = count(AllCahiChannels);
+        EventDataType minutes = hours(MT_CPAP) * 60.0;
+        if (minutes <= 0) return 0;
+        return (c * 60.0) / minutes;
+    }
+
     //! \brief Calculate RDI (Respiratory Disturbance Index)
     EventDataType calcRDI() {
         EventDataType c = count(AllAhiChannels) + count(CPAP_RERA);

@@ -110,40 +110,50 @@ Offsets below are relative to the start of the IT sub-record (i.e., record + 0x8
 
 ---
 
-### Candidate distribution-summary block at record `0x140`–`0x147`
+### I/E Ratio distribution summary at record `0x140`–`0x147`
 
-Reported by a contributor as PAP-Link's **I/E Ratio** panel — average at record
-`0x142`, median at `0x146`, P95 at `0x144`, maximum at `0x140` (record-absolute,
-i.e. IT `0xC2` / `0xC6` / `0xC4` / `0xC0`).
+**Confirmed 2026-08-08 against a PAP-Link readout.** Reported by a contributor and
+verified exactly: for one night PAP-Link displayed (Avg, Med, P95, Max) =
+(45.3, 42.7, 87.0, 94.4) and that day's record held 453, 427, 870, 944 — all four
+matching to the tenth.
 
-**Confirmed:** the four values behave as a distribution summary of one quantity. On all
-19 days of the E5 card, `0x146` <= `0x144` <= `0x140`, and `0x146` is within 15% of
-`0x142` — exactly the median <= P95 <= max ordering with median close to mean that a
-summary of a right-skewed quantity produces. The field-role assignment is well
-supported.
+| Record offset | IT offset | Field | Encoding |
+|---------------|-----------|-------|----------|
+| `0x140` | IT `0xC0` | I/E ratio, **maximum** | percent x 10 (uint16 LE) |
+| `0x142` | IT `0xC2` | I/E ratio, **average** | percent x 10 |
+| `0x144` | IT `0xC4` | I/E ratio, **95th percentile** | percent x 10 |
+| `0x146` | IT `0xC6` | I/E ratio, **median** | percent x 10 |
 
-**Not confirmed: what the quantity is.** No independent source on the card reproduces
-the values.
+The stored quantity is I/E as a **percentage**, that is `Ti/Te x 100`, not
+`Ti/(Ti+Te)`. An average of 45.3% is the ratio 0.453, which PAP-Link's 1:X form renders
+as 1:2.21. Convert with `X = 100 / percent`.
 
-| Cross-check attempted | Result |
+Across the 19-day reference card the averages ran 32.2%–50.4% (1:3.11 to 1:1.98) and
+`median <= P95 <= max` held on every day. One day's maximum exceeded 100% (106.6%,
+i.e. 1:0.94) — a single breath with inspiration longer than expiration, not a decode
+error.
+
+Note the order in the record is max, average, P95, median — **not** the order PAP-Link
+displays them in.
+
+> This supersedes an earlier reading of these bytes as part of an event-index block
+> (AHI/AI/HI/OAI/CAI/RERA at IT `0xBC`–`0xD2`). See the caution above: that block does
+> not hold on E5, and IT `0xC0`–`0xC6` are these four I/E fields.
+
+**Not yet available as an OSCAR channel.** The G3X path produces no I:E, Ti or Te —
+`packetIePermille` is hardcoded to 0 in `bmcG3xDataParsing.cpp` because offsets
+`0x074`/`0x07E`, once believed to be Ti/Te, were disproved. These four daily figures
+could be surfaced as Device Settings rows, but they cannot be charted and will not feed
+the Overview trends.
+
+The better use is as an **oracle** for locating the per-sample field in the waveform
+packet: the right offset is the one whose per-day average, median, P95 and maximum
+reproduce these four values. Two candidate sources have been ruled out that way:
+
+| Candidate | Result |
 |---|---|
-| E:I derived from `.evt` breath markers (`0x0C` -> `0x0D` -> `0x0C`) | Per-day median 2.00–3.30 against `0x146`/100 of 3.26–5.00, Pearson r = **-0.590**. Inverting to I:E gives r = +0.608. Neither is a match. The proxy itself rests on `0x0C`/`0x0D` being inspiration/expiration onsets, which is not confirmed. |
-| Waveform tidal volume (packet `0x52C`) | Daily means are in the same band (IDX 328–504 vs waveform 300–400) but the maxima are out by a factor of two (IDX 625–1066 vs waveform 1582–1838). Not tidal volume. |
-
-Scale is likewise open. `/100` reads as an E:I ratio of 3.2–5.0 (high but possible);
-per-mille reads as an inspiratory fraction of 32–50% with a P95 of 47–88% (also
-possible). The neighbouring `0x13C` is a near-constant 1000, which would suit a
-per-mille denominator, but that is a guess.
-
-**The decisive test is a PAP-Link readout**: the four displayed I/E Ratio figures for
-one night, against the four values in that day's record. That settles both the quantity
-and the scale in one step, and only someone with the vendor software can run it.
-
-**Why this is worth pursuing** — see open question 9 in `BMC_G3X_EVT_FORMAT.md`. The G3X
-path currently produces no I:E, Ti or Te at all. If these four values are I:E, they are
-an oracle for locating the *per-sample* field in the waveform packet: the right offset
-is the one whose per-day median, P95 and maximum reproduce them. A per-sample channel
-charts and trends; four static daily numbers would only ever be settings rows.
+| Waveform tidal volume (packet `0x52C`) | Daily means overlap but maxima are out by a factor of two. Not it. |
+| Ti/Te from tag-paired `.evt` breath markers (§3a of `BMC_G3X_EVT_FORMAT.md`) | Mean absolute error 5.2 pp on average, 4.4 pp on median, 16.6 pp on P95, with per-day maxima of 650%–4700% against a true 62%–107%. Correctly signed and the right order of magnitude, but not the device's own figure — the markers are detection instants, not the flow-derived breath timing the device summarises. |
 
 ---
 

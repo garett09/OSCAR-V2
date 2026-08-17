@@ -13,6 +13,7 @@
 #include <QMessageBox>
 #include <QProgressDialog>
 #include <QFileInfo>
+#include <QDir>
 
 #include "profileselector.h"
 #include "ui_profileselector.h"
@@ -506,7 +507,11 @@ void ProfileSelector::on_buttonDestroyProfile_clicked()
             }
         }
 
-        if (path == (GetAppData() + "/Profiles/")) {
+        // Refuse to act when the resolved path is the Profiles directory itself rather
+        // than a profile inside it, which happens when a row carries no username (e.g. a
+        // cancelled import). Compare cleaned paths so a trailing slash on either side
+        // cannot slip past the guard and offer the whole directory for deletion.
+        if (QDir::cleanPath(path) == QDir::cleanPath(GetAppData() + "/Profiles")) {
             QMessageBox::warning(this, STR_MessageBox_Error, tr("The selected profile does not appear to contain any data and cannot be removed by OSCAR"), QMessageBox::Ok);
             return;
         }

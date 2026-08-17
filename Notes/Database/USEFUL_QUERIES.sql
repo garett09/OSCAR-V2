@@ -173,10 +173,15 @@ SELECT
     datetime(s.start_time/1000, 'unixepoch', 'localtime') as date,
     ROUND(ss.ahi, 2) as AHI,
     ROUND(ss.rdi, 2) as RDI,
+    ROUND(ss.oahi, 2) as OAHI,
+    ROUND(ss.cahi, 2) as CAHI,
     ss.obstructive_count as OA,
     ss.clear_airway_count as CA,
     ss.unclassified_count as UA,
+    ss.all_apnea_count as A,
     ss.hypopnea_count as H,
+    ss.obstructive_hypopnea_count as OH,
+    ss.central_hypopnea_count as CH,
     ss.rera_count as RERA,
     ROUND(ss.pressure_avg, 2) as P_avg,
     ROUND(ss.pressure_95th, 2) as P_95,
@@ -263,11 +268,32 @@ FROM session_summaries ss
 JOIN sessions s ON ss.session_id = s.id
 JOIN machines m ON s.machine_id = m.id
 JOIN profiles p ON m.profile_id = p.id
-WHERE ss.ahi = 0 
-  AND ss.obstructive_count = 0 
-  AND ss.clear_airway_count = 0 
+WHERE ss.ahi = 0
+  AND ss.obstructive_count = 0
+  AND ss.clear_airway_count = 0
   AND ss.hypopnea_count = 0
+  AND ss.obstructive_hypopnea_count = 0
+  AND ss.central_hypopnea_count = 0
+  AND ss.all_apnea_count = 0
 ORDER BY s.start_time DESC;
+
+-- Verify the OAHI + CAHI = AHI identity (schema v18+).
+-- Every AHI-contributing channel belongs to exactly one bucket, so any row listed
+-- here means a channel was added to ahiChannels without being placed in a bucket.
+-- Only rows written at v18 or later can satisfy this: earlier rows have 0 in the new
+-- columns by design and are excluded by the mask_on_hours/ahi guard below only in the
+-- trivial case, so restrict by date if the profile predates the upgrade.
+SELECT
+    ds.date,
+    ROUND(ds.ahi, 4)  as AHI,
+    ROUND(ds.oahi, 4) as OAHI,
+    ROUND(ds.cahi, 4) as CAHI,
+    ROUND(ds.oahi + ds.cahi - ds.ahi, 4) as difference
+FROM daily_summaries ds
+WHERE ds.mask_on_hours > 0
+  AND (ds.oahi > 0 OR ds.cahi > 0)          -- skip un-migrated rows
+  AND ABS(ds.oahi + ds.cahi - ds.ahi) > 0.005
+ORDER BY ds.date DESC;
 
 -- ============================================
 -- QUICK STATS

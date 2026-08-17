@@ -263,6 +263,14 @@ bool DatabaseSchema::upgradeSchema(QSqlDatabase& db, int fromVersion)
         fromVersion = 18;
     }
 
+    if (fromVersion == 18) {
+        if (!migrateV18ToV19(db)) {
+            qCritical() << "DatabaseSchema: v18->v19 migration failed";
+            return false;
+        }
+        fromVersion = 19;
+    }
+
     if (fromVersion != CURRENT_SCHEMA_VERSION) {
         qCritical() << "DatabaseSchema: No migration path from version" << fromVersion;
         return false;
@@ -906,6 +914,11 @@ bool DatabaseSchema::createSessionSummariesTable(QSqlDatabase& db)
         "    hypopnea_count INTEGER DEFAULT 0,"
         "    rera_count INTEGER DEFAULT 0,"
         "    clear_airway_count INTEGER DEFAULT 0,"
+        "    obstructive_hypopnea_count INTEGER DEFAULT 0,"
+        "    central_hypopnea_count INTEGER DEFAULT 0,"
+        "    all_apnea_count INTEGER DEFAULT 0,"
+        "    oahi REAL DEFAULT 0,"
+        "    cahi REAL DEFAULT 0,"
         "    pressure_avg REAL,"
         "    pressure_min REAL,"
         "    pressure_max REAL,"
@@ -1089,6 +1102,11 @@ bool DatabaseSchema::createDailySummariesTable(QSqlDatabase& db)
         "    hypopnea_count INTEGER DEFAULT 0,"
         "    rera_count INTEGER DEFAULT 0,"
         "    clear_airway_count INTEGER DEFAULT 0,"
+        "    obstructive_hypopnea_count INTEGER DEFAULT 0,"
+        "    central_hypopnea_count INTEGER DEFAULT 0,"
+        "    all_apnea_count INTEGER DEFAULT 0,"
+        "    oahi REAL DEFAULT 0,"
+        "    cahi REAL DEFAULT 0,"
         "    "
         "    pressure_avg REAL,"
         "    pressure_min REAL,"
@@ -1788,9 +1806,61 @@ bool DatabaseSchema::createNightClockOffsetsTable(QSqlDatabase& db)
 }
 
 /*
+ * Add the Central / Obstructive hypopnea columns to both summary tables
+ *
+ * Parameters:
+ *   db - Database connection to use
+ *
+ * Returns: true if successful, false otherwise
+ *
+ * Adds all_apnea_count as well, which contributes to AHI but had never been stored.
+ *
+ * Purely additive: five ALTER TABLE ADD COLUMNs per table, each with a DEFAULT so
+ * existing rows stay valid. No backfill — pre-existing rows read 0 in the new columns
+ * until the day is recalculated or re-imported, which is a deliberate decision
+ * (recalculating every historical day at upgrade time would be slow and, for days
+ * whose original card is long gone, would not recover the OH/CH split anyway).
+ *
+ * Idempotent: an already-present column is tolerated, so this may be re-applied.
+ * The caller owns the surrounding transaction and any rollback.
+ */
+bool DatabaseSchema::addHypopneaSummaryColumns(QSqlDatabase& db)
+{
+    static const char* const newColumns[] = {
+        "obstructive_hypopnea_count INTEGER DEFAULT 0",
+        "central_hypopnea_count INTEGER DEFAULT 0",
+        "all_apnea_count INTEGER DEFAULT 0",
+        "oahi REAL DEFAULT 0",
+        "cahi REAL DEFAULT 0"
+    };
+    static const char* const tables[] = { "session_summaries", "daily_summaries" };
+
+    QSqlQuery q(db);
+    for (const char* table : tables) {
+        for (const char* column : newColumns) {
+            const QString sql = QString("ALTER TABLE %1 ADD COLUMN %2")
+                                    .arg(QString::fromLatin1(table), QString::fromLatin1(column));
+            if (!q.exec(sql)) {
+                // SQLite has no ADD COLUMN IF NOT EXISTS, so a column that is already
+                // present is reported as an error and has to be tolerated to keep the
+                // migration re-runnable.
+                const QString err = q.lastError().text();
+                if (!err.contains("duplicate column", Qt::CaseInsensitive)) {
+                    qCritical() << "DatabaseSchema: addHypopneaSummaryColumns:" << sql << "failed:" << err;
+                    DatabaseManager::instance().checkQueryError("DatabaseSchema::addHypopneaSummaryColumns", q);
+                    return false;
+                }
+            }
+        }
+    }
+    return true;
+}
+
+/*
  * Migrate database from schema version 17 to 18
  *
- * Adds the night_clock_offsets table for per-night clock offset measurements.
+ * Adds the night_clock_offsets table for per-night clock offset measurements,
+ * and the Central / Obstructive hypopnea columns to both summary tables.
  */
 bool DatabaseSchema::migrateV17ToV18(QSqlDatabase& db)
 {
@@ -1803,6 +1873,12 @@ bool DatabaseSchema::migrateV17ToV18(QSqlDatabase& db)
 
     if (!createNightClockOffsetsTable(db)) {
         qCritical() << "DatabaseSchema: migrateV17ToV18: createNightClockOffsetsTable failed";
+        db.rollback();
+        return false;
+    }
+
+    if (!addHypopneaSummaryColumns(db)) {
+        qCritical() << "DatabaseSchema: migrateV17ToV18: addHypopneaSummaryColumns failed";
         db.rollback();
         return false;
     }
@@ -1820,5 +1896,56 @@ bool DatabaseSchema::migrateV17ToV18(QSqlDatabase& db)
     }
 
     qDebug() << "DatabaseSchema: Migration v17->v18 complete";
+    return true;
+}
+
+/*
+ * Migrate database from schema version 18 to 19
+ *
+ * Repairs databases that were stamped v18 by only one of two branches. Schema
+ * version 18 was assigned twice independently: one branch's v18 created the
+ * night_clock_offsets table, the other's added the hypopnea columns to the
+ * summary tables. A database upgraded by either branch therefore reports v18
+ * while holding only half of that schema, and the version gate would never let
+ * the missing half be applied.
+ *
+ * This migration re-applies both operations. Both are idempotent (CREATE TABLE
+ * IF NOT EXISTS, and a duplicate column is tolerated), so a database that
+ * already has both halves is left unchanged and only its version advances.
+ */
+bool DatabaseSchema::migrateV18ToV19(QSqlDatabase& db)
+{
+    qDebug() << "DatabaseSchema: Migrating v18 -> v19";
+
+    if (!db.transaction()) {
+        qCritical() << "DatabaseSchema: migrateV18ToV19: failed to start transaction";
+        return false;
+    }
+
+    if (!createNightClockOffsetsTable(db)) {
+        qCritical() << "DatabaseSchema: migrateV18ToV19: createNightClockOffsetsTable failed";
+        db.rollback();
+        return false;
+    }
+
+    if (!addHypopneaSummaryColumns(db)) {
+        qCritical() << "DatabaseSchema: migrateV18ToV19: addHypopneaSummaryColumns failed";
+        db.rollback();
+        return false;
+    }
+
+    if (!setSchemaVersion(db, 19)) {
+        qCritical() << "DatabaseSchema: migrateV18ToV19: setSchemaVersion failed";
+        db.rollback();
+        return false;
+    }
+
+    if (!db.commit()) {
+        qCritical() << "DatabaseSchema: migrateV18ToV19: commit failed";
+        db.rollback();
+        return false;
+    }
+
+    qDebug() << "DatabaseSchema: Migration v18->v19 complete";
     return true;
 }

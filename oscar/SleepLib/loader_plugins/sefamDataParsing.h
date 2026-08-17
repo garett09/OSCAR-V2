@@ -54,6 +54,21 @@ constexpr quint8 kInvalidSample = 0xFF;
 //! Fixed size of one .LOG event record.
 constexpr int kLogRecordLength = 49;
 
+/*! \name Theoretical mask leak bounds
+    The span of the vendor's own mask table (`masks.txt`, shipped with Sefam
+    Analyze), which is what the setting is populated from when a clinician picks
+    a mask model: 89 masks from 18 to 60 l/min. A decoded value outside this is
+    taken as evidence that the byte does not hold a mask leak on that model, and
+    the setting is dropped rather than reported wrongly.
+
+    The Nea user manual's "20 to 60 l/min in steps of 2" describes the
+    manual-entry menu, not what a selected mask can supply — the table holds one
+    mask at 18 and two at 41.
+    @{ */
+constexpr int kMaskLeakMinLpm = 18;
+constexpr int kMaskLeakMaxLpm = 60;
+/*! @} */
+
 /*! \struct FileHeader
     \brief The decoded fixed-length text header at the start of every card file. */
 struct FileHeader
@@ -139,16 +154,18 @@ enum LogCode {
 /*! \struct Settings
     \brief Therapy settings decoded from a log settings record.
 
-    Only fields confirmed against the manufacturer's printed settings are
-    represented. The comfort-level, patient-circuit and mask-leak bytes are
-    still positional guesses that no card examined so far can vary, so they are
-    deliberately absent — an unverified byte displayed as a therapy setting is
-    worse than showing nothing.
+    Only fields confirmed against the manufacturer's printed settings, or by a
+    controlled single-setting change, are represented — an unverified byte
+    displayed as a therapy setting is worse than showing nothing.
 
-    The humidifier level is the exception: a second card from the same device,
-    with only that one setting changed, moved exactly one settings byte by
-    exactly the amount the setting moved. See Notes/loaders/
-    SEFAM_REVE_CARD_ANALYSIS.md, "Humidifier level — byte 22". */
+    The heated tube setting is deliberately absent: it was located, but it lives
+    in the file the vendor software writes to push settings onto a card, not in
+    anything the device itself records, so it cannot be recovered from an
+    ordinary card.
+
+    See Notes/loaders/SEFAM_REVE_CARD_ANALYSIS.md, sections "Humidifier level —
+    byte 22", "Theoretical mask leak — byte 10" and "Comfort Control Plus —
+    byte 21". */
 struct Settings
 {
     bool  valid           = false;
@@ -157,7 +174,91 @@ struct Settings
     float rampPressure    = 0.0f;   //!< cmH2O
     int   rampMinutes     = 0;
     int   humidifierLevel = -1;     //!< 0 = off; -1 when the record omits it.
+    int   maskLeak        = -1;     //!< lpm; -1 when the record omits it.
+    int   comfortLevel    = -1;     //!< CC+ level; 0 = off, -1 when the record omits it.
+    int   patientCircuit  = -1;     //!< Tube diameter in mm, 15 or 22; -1 when absent.
 };
+
+//! Offset of the session archive inside the device memory image, measured from
+//! the start of the file (the 155-byte text header precedes the image itself).
+constexpr int kArchiveOffset = 0x1009B;
+
+//! Length of the fixed part of an archive block, in bytes: 44 big-endian uint16.
+constexpr int kArchiveHeaderLength = 88;
+
+//! Bytes per per-minute record following an archive block header.
+constexpr int kArchiveMinuteLength = 6;
+
+//! Every archive block opens with this value, as a big-endian uint16.
+constexpr quint16 kArchiveMarker = 0xFEA1;
+
+/*! \struct MinuteRecord
+    \brief One minute of a session, decoded from a 6-byte archive record.
+
+    Minute \c n covers [session start + 60n, session start + 60n + 60). That is
+    session-relative, NOT aligned to the wall clock: correlating this record's
+    pressure against the session's own PRE channel gives r = 0.9996 on a
+    session-relative reading and 0.948 on a wall-clock-aligned one. */
+struct MinuteRecord
+{
+    quint8 meanPressure = 0;   //!< Mean mask pressure this minute, tenths of a cmH2O.
+    quint8 obstructiveApnea = 0;
+    quint8 centralApnea = 0;
+    quint8 obstructiveHypopnea = 0;
+    quint8 centralHypopnea = 0;
+    quint8 flowLimitation = 0;
+    quint8 snore = 0;
+};
+
+/*! \struct SessionSummary
+    \brief One block of the device's lifetime session archive.
+
+    The S.Box AUTO writes no .LOG. Its events and its therapy settings live only
+    in the <serial>.RAM memory image, as a contiguous chain of these blocks —
+    one per session for the whole life of the device, oldest first. See
+    Notes/loaders/SEFAM_SBOX_CARD_ANALYSIS.md.
+
+    The counts below are the device's own totals. They are reproduced exactly by
+    summing the corresponding per-minute fields, verified on every block of both
+    cards examined (470 blocks, no mismatch), so either may be used; the loader
+    places events from the minutes and uses the totals only as a cross-check. */
+struct SessionSummary
+{
+    int minutes = 0;                    //!< floor(recordCount * 10 / 60) + 1.
+
+    int obstructiveApneas = 0;
+    int centralApneas = 0;
+    int obstructiveHypopneas = 0;
+    int centralHypopneas = 0;
+    int snores = 0;
+    int flowLimitations = 0;
+
+    bool  settingsValid  = false;
+    float minPressure    = 0.0f;        //!< cmH2O
+    float maxPressure    = 0.0f;        //!< cmH2O
+    float rampPressure   = 0.0f;        //!< cmH2O
+    int   rampMinutes    = 0;           //!< 0 when the ramp is disabled.
+    int   maskLeak       = -1;          //!< lpm; -1 when out of the documented range.
+    int   patientCircuit = -1;          //!< Tube diameter in mm, 15 or 22; -1 when absent.
+    int   comfortLevel   = -1;          //!< CC+ level; 0 = off, -1 when absent.
+
+    QVector<MinuteRecord> minuteData;
+};
+
+/*! \brief Read the session archive out of a <serial>.RAM or .BKP memory image.
+    \param path Absolute path to the image.
+    \param out  Populated oldest-session-first; cleared first.
+    \return false if the file cannot be read or carries no archive.
+
+    The archive is walked as a chain — each block's length is 88 + 6 * minutes,
+    and the next block begins immediately after — starting at kArchiveOffset.
+    Do NOT locate blocks by scanning for kArchiveMarker: that value also occurs
+    inside the per-minute data and a scan invents blocks that are not there.
+
+    A block whose marker, minute count or extent is implausible ends the walk
+    rather than failing it, so a truncated or partly overwritten image still
+    yields the blocks that precede the damage. */
+bool readMemoryImage(const QString &path, QVector<SessionSummary> &out);
 
 /*! \struct SessionData
     \brief Everything decoded from one DATA_nnn directory. */

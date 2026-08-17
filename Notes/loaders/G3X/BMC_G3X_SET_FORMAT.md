@@ -280,6 +280,64 @@ All pressures are u16 LE in hundredths of cmH₂O.
 - **Pres. Response:** `1`=Standard, `2`=Soft, `3`=Fast.
 - **Smart:** `0`=Off, `1`=On — same offset, named per mode (SmartC / SmartA / SmartB).
 
+### Smart sub-block — 0x60–0x77 ✅ *confirmed against PAP-Link, all modes*
+
+When the Smart flag at `0x36` is on, the device runs a second pressure set that PAP-Link
+displays under the SmartA / SmartB / SmartC heading. Those values live in their own
+sub-block at `0x60`, in the same u16 LE hundredths-of-cmH₂O encoding.
+
+Confirmed 2026-08-10 from a contributor's purpose-built dataset: one day record was
+rewritten with TS blocks in three different modes, each imported into PAP-Link and
+screenshotted. Every value below was read back off the vendor display. All four IDX
+variants carry a valid block checksum.
+
+| Field | Offset | CPAP | AutoCPAP | AutoS |
+|---|---|:-:|:-:|:-:|
+| Smart P / Smart EPAP | 0x6A | ✓ 14.00 | ✓ 9.50 | ✓ 11.00 |
+| Smart Min P / Smart Min EPAP | 0x6E | — | ✓ 9.50 | ✓ 11.50 |
+| Smart Max P | 0x70 | — | ✓ 17.00 | |
+| Smart Min IPAP | 0x72 | | | ✓ 13.50 |
+| Smart Max IPAP | 0x74 | | | ✓ 19.00 |
+
+- **Smart PS is not stored.** Derive it: `PS = [0x72] - [0x6E]`, i.e. Smart Min IPAP
+  minus Smart Min EPAP. On the reference block 13.50 - 11.50 = 2.00, matching PAP-Link's
+  "Smart PS 2.0 cmH₂O". This is the mirror of the main block, where Min IPAP is the
+  derived value and PS is stored at `0x2A`.
+- **`0x6A` is patch-proven**, not merely value-matched: changing it from `03 B6` (9.50)
+  to `04 4C` (11.00) in an AutoCPAP record moved PAP-Link's "Smart P" from 9.5 to 11.0
+  and left Smart Min P and Smart Max P untouched. The rest of the table is confirmed by
+  exact value match across three modes.
+- **`0x68` mirrors the main Initial pressure** at `0x18` in all three modes (4.50 / 7.00
+  / 8.50). PAP-Link shows no separate "Smart Initial", so treat it as a copy rather than
+  a distinct setting.
+- **CPAP mode still populates `0x6E` and `0x70`** (8.50 and 14.50 on the reference
+  block) even though PAP-Link displays only Smart P there. Do not publish them in CPAP
+  mode — the vendor does not.
+- `0x60` and `0x62` hold the same small value twice (41 in two records, 38 in the third);
+  unexplained. `0x64`, `0x66` and `0x76` are `0xFFFF` filler.
+- `0x70` is zero on every AutoS day observed, consistent with Smart Max P being an
+  AutoCPAP-only field.
+
+#### Gate on the flag at 0x36, never on the values
+
+The sub-block is **not** cleared when the feature is switched off. Across the 34 day
+records of the reference card, 29 have Smart off — and three of those still carry a full,
+plausible set of values (6.50 / 8.50 / 8.50 / — / 10.50 / 15.00) left over from when the
+feature was last configured. The other 26 are zeroed.
+
+So the device sometimes zeroes the block and sometimes does not. A loader that decides
+"Smart is in use" by testing whether the values are non-zero will invent Smart settings on
+those nights, where PAP-Link shows none. The flag at `0x36` is correct on all 34 days;
+it is the only reliable gate.
+
+> **Correction to the contributor's note:** Smart Max P was reported at `0x79`. That
+> offset is odd-aligned and lands inside the `0xFF` filler. The value 17.00 is at
+> **`0x70`**, matching the main block's Max APAP at `0x10`.
+
+The sub-block resembles the main block offset by `0x60` for the shared fields (`0x0A`→
+`0x6A`, `0x0E`→`0x6E`, `0x10`→`0x70`) but diverges after that — Max IPAP is at `0x16`
+in the main block and `0x74` here, not `0x76`. Treat the offsets as empirical.
+
 ### Air tube type — 0x8F
 
 Offset located 2026-08-02 by a contributor who changed the setting on the device, powered it

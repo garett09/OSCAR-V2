@@ -4,6 +4,20 @@
 report** for the same 31 sessions. Container, waveform scalings, event taxonomy
 and therapy settings are all confirmed. Remaining gaps are small and listed at
 the end.
+
+**Settings decode, as of 2026-08-13.** Four of the five accessory settings the
+analyzer prints are decoded: humidifier level (byte 22), theoretical mask leak
+(byte 10), and Comfort Control Plus level **and patient circuit** sharing byte 21.
+**Only the heated tube is left**, and it is now known to be unrecoverable — it
+exists on the S.Box solely in the file the vendor software writes, not in
+anything the device records.
+
+Three of those came from cards with a single setting deliberately changed. The
+fourth, the circuit, came from driving *Sefam Analyze* against a card with no
+device attached; the same exercise fixed the record's field order, which the
+Rêve's own data can never settle — see "The settings record is the S.Box's
+table".
+
 **Device:** SEFAM Rêve Auto (APAP). `Created By=REVE_AUTO`, model code `1279R`,
 firmware `VER :A010500`. SEFAM is a French sleep-medicine manufacturer.
 
@@ -19,10 +33,104 @@ Treat SEFAM and Sanrai as one device family, the way `prisma_loader.cpp` covers
 both Weinmann and Löwenstein.
 
 Note the card itself carries **no brand string at all**: the only identity on it
-is `REVE_AUTO`, the model code `1279R`, and the serial. Detection is unaffected
-(the model code and `#03/` header are a solid fingerprint), but whatever brand
-OSCAR displays is a naming choice rather than something read from the data, and
-users will report this machine under either name.
+is `REVE_AUTO`, the model code `1279R`, and the serial. This was re-checked
+across the whole sample collection — no SEFAM-family card, and no byte of either
+memory image, contains "Sefam" or "Sanrai". Detection is unaffected (the model
+code and `#03/` header are a solid fingerprint), but whatever brand OSCAR
+displays is a naming choice rather than something read from the data, and users
+will report this machine under either name.
+
+**Decision (2026-08-10): OSCAR shows this device as a "Sanrai Rêve Auto".**
+Since the brand cannot be read off the card, `sefamBrandName()` in
+`sefam_loader.cpp` decides it per model: `Created By=REVE_AUTO` or model code
+`1279R` gives brand `Sanrai`, and every other SEFAM-family device stays `Sefam`
+until a card turns up that argues otherwise. The reasoning is that Sanrai is the
+only name printed on the unit its owner actually has, so it is the name they
+will look for. `resvent_loader.cpp` resolves the same Hoffrichter/Resvent
+question the same way, per model.
+
+Two consequences worth knowing:
+
+- A **French-market Rêve, sold under SEFAM's own name, would also display as
+  "Sanrai"** — the loader cannot tell them apart. The working hypothesis is that
+  this case does not arise, because SEFAM's own equivalent is sold as the
+  **Néa**: if `REVE_AUTO` only ever ships relabelled, "Sanrai" is right every
+  time. **This is unverified** — no Néa card has ever been seen, and whether the
+  Néa even shares this platform is itself unconfirmed (see the settings-menu
+  section below, which borrows from a Néa manual on exactly that assumption).
+  Waiting on more users; revisit the rule if a SEFAM-branded Rêve turns up.
+
+  Nothing needs changing to be ready for a Néa card: it would carry neither
+  `REVE_AUTO` nor `1279R`, so `sefamBrandName()` already returns "Sefam" for it,
+  and `sefamModelIsValidated()` already returns false, which raises the
+  untested-device warning and prompts the user for a sample.
+
+  **Evidence for the hypothesis, from the vendor software (2026-08-13).** Its
+  manual lists the SEFAM range as S.Box, S.Box C, Néa Info, Néa Auto, Reve Info
+  and Reve Auto, plus the bi-level S.Box Duo S/ST, Néa Duo S/ST and Ventea S/ST.
+  So the **Néa is real, and is the Rêve's sibling** — an Info/Auto pair against an
+  Info/Auto pair. More tellingly, the software's *create a new card* dialogue
+  offers about four S.Box models and four Néa models and **does not offer the
+  Rêve at all**, though it reads a Rêve card without complaint. That is what one
+  would expect if the Néa is SEFAM's own-brand line and the Rêve ships relabelled
+  for export. Suggestive, not proof.
+
+  **This is also the cheapest route to the one fact the loader is missing.**
+  Creating a card for a Néa model should put that model's code into the identity
+  field of `upload.dat`, the way an S.Box write puts `1200R` and its serial there.
+  A Néa model code is the single thing standing between the loader and
+  recognising the device — see "Device images".
+- `info.series` is **not** a brand field — it keys the device-image lookup in
+  `MachineLoader::getPixmap()`. It stayed `"Sefam"` for one day, then became one
+  value per device when the device photos were added (2026-08-10); see "Device
+  images" below.
+
+The brand is written to the `machines` row when the device record is first
+created, and that row is never rewritten afterwards — `Machine::SaveToDatabase()`
+refreshes series, model, model number and serial on an existing record but not
+brand. A device imported before this change therefore keeps showing "Sefam";
+re-importing into a fresh profile is the way to pick up the new name. That was
+judged acceptable rather than worth a migration, since the loader has only ever
+shipped in the v2.0.2 draft.
+
+### Device images (added 2026-08-10)
+
+**Built and confirmed rendering the same day** — both the Rêve and the S.Box show
+their own photo.
+
+Three photos live in `oscar/icons/` and are bound in through `Resources.qrc`:
+`sanrai-reve.png`, `sefam-sbox.png`, `sefam-nea.png`. All lower case, matching
+the convention of every other icon in that directory — the filenames must match
+the `.qrc` entries exactly or the images vanish on case-sensitive filesystems,
+which is most of the platforms OSCAR ships to.
+
+`MachineLoader::getPixmap()` keys on `MachineInfo::series`, so each device that
+needs its own image needs its own series value. `series` is an internal key —
+nothing in the UI displays it, and its only other reader is a ResMed-specific
+S9 check in `welcome.cpp` — so `sefam_loader.cpp` now assigns one per device
+(`kSeriesReve`, `kSeriesSBox`, `kSeriesNea`). Both the registration and the
+assignment read the same constants, which is deliberate: the AirSense 11 icon
+was once invisible because `PeekInfo()` produced `"AirSense11"` while the icon
+hash was keyed `"AirSense 11"` (`BUG_FIXES.md`, 3-part ResMed icon entry).
+
+Unlike brand, **series does propagate to an existing `machines` row** —
+`Machine::SaveToDatabase()` includes it in the fields it refreshes — so an
+already-imported device picks up its image on the next import even though it
+keeps its old brand.
+
+**The Néa image is deliberately unreachable.** No Néa card has ever been seen,
+so nothing assigns `kSeriesNea`; an unrecognised SEFAM model keeps series
+`"Sefam"`, matches no entry, and falls through to the generic CPAP image. Using
+the Néa photo as the SEFAM default was considered and rejected — it would put a
+photo of an unconfirmed device against whatever turned up. Recognising a Néa is
+a one-line addition to `sefamModelOf()` once we know its `Created By` or model
+code.
+
+Worth recording: **the Néa and Rêve product photos show the same physical
+machine** — same wedge case, same touchscreen layout, same side port, differing
+only in the printed logo. That is supporting evidence for the Néa hypothesis
+above, though marketing photography is not proof of identical internals.
+
 **Loader:** `sefam_loader.cpp` / `sefamDataParsing.cpp`, added 2026-08-03 from
 this analysis. Design: `Notes/loaders/SEFAM_LOADER_DESIGN.md`. **Awaiting testing
 by a real user** — everything below was verified against this one card and the
@@ -32,6 +140,13 @@ Related: `SD_CARD_FINGERPRINTS.md` has an earlier entry for the **SEFAM S.Box
 AUTO** (model code `1263R`, firmware `VER :A020400`) — same firmware platform,
 different device class. That entry's guess that the obfuscation key is `0x9F` is
 **wrong**; see below. Its "~100 byte header" estimate is also wrong (it is 71).
+
+The S.Box is now documented in its own right in
+`Notes/loaders/SEFAM_SBOX_CARD_ANALYSIS.md`. It differs from this device more
+than the shared platform suggests: no `.LOG` at all, the short 38-byte header
+with no UTC epoch, 25 Hz instead of 10 Hz on four channels, and an unencrypted
+memory image. **Do not carry a conclusion from one model to the other without
+re-testing it.**
 
 ---
 
@@ -253,6 +368,16 @@ real respiratory-event channel — but **which** events is not established.
 **`Y17` runs do not line up with `.LOG` records** (only ~4 % of runs fall within
 ±3 s of any log entry), so the two are independent views, not duplicates.
 
+> **This is measured correctly but reasoned from too narrowly.** A ±3 s window
+> cannot see a constant offset larger than itself, and there is one: widening the
+> search to ±60 s puts bit 3 at a sharp −28 s from every snore record (the modal
+> offset in 28 of 30 sessions) and bit 0 at the implied start of 88 % of
+> flow-limitation records. So `Y17` and the `.LOG` are *not* independent for at
+> least two event types. The conclusion that `Y17` cannot supply events still
+> holds — it over-counts both by 1.5–2× and tracks apnoeas and hypopnoeas poorly
+> — but "does not line up" is the wrong reason. See the `Y17` section of
+> `SEFAM_SBOX_CARD_ANALYSIS.md`.
+
 Since the `.LOG` is now confirmed as the scored-event source, `Y17` is *not*
 needed for AHI.
 
@@ -383,17 +508,39 @@ settings. Decoded against the report's printed settings (`Mode=A-PAP`,
 `Min=4.0`, `Max=20.0`, `Ramp=45 min`, `Ramp pressure=4.0`, `CC+=Level 2`,
 `Humidifier=Level 4`, `Heated tube=Present`):
 
-**Code 2** payload `40 45 45 31 200 40 60 60 130 200 121 4 6 3 0`:
+**Code 2** payload `40 45 45 31 200 40 60 60 130 200 121 4 6 3 0`, with the
+record's own bytes 9–10 (`80 164`) belonging to it as well — see
+"The settings record is the S.Box's table" below for why those two count:
 
 | Byte | Value | Meaning |
 |---|---|---|
-| 11 | 40 | **Min pressure 4.0** (×0.1 cmH₂O) |
-| 12 | 45 | **Ramp 45 min** |
+| 9 | 80 | unassigned |
+| 10 | 164 | **Theoretical mask leak, lpm in bits 0–6** — `0x80 \| 36` — confirmed by a controlled change |
+| 11 | 40 | **Ramp start pressure 4.0** (×0.1 cmH₂O) |
+| 12 | 45 | ramp duration echo |
+| 13 | 45 | **Ramp 45 min** |
+| 14 | 31 | flags, includes the ramp mode |
 | 15 | 200 | **Max pressure 20.0** (×0.1 cmH₂O) |
-| 16 | 40 | **Ramp pressure 4.0** (×0.1 cmH₂O) |
-| 17, 18 | 60, 60 | candidate: **theoretical mask leak**, 60 × 0.6 lpm = 36.0, see below |
+| 16 | 40 | **Min pressure 4.0** (×0.1 cmH₂O) |
+| 17, 18 | 60, 60 | constant on **both** models — not the mask leak, see below |
+| 19 | 130 | **apnoea response pressure 13.0 cmH₂O** (named by the S.Box vendor report) |
+| 20 | 200 | unassigned |
+| 21 | 121 | **CC+ level in bits 7–6**, level = field + 1 — confirmed by a controlled change |
 | 22 | 4 | **Humidifier level** — confirmed by a controlled change, see below |
-| 13, 14, 19–21, 23–25 | 45, 31, 130, 200, 121, 6, 3, 0 | unassigned |
+| 23–25 | 6, 3, 0 | unassigned |
+
+> **Bytes 11 and 16 are not in the order this note first gave them.** Both read
+> 40 on every Rêve card, because this device's minimum pressure and ramp start
+> pressure are both 4.0, so the Rêve's own data cannot tell them apart. The S.Box
+> table — six vendor-printed snapshots in which the two differ — fixes the order,
+> and it is ramp start first. Same for bytes 12 and 13, both 45 here.
+>
+> **The loader currently reads the first of each pair** (`sefamDataParsing.cpp`
+> `parseSettings`, payload indices 0 and 1). That yields the correct numbers on
+> every card seen so far and is wrong on any Rêve whose ramp start differs from
+> its minimum pressure. Byte 12 is worse than cosmetic: the S.Box writes 0 there
+> whenever the ramp mode is I.Ramp, and the loader suppresses both ramp settings
+> when the value it reads is 0.
 
 Code 2 occurs 5 times. The report's `setting change` column is non-zero on
 exactly the two sessions carrying multiple code-2 records (counts 1 and 2,
@@ -471,199 +618,319 @@ also known to be the only other one that ever varies, which makes it the best
 candidate for the patient access lock or a tube/circuit state. No vendor report
 exists for the second card, so what was different that night is unknown.
 
-### Theoretical mask leak — bytes 17/18, strong candidate, not confirmed
+### Theoretical mask leak — byte 10, CONFIRMED by a controlled change
 
-The analyzer prints **36 lpm**, and **no byte anywhere on either card holds 36**.
-That was checked exhaustively, not spot-checked: every distinct value at every
-settings-record offset on both cards, the `.INI` text, and the cleartext head of
-`.RAM`/`.BKP`. The only 36s in the logs are timestamp bytes and event-duration
-arguments. So the figure is either derived, or it lives in the encrypted `.RAM`
-where the analyzer can read it and we cannot.
+A third card was pulled from the same device with the **theoretical mask leak
+changed from 36 to 34 lpm** and the Comfort Control Plus level from 2 to 3. It
+settles both fields and refutes the previous reading of the mask leak outright.
 
-The likely answer is that it *is* stored, in the leak channel's own units rather
-than in lpm. The `.INI` declares `LK` as `Min=0 Max=153 Bit=8` — identical in all
-39 sessions — which is exactly **0.6 lpm per count**, the same 0.6 the loader
-already uses as the `CPAP_LeakTotal` gain. Then:
+The field is **byte 10, holding the value in lpm in its low seven bits**:
 
-```
-byte 17 = 60 counts x 0.6 lpm/count = 36.0 lpm
-byte 18 = 60 counts x 0.6 lpm/count = 36.0 lpm
-```
+| | byte 10 | bits 0–6 | analyzer / tester |
+|---|---|---|---|
+| every record before the change | `0xA4` | 36 | report prints **36 lpm** |
+| the record after it | `0x22` | 34 | tester set **34 lpm** |
 
-Exact, with no fitted constant, on a scale the card publishes about itself. The
-two bytes cannot be told apart: both read 60 on every settings record on both
-cards.
+Two points, exact, on a scale with no fitted constant — and the second was
+**pre-registered**. The prediction table written before the card existed listed
+"reads 34" as the outcome that would mean the setting is stored in literal lpm.
+It does; the table only had the wrong byte. The value fits in seven bits with room
+to spare, and 164 is outside any plausible leak, so bit 7 has to be a separate
+flag.
 
-**This supersedes an earlier reading that treated byte 17/18 = 60 as "60 lpm",
-the top of the documented 20–60 lpm range, and recorded the clash with the
-printed 36 as unresolved.** There is no clash — 60 is not 60 lpm. The setting
-range 20–60 lpm spans 33–100 counts, and 60 counts sits inside it.
+> **The real value range is 18–60, not the manual's 20–60.** *Sefam Analyze*
+> ships its mask database as `masks.txt` — `maker;type;model;leak`, 89 masks from
+> eleven manufacturers — and a clinician sets this field either by typing a
+> number or by picking a model from that list, which writes the table's lpm
+> figure straight into the setting. The table spans **18 to 60**, and it holds
+> two masks at **41**, so the Nea manual's "20 to 60 in steps of 2" describes the
+> manual-entry menu rather than what a selected mask can supply. The loader's
+> sanity bounds (`kMaskLeakMinLpm` / `kMaskLeakMaxLpm`) follow the table.
 
-The vendor's clinical manual for the Nea defines the setting as *"the
-theoretical leak value of the mask at 12 cmH₂O, given in the corresponding
-instructions for use of the mask"*, range 20 to 60 lpm. That fixes the reference
-pressure as a constant, which makes an independent check possible. Fitting the
-mask's vent curve from this card's own data — 749,448 paired leak/pressure
-samples, taking the 5th-percentile leak in each 0.5 cmH₂O bin, since
-unintentional leak only ever adds to the vent floor — gives leak ≈ 9.94·√P lpm,
-so:
+> **Why the field went unseen for so long.** Byte 10 is the low half of the
+> 16-bit "argument" that every log record carries at offsets 9–10. For apnoea
+> records that argument is a duration, so it was read as one field and excluded
+> from the settings payload, which was taken to start at byte 11. For code 2 the
+> argument is not an argument — it is two more settings bytes. The constant
+> `arg = 20644` printed on every settings record was `0x50A4`, and its low byte
+> was the mask leak all along.
 
-| | |
+**Bytes 17 and 18 are not the mask leak.** They read 60 before and 60 after,
+across a change that moved the setting by two steps. The reading that made them
+36.0 lpm at the leak channel's own 0.6 lpm per count — 60 × 0.6 — was arithmetic
+that happened to land on the printed figure. The S.Box confirms it independently:
+its settings table holds the same constant 60, 60 on a different device with a
+different mask, where it cannot be that device's mask leak either.
+
+**Do not retry any of these.** All three were live candidates before the third
+card and all three are now dead: `round(lpm / 0.6)` and `lpm + 24` and
+`2·lpm − 12` all predicted bytes 17/18 would move to 56–58, and neither byte
+moved at all.
+
+The vent-curve fit recorded against the second card — binning the 5th-percentile
+leak by pressure over 749,448 paired samples, giving leak ≈ 9.94·√P lpm and so
+34.4 lpm at the manual's reference 12 cmH₂O against a 36 lpm nameplate — was
+sound physics and is left standing, but it tested the mask, not the byte map. It
+never had the power to locate a field, and locating the field did not need it.
+
+**Bit 7 of byte 10 is unexplained.** It was set on every record while the leak
+read 36 and cleared on the record where it reads 34. See "Two bits cleared
+together" below.
+
+### Comfort Control Plus — byte 21 bits 7–6, CONFIRMED by a controlled change
+
+The same card raised CC+ from level 2 to level 3, and byte 21 is the only other
+settings byte that moved:
+
+| | byte 21 | bits 7–6 | bits 5–0 | CC+ level |
+|---|---|---|---|---|
+| before | `0x79` | 1 | `0x39` | 2 |
+| after | `0xB9` | 2 | `0x39` | 3 |
+
+So **level = field + 1**, pinned by two points exactly as the humidifier byte
+was, with room in two bits for levels 1–4 — of which the vendor manual documents
+1, 2 and 3.
+
+**Byte 21 turned out to carry a second setting**, found later on the S.Box by
+driving *Sefam Analyze* with no device attached (see that note). The full field:
+
+| bits | meaning |
 |---|---|
-| Predicted at the manual's 12 cmH₂O | **34.4 lpm** |
-| Mask nameplate, as printed by the analyzer | **36 lpm** |
+| 7–6 | CC+ level − 1 |
+| 5–3 | set when CC+ is enabled; all clear when it is off — see the caveat below |
+| 0 | patient circuit: set = 15 mm, clear = 22 mm |
 
-4.5 % under: a real mask, measured through the device's own leak channel,
-sitting just below its published figure. Supporting evidence, not proof.
+`0x79` therefore reads as CC+ level 2 **and 15 mm**, and this card's report prints
+exactly that pair. Writes of CC+ off, 1 and 3 produced `0x00`, `0x38` and `0xB8`,
+which is where the enable bits and the level field come from; a separate pair of
+writes moved bit 0 alone between the two diameters.
 
-**This does not contradict the k ≈ 11.7 lpm·√P⁻¹ quoted under § Channel
-scaling** — the two fit different things. That one bins the *mean* of `LK`,
-which is total leak, vent plus unintentional. This one takes the 5th percentile,
-which isolates the vent. The mean necessarily runs higher, and using it here
-would predict 11.7·√12 = 40.5 lpm against a 36 lpm nameplate — overshooting by
-as much as the floor undershoots. The floor is the correct estimator for
-comparison with a mask datasheet, precisely because unintentional leak is
-strictly additive.
+Decoded across every settings record on every card held — 478 in total, 467 S.Box
+archive blocks and 11 Rêve code 2 records — the level never falls outside the
+documented 1–3, and both cards that have a vendor report match it on **both**
+settings at once. Circuit Select, the vendor's third diameter choice, cannot be
+expressed by a single bit and would read as 22 mm; no card has exercised it.
 
-**A rejected alternative, recorded so it is not retried.** Byte 19 = 130 could
-read as 13.0 cmH₂O, and the fitted curve gives 35.85 lpm there — but that
-reference pressure was chosen *because* it matched, out of five candidates
-spanning 4–20 on a monotone curve, so it was post-hoc. The manual then killed it
-outright: the reference pressure is a fixed 12 cmH₂O from the mask datasheet, so
-the device has no reason to store one. Byte 19 reverts to being a bit-field
-candidate (`0x82`).
+> **Bits 5–3 are read as an enable, and that is not fully proven.** Bit 7 moved in
+> the CC+ level writes *and* in the patient-access-lock writes, so those two
+> experiments cannot separate "bits 5–3 mark CC+ enabled" from other readings of
+> the same byte. Nothing shipped depends on the difference — on all 478 real
+> records from three devices the bits are set and the level agrees with every
+> vendor report — but a card with CC+ genuinely switched off has never been seen,
+> and that is the case the reading is guessing at. Byte 21 held 121 on all eleven
+settings records spanning a month — through three humidifier changes and the two
+isolated nights when byte 14 dropped to 29 — and moved once, on the record where
+CC+ changed.
 
-**The setting steps in 2 lpm increments**, per the Nea user manual — so the menu
-offers 20, 22, … 60, twenty-one values in all. That is mildly awkward for the
-0.6 lpm/count reading: only 24, 30, 36, 42, 48, 54 and 60 divide evenly into
-0.6, so two thirds of the menu would have to be stored rounded. The observed
-value happens to be one of the seven clean ones, which is either luck or a hint
-that the reading is wrong.
+**Byte 14 cannot be the level even though it moved at the same moment.** It went
+`0x1F` → `0x0F`, clearing bit 4. Read as any field that contains bit 4, the value
+*decreases*: bits 3–4 read 3 → 1, bits 4–5 read 1 → 0. The level increased. No
+reading of byte 14 rises by one step here, and byte 21's does.
 
-It also admits a competing encoding that the even steps fit *better*:
+**The change is visible in the pressure trace, which is what makes it more than a
+byte correlation.** CC+ is expiratory relief, so raising it must deepen the drop
+from inspiratory to expiratory mask pressure. Measured breath by breath — using
+`DET` bit 5 for the phase, so the slowly-walking APAP setpoint cannot influence
+it — over the 34 full nights on the card:
 
-| Encoding | byte at 36 lpm | Motivation |
+| | 34 nights before | the night after |
 |---|---|---|
-| `round(lpm / 0.6)` | 60 ✓ | the `LK` channel's own declared scale |
-| `lpm + 24` | 60 ✓ | preserves the 2 lpm step exactly as a step of 2 |
-| `2·lpm − 12` | 60 ✓ | also integral on every menu value |
+| median inspiration → expiration pressure swing | 0.345 – 0.535 cmH₂O | **0.707** |
+| median inspiratory flow amplitude | 23.1 – 29.3 L/min | 27.3 |
+| median total leak | 22.2 – 27.6 L/min | 22.8 |
+| swing ÷ flow amplitude | 1.355 – 1.827 | **2.587** |
 
-All three explain the observed 60. They diverge on any other value, which is
-what makes a controlled change decisive — see the pre-registered predictions
-below.
+The swing lands 32 % above the highest of 34 nights, and 42 % above the highest
+ratio, while the flow amplitude and the leak sit mid-range and match the
+immediately preceding night almost exactly (27.0 L/min and 22.8 L/min). **So the
+circuit did not change and the patient's breathing did not change; only the
+pressure the device delivered against that breathing did.** A mask swap — the
+obvious confound, given the tester also changed the configured mask leak — would
+have moved the vent leak and the flow amplitude together with the swing. It moved
+neither. One CC+ level is worth roughly **0.26 cmH₂O** of extra expiratory relief
+on this device.
 
-### Pre-registered predictions for a third card (recorded 2026-08-06)
+> **The change night is the one night OSCAR will not show the new value**, and
+> that is a display quirk rather than a decode problem. Both sessions of that
+> night start before midnight, so they land on the same OSCAR day: a 6-minute
+> session recorded while the menu was still open, carrying the *old* settings,
+> and then the 7.5 h night carrying the new ones. `daily.cpp` sources its Device
+> Settings panel from `Day::firstSession()`, which returns the first entry in the
+> session list rather than the longest or the latest, so the panel shows the
+> six-minute session's CC+ 2 and 36 lpm. The loader stores both sessions'
+> settings correctly and the following night displays the new values.
+>
+> Left alone deliberately (user's call, 2026-08-11): `daily.cpp` is shared by
+> every loader and this only bites on a night when settings change between two
+> sessions. Worth knowing before treating it as a SEFAM bug.
 
-A third card has been requested with **two** settings changed: mask leak
-36 → 34 lpm, and Comfort Control Plus 2 → 3 if the device allows it.
+### The settings record is the S.Box's table, one byte per field
 
-These predictions are written down *before* the card exists, deliberately. The
-byte 19 reference-pressure story above was arrived at by trying five candidates
-and keeping the one that fitted, and it was wrong. Committing to the expected
-values in advance means the next reading can only be a hit or a miss.
+The Rêve's code 2 payload and the S.Box's 12-field settings record
+(`SEFAM_SBOX_CARD_ANALYSIS.md`) are **the same structure**. The S.Box stores each
+field as a uint16 little-endian and the Rêve as a single byte, and the field
+order is identical.
 
-**Two settings changed at once is against the advice in this note**, and the
-risk is real: if a byte moves that is not predicted here, it cannot be
-attributed to one change or the other. The mitigation is that the two expected
-bytes are far apart in value space — a mask-leak byte should land in the
-mid-50s, a CC+ byte near 128 — so a moved byte's value should identify its
-owner.
+The alignment is read against the S.Box's **archive block header**, not its
+settings table, because the block header carries the record already rotated —
+`[word 10, word 11, word 0 … word 9]` — and that rotation is exactly the Rêve's
+byte order. Verified directly on all 467 blocks of one S.Box card:
 
-**Mask leak, 36 → 34 lpm.** The primary question is only whether bytes 17/18
-move at all; if they do, they are the field. The exact value then picks the
-encoding:
+| position | S.Box block word | Rêve byte | Field | S.Box | Rêve |
+|---|---|---|---|---|---|
+| 0 | 29 | 9 | per-device, unassigned | 50 | 80 |
+| 1 | 30 | **10** | **theoretical mask leak, lpm in bits 0–6** | 164 | 164 → 34 |
+| 2 | 31 | 11 | ramp start pressure ×10 | 80 | 40 |
+| 3 | 32 | 12 | ramp duration echo | 15 | 45 |
+| 4 | 33 | 13 | ramp duration, minutes | 15 | 45 |
+| 5 | 34 | 14 | ramp mode + flags | 9 | 31 → 15 |
+| 6 | 35 | 15 | maximum pressure ×10 | 190 | 200 |
+| 7 | 36 | 16 | minimum pressure ×10 | 120 | 40 |
+| 8 | 37 | 17 | constant | 60 | 60 |
+| 9 | 38 | 18 | constant | 60 | 60 |
+| 10 | 39 | 19 | apnoea response pressure ×10 | 130 | 130 |
+| 11 | 40 | **21** | **CC+ level and patient circuit, packed** | 184 | 121 → 185 |
 
-| Byte 17/18 reads | Conclusion |
-|---|---|
-| **57** | `round(lpm / 0.6)` — the `LK` count scale, rounding half up |
-| **56** | same scale, truncating; or `2·lpm − 12` |
-| **58** | `lpm + 24` |
-| **34** | literal lpm — and bytes 17/18 were never the mask leak, since they would have had to read 36 before, not 60 |
-| **unchanged at 60** | not the field |
+Rêve byte 20 has no S.Box counterpart and is unassigned; see the note below.
 
-If only *one* of the two bytes moves, that settles which is which. They have
-been indistinguishable on every settings record on both cards so far.
+Twelve consecutive positions line up. Four carry identical values on the two
+models — the 60, 60, 130 run and the 164 — and the rest each hold that model's
+own correct setting: the Rêve's ramp start 4.0, ramp 45 min, maximum 20.0 and
+minimum 4.0 all match its vendor report under this alignment, as the S.Box's
+8.0 / 15 min / 19.0 / 12.0 match its own.
 
-**Comfort Control Plus, 2 → 3.** CC+ currently reads Level 2 and byte 19 is
-`0x82`.
+**The Rêve's record continues past the twelve and the S.Box's does not.** Bytes
+21–25 are Rêve-only, and two of them are known: byte 21 is the CC+ level and
+byte 22 the humidifier level, both confirmed by controlled changes. **So the
+S.Box's word 10 is not the Rêve's CC+ byte** — the position that lines up with
+word 10 is the Rêve's byte 9, which is unassigned on both models. Anyone carrying
+the Rêve's `bits 7–6` reading across to that word will be wrong.
 
-| Byte 19 reads | Conclusion |
-|---|---|
-| **131** (`0x83`) | low nibble is the CC+ level, `0x80` is something else — most likely the heated tube |
-| **unchanged at 130** | the bit-field reading dies; byte 24 (= 3) is the next candidate |
+The S.Box does have both settings — its vendor report prints `Humidifier Level 2`
+and `Comfort Control Plus Level 3` — so they are stored somewhere on that model
+too, just not where this record puts them. Word 10 is the surviving candidate
+there; see the S.Box note. *(An earlier revision of this section said the S.Box
+"appears to have no humidifier". That was a guess from the record's shape and the
+report contradicts it.)*
 
-**On "Level 2" versus an on/off toggle.** The manual describes CC+ in two
-places — a *level* in the user menu and a *toggle* in the clinical menu — and
-those are not in conflict. The natural reading is a clinician enable plus a
-patient-selectable strength, which is exactly how ResMed EPR and Philips Flex
-are structured: an on/off and a 1–3 level, reported together. That would also
-explain a single byte carrying an enable bit and a small level field, which is
-what `0x82` looks like.
+> **Byte 21 is the S.Box's word 9, and byte 20 is a Rêve-only insertion.** The
+> field-by-field alignment above runs true through byte 19, then the Rêve carries
+> one extra byte — byte 20, reading 200 on every record, which is also this
+> card's maximum pressure and may simply be a repeat of it. Byte 21 is what
+> corresponds to the S.Box's word 9.
+>
+> This was got wrong once. An earlier revision counted byte 20 as word 9, found
+> its bit 0 clear where the Rêve's report says 15 mm, and recorded the circuit as
+> "does not transfer, unresolved". The mistake was the off-by-one, not the
+> encoding: byte 21 decodes to 15 mm and matches.
 
-If the device turns out to offer only on/off and the tester cannot set 3, that
-is still a result worth recording: it would mean SA's "Level 2" is not a CC+
-strength at all, and the whole byte 19 line of reasoning needs rethinking.
+Two things follow that the Rêve's data could never have given on its own:
 
-### Why the remaining comfort and accessory settings cannot be decoded
+1. **The field order is settled.** The Rêve has minimum pressure equal to its
+   ramp start pressure (both 4.0) and its ramp duration equal to its ramp echo
+   (both 45), so its own records cannot separate either pair. The S.Box's do,
+   across six vendor-printed snapshots in which minimum, maximum, ramp duration,
+   ramp mode and ramp start pressure all vary.
+2. **Byte 19 = 130 is a pressure, not a bit-field.** The S.Box vendor report
+   names it: apnoea response pressure, 13.0 cmH₂O. The `0x82` bit-field reading —
+   `0x80` tube present, `0x02` CC+ level 2 — is dead, and so is the byte 19
+   reference-pressure idea already rejected above. It was a plain number all
+   along.
 
-*(Written against the first card, before the humidifier was pinned. Everything
-below still holds for the four settings other than the humidifier.)*
+> **The obvious alignment is two positions off, and it very nearly stuck.**
+> Lining the Rêve's byte 11 up with the S.Box's *table* word 0 also matches the
+> 60, 60, 130 run and every pressure, because those sit at the same offset either
+> way. It fails only at the ends: it puts the mask leak in the previous slot's
+> last word, and it leaves the Rêve's humidifier byte sitting where the table's
+> mask leak would be. The block header settles it, since there the record is
+> stored in the Rêve's own order with nothing before or after to borrow from.
 
-The analyzer's full device-settings panel for this card reads:
+### Byte 14 bit 4 is the patient access lock
 
-| Setting | Value |
-|---|---|
-| Comfort Control Plus | Level 2 |
-| Patient Circuit | 15 mm |
-| Theoretical mask leak | 36 lpm |
-| Humidifier | Level 4 |
-| Heated tube | Present |
+Byte 14 holds the ramp mode plus flags, and its bit 4 is the **patient access
+lock** — set means the patient cannot change the ramp, Comfort Control Plus or
+Intelligent Start.
 
-**Every one of these is constant wherever a settings record exists**, so there is
-nothing to correlate against. Three consequences worth recording so they are not
-re-derived:
+Established on the S.Box, where the vendor software can toggle it directly: two
+`upload.dat` writes differing only in the "Editable by the patient" checkbox
+moved that model's ramp-mode byte from 8 to 24, which is bit 4 alone. The single
+checkbox governs all three settings at once, so the lock is one flag rather than
+the three the vendor manual's wording suggests.
 
-1. **No byte in code 2 holds 2, 15, 36 or 1.** The values present are 40, 45, 45,
-   31, 200, 40, 60, 60, 130, 200, 121, 4, 6, 3. So Comfort Control Plus level,
-   circuit diameter, mask leak and heated-tube presence are enum-coded,
-   bit-packed, scaled, or simply not in this record. Byte 22 = 4 was the *only*
-   byte matching any of the five, which was the whole basis for the humidifier
-   candidacy — a value coincidence at the time, since confirmed independently.
+It explains two values that had no explanation before:
 
-   **Searching for the printed value was the wrong instinct**, and it cost time
-   on the mask leak. The humidifier does store its level literally, but the mask
-   leak looks to be stored on the leak channel's own scale, so the question to
-   ask of a byte is not "does it equal the printed number" but "is there a scale
-   the card itself declares on which it would". For the mask leak that scale was
-   sitting in the `.INI` all along.
+- **The Rêve's own byte 14.** It reads 31 (`0x1F`, bit 4 set — locked) on every
+  record for a month, then 15 (`0x0F`, bit 4 clear — unlocked) on the last one,
+  which was written during the session where the clinical menu was being used.
+  Both values are the same ramp mode with the lock differing.
+- **The S.Box's "otherwise unseen mode value of 28"**, which appears only in one
+  card's factory slot. 28 is 12 (I.Ramp) with bit 4 set. Not a mode at all.
 
-2. **The one discriminating session is unusable.** The analyzer reports
+> **A superseded reading, recorded so it is not retried.** This section
+> previously offered a *factory-defaults or not-yet-modified-by-a-clinician*
+> marker, on the grounds that the bit survived a month of user-menu humidifier
+> changes and cleared on the first clinical-menu edit. That story fitted the
+> observations but was untestable on this device, and it is wrong: the S.Box
+> exercises the same bit in both directions on demand.
+
+**Byte 10 bit 7 is still unexplained.** It was set while the leak read 36 and
+cleared when it read 34, on the same record as the lock change, and nothing since
+has moved it. It is the last unattributed bit in the Rêve's settings record.
+
+
+### What is left, and why the remaining two are hard
+
+*(Written against the first card, when all five accessory settings were open.
+Three of the five have since been pinned by controlled changes — humidifier,
+mask leak, CC+ — and the argument below now applies only to the last two.)*
+
+The analyzer's full device-settings panel for the first card reads:
+
+| Setting | Value | Status |
+|---|---|---|
+| Comfort Control Plus | Level 2 | **byte 21 bits 7–6**, confirmed |
+| Theoretical mask leak | 36 lpm | **byte 10 bits 0–6**, confirmed |
+| Humidifier | Level 4 | **byte 22**, confirmed |
+| Patient Circuit | 15 mm | open — solved on the S.Box, does not transfer here |
+| Heated tube | Present | open — exists only in `upload.dat` on the S.Box |
+
+**Both survivors are two-state settings that have never varied**, so there is
+still nothing to correlate them against, and both would be a single bit. The
+unassigned candidates are bytes 9, 20, 23, 24 and the four low bits of byte 14.
+
+1. **The one discriminating session is unusable.** The analyzer reports
    `Heated tube = Missing` on exactly one session of 31 — and that session's
    `.LOG` contains **no code 2 and no code 13 record at all**. Its whole log is
    codes 28, 9, 10 and 7, every one of them zero-payload, and those codes also
    appear in 8–22 other sessions where the tube reads `Present`. So the single
    place where a setting differs carries no settings record to compare.
 
-3. **`Patient Circuit` and `Theoretical mask leak` do not appear in the
+2. **`Patient Circuit` and `Theoretical mask leak` do not appear in the
    analyzer's CSV export at all** — only CC+, humidifier and heated tube do.
-   That was once read as evidence they are not stored on the card. It is not:
-   the mask leak almost certainly *is* stored, as bytes 17/18 in the leak
-   channel's own 0.6 lpm counts — see "Theoretical mask leak — bytes 17/18"
-   above. Absence from the CSV says something about the analyzer's export, not
-   about the card.
+   That was once read as evidence they are not stored on the card, and the mask
+   leak has since been found sitting in byte 10. Absence from the CSV says
+   something about the analyzer's export, not about the card, so the same
+   inference should not be drawn about the patient circuit either.
 
-Tempting bit-level readings exist — byte 19 is `0x82`, which would decompose as
-`0x80` (tube present) `| 0x02` (CC+ level 2) — but with a single settings
-combination on the card any such reading is unfalsifiable. **Nothing here should
-be written into the loader until a card varies one of these fields.** Importing a
-setting off a lone byte-value match risks showing a user a setting their device
-does not have.
+**Searching for the printed value turned out to be the right instinct after
+all** — but only once the search covered the whole record. The humidifier stores
+its level literally in byte 22 and the mask leak stores its lpm literally in
+byte 10; what hid the second one for two cards was not a scale, it was reading
+bytes 9–10 as a log argument and never looking there. An earlier revision of this
+note drew the opposite lesson and told the reader to stop asking "does this byte
+equal the printed number". That advice was wrong, and it is what cost the time.
 
-The prescribed resolution — one night from the *same* device with a **single**
-setting changed, rather than a whole second card — was carried out for the
-humidifier and worked exactly as predicted. The same method is the way to settle
-the other four: see "Humidifier level — byte 22" above for what a clean result
-looks like.
+**Nothing should be written into the loader for the last two until a card varies
+one of them.** Importing a setting off a lone byte-value match risks showing a
+user a setting their device does not have. The method that settled the other
+three is unchanged: one night from the *same* device with a **single** setting
+changed. It has now worked three times out of three.
+
+> **On changing two settings at once.** The third card changed the mask leak and
+> CC+ together, against this note's own advice, and it still resolved — but only
+> because both fields moved in ways their own values identified, and it left two
+> stray bits that cannot be attributed to either change. That is exactly the cost
+> the warning predicted. One setting at a time remains the rule.
 
 ### Settings menu structure, from a vendor manual
 
@@ -705,30 +972,41 @@ What this does and does not settle:
    any further search for a literal diameter.
 4. ~~**Mask leak is configured over 20–60 lpm, and bytes 17 and 18 both hold
    exactly 60**, the top of that range, yet the analyzer prints 36 — unresolved.~~
-   **Superseded.** The clash was an artefact of assuming the byte was in lpm.
-   Read in the leak channel's own 0.6 lpm counts, 60 counts *is* 36.0 lpm.
-   See "Theoretical mask leak — bytes 17/18".
-5. **Byte 21 = 121 → 12.1 cmH₂O** falls inside the documented 4–20 fixed-pressure
-   range, making it a candidate for the CPAP **Pressure Level** — a setting that
-   is inactive in A-PAP, which is consistent with the analyzer printing
-   `Prescribed pressure = -` on every session. Untested.
-6. **Ramp type has three states and mode two**, so both are small enums. Byte 24
-   = 3 and code 13 byte 13 = 3 are the candidates, though neither is a natural
-   index for "I RAMP".
-7. **Patient access lock covers three toggles**, so a small bitmask exists
-   somewhere. Byte 14 = 31 (`0x1F`, five low bits set) is the most flags-like
-   byte in the record, and the second card shows it is also the only byte other
-   than 22 and 23 that ever varies — it drops to 29 (`0x1D`) on one night.
-8. **Two documented features have never been seen in any card data:** Intelligent
-   Start and the patient access lock.
+   ~~**Superseded.** Read in the leak channel's own 0.6 lpm counts, 60 counts
+   *is* 36.0 lpm.~~ **Both readings were wrong.** The mask leak is byte 10, in
+   plain lpm; bytes 17 and 18 are an unrelated constant that the S.Box holds too.
+   The documented 20–60 lpm range in steps of 2 is what byte 10 actually carries.
+5. ~~**Byte 21 = 121 → 12.1 cmH₂O** is a candidate for the CPAP Pressure Level.~~
+   **Dead.** Byte 21 is the CC+ level in bits 7–6; its low six bits held `0x39`
+   across a change of level and are not a pressure. The device has no fixed
+   pressure to store in A-PAP anyway, which is why the analyzer prints
+   `Prescribed pressure = -`.
+6. **Ramp type has three states and mode two**, so both are small enums. Byte 14
+   carries the ramp mode — the S.Box uses 8 for T.Ramp and 12 for I.Ramp in the
+   same field — so byte 24 = 3 is no longer needed to explain it.
+7. ~~**Patient access lock covers three toggles**, so a small bitmask exists
+   somewhere.~~ **RESOLVED: byte 14 bit 4**, and it is **one** toggle, not three
+   — the vendor software's single checkbox governs the ramp, CC+ and Intelligent
+   Start together. See "Byte 14 bit 4 is the patient access lock". Byte 14's bit 1,
+   which drops on two isolated nights, is still unexplained.
+8. **Intelligent Start has never been seen in any card data.**
 9. **CC+ appears as a toggle in the clinical menu and as a level in the user
    menu**, which reads at first like a contradiction with the analyzer's
-   "Level 2". It is not. A clinician enable plus a patient-selectable strength
-   is the same structure as ResMed EPR and Philips Flex, and it is what a byte
-   like `0x82` — one high bit set, a small value in the low bits — would look
-   like. Unconfirmed, but it is the reading to test first.
+   "Level 2". It is not, and the level half is now confirmed in byte 21 bits 7–6.
+   The clinician enable, if it is stored separately at all, has not been found —
+   ~~the `0x82` byte 19 reading~~ is dead, byte 19 being the apnoea response
+   pressure. A clinician enable plus a patient-selectable strength remains the
+   right model; only the enable is still missing.
 
-## `.RAM` / `.BKP` — encrypted, not readable
+## `.RAM` / `.BKP` — encrypted, not readable **on this model**
+
+The S.Box writes the same two files **unencrypted**, and its therapy settings
+turned out to live in them as a 12-slot table of 24-byte records — see
+`SEFAM_SBOX_CARD_ANALYSIS.md`. That table is not present in the Rêve's images
+(searched for its known minimum/maximum pressure pair in every plausible width
+and order), which is consistent with the encryption below rather than with the
+structure being absent. Nothing here contradicts what follows; it just means the
+files are worth attacking, not ignoring.
 
 Both 1,633,228 bytes. The first 74 bytes are structured cleartext (`4c 00 00 01`,
 then a uint32 LE timestamp at offset 4, then a fixed block); everything after is
@@ -757,17 +1035,27 @@ sessions, not merely inferred from the card:
 | Apnea durations | 16.5 / 12.8 s decoded vs 17 / 13 s reported |
 | `PRE` × 0.1 cmH₂O | mean pressure matches report on **30 of 31 sessions within ±0.17 cmH₂O**, most within ±0.05 |
 | Total recorded time | 159.0 h decoded vs "operating time 159 h 18" reported |
-| Therapy settings | min/max pressure, ramp time and ramp pressure all recovered from log code 2 |
+| Therapy settings | min/max pressure, ramp time and ramp pressure all recovered from log code 2 (field *order* within the record was later fixed against the S.Box table) |
 | Mask-disconnect seconds | `LK`==255 matches exactly where disconnects are long (412 s session: 412 decoded) |
 
 The one session where mean pressure differs (−1.08 cmH₂O) is the 20-minute
 session that was 23 % mask-disconnected — the analyzer excludes disconnected
 time from the average, so the disagreement is expected and explains itself.
 
-One further field, **humidifier level**, was confirmed by a different method: a
-second card from the same device with only that setting changed. No analyzer
-output exists for the second card, so the confirmation rests on the controlled
-change rather than on a printed report — see "Humidifier level — byte 22".
+Three further fields were confirmed by a different method: later cards from the
+same device with a known setting changed and no analyzer output to check against,
+so the confirmation rests on the controlled change rather than on a printed
+report.
+
+| Field | Byte | Change | Result |
+|---|---|---|---|
+| Humidifier level | 22 | 4 → 5 | one byte moved, 4 → 5 |
+| Theoretical mask leak | 10, bits 0–6 | 36 → 34 lpm | 36 → 34, and bytes 17/18 refuted |
+| Comfort Control Plus | 21, bits 7–6 | level 2 → 3 | field 1 → 2, and the pressure trace agrees |
+
+The CC+ result carries an independent physical check that the other two do not:
+the measured expiratory pressure relief rose past the range of all 34 preceding
+nights while flow amplitude and leak stayed put. See its section.
 
 ## Open problems
 
@@ -789,15 +1077,21 @@ change rather than on a printed report — see "Humidifier level — byte 22".
    entirely. Status of the five:
    - ~~Humidifier level~~ **RESOLVED: byte 22**, confirmed by a controlled
      single-setting change.
-   - **Theoretical mask leak: bytes 17/18**, strong candidate — 60 counts on the
-     leak channel's declared 0.6 lpm scale is exactly the printed 36.0 lpm.
-     Predicts byte 17/18 = 50 if the setting is changed to 30 lpm.
-   - **Comfort Control Plus level, patient circuit, heated tube** remain
-     unassigned. No byte holds 2, 15 or 1, so they are enum, bit-packed, scaled
-     or absent.
+   - ~~Theoretical mask leak~~ **RESOLVED: byte 10, bits 0–6, in plain lpm**,
+     confirmed by a controlled 36 → 34 change. The bytes 17/18 candidacy is
+     **refuted** — neither byte moved.
+   - ~~Comfort Control Plus level~~ **RESOLVED: byte 21, bits 7–6**, level =
+     field + 1, confirmed by a controlled 2 → 3 change and visible in the
+     pressure trace as 0.26 cmH₂O of extra expiratory relief.
+   - **Patient circuit and heated tube** remain unassigned. Both are two-state,
+     neither has ever varied, and no byte holds 15, 22 or 1.
 
-   A controlled single-setting change settles each of these; see "Why the
-   remaining comfort and accessory settings cannot be decoded".
+   A controlled single-setting change settles each of these; see "What is left,
+   and why the remaining two are hard".
+9. **Byte 10 bit 7** cleared on the same record as the mask-leak and CC+ changes
+   and belongs to neither setting's value. It is the last unattributed bit in the
+   record. *(Byte 14 bit 4, once paired with it here, is the patient access
+   lock — see its section.)*
 5. ~~**Report "Average leaks"**~~ **RESOLVED.** The analyzer reports
    *unintentional* leak in **L/s**: its 0.06 / 0.05 / 0.03 for three sample
    sessions are 3.6 / 3.0 / 1.8 L/min, against OSCAR's derived `CPAP_Leak` of
@@ -812,26 +1106,16 @@ change rather than on a printed report — see "Humidifier level — byte 22".
 ## What would still help
 
 - **One night with a single setting changed** — still the cheapest and most
-  useful next artefact, and it does not need a different device. This is how
-  byte 22 was settled: the humidifier moved 4 → 5 and exactly one byte moved
-  4 → 5. Changing several settings at once is much less informative, because
-  several unassigned bytes hold plausible values.
-  **Comfort Control Plus is the best probe reachable without clinician access**,
-  and it comes with a prediction: CC+ is at Level 2 and byte 19 is `0x82`, so if
-  the low nibble is the level, byte 19 should read 129 (`0x81`) at Level 1 or
-  131 (`0x83`) at Level 3. If it does not move, that bit-field reading dies and
-  byte 24 (= 3) is next. Ask for a one-step change, 1 or 3, to keep it
-  unambiguous.
-  Note that a settings record has to actually appear afterwards — four nights
-  on the second card carry none at all — so the card should be pulled a night
-  or two after the change, not the same morning.
-- **Requested 2026-08-06 and pending:** a card with mask leak changed 36 → 34 lpm
-  and CC+ changed 2 → 3. Expected byte values are written down in advance under
-  "Pre-registered predictions for a third card" — read that *before* looking at
-  the card.
-- **Circuit select switched between 15 mm and 22 mm** would locate a two-state
-  field that cannot be found by value matching, since neither diameter is stored
-  literally.
+  useful next artefact, and it does not need a different device. It has now
+  settled three fields out of three attempts. Note that a settings record has to
+  actually appear afterwards — four nights on the second card carry none at all —
+  so the card should be pulled a night or two after the change, not the same
+  morning.
+- **Circuit select switched between 15 mm and 22 mm**, and **the heated tube
+  disconnected for one night**, are the two probes left. Both are two-state, so
+  neither can be found by value matching, and both need a controlled change to
+  locate at all. The candidate bits are byte 14's four low bits, and bytes 9, 20,
+  23 and 24. Change one, not both.
 - **A card in fixed-CPAP mode** — would confirm the mode encoding (only `A-PAP`
   has ever been seen) and show which log codes change.
 - A card whose report shows **non-zero "No breath"** events, to identify code 10.

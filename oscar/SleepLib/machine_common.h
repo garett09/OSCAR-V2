@@ -157,15 +157,41 @@ struct MachineInfo {
 enum MCDataType
 { MC_bool = 0, MC_int, MC_long, MC_float, MC_double, MC_string, MC_datetime };
 
-extern ChannelID AllAhiChannels;
+/*! \name AHI channel-group sentinels
+    Pseudo channel IDs accepted by Day::count(), Day::sum(), Session::count() and
+    Session::rangeCount(). Passing one of them totals every channel in the matching
+    group instead of looking up a single channel. The values sit above the highest
+    real channel ID so they can never collide with one.
+    @{ */
+extern ChannelID AllAhiChannels;    //!< Every AHI-contributing channel
+extern ChannelID AllOahiChannels;   //!< The obstructive share of the AHI channels
+extern ChannelID AllCahiChannels;   //!< The central share of the AHI channels
+/*! @} */
+
+/*! \name AHI channel groups
+    Filled in by schema::init(). \ref cahiChannels holds the centrally scored events;
+    \ref oahiChannels is \ref ahiChannels minus \ref cahiChannels, so OAHI + CAHI == AHI
+    holds automatically however the AHI list grows.
+    @{ */
 extern QVector<ChannelID> ahiChannels;
+extern QVector<ChannelID> oahiChannels;
+extern QVector<ChannelID> cahiChannels;
+/*! @} */
+
+/*! \brief Resolves an AHI channel-group sentinel to its channel list
+    \param id A channel ID, which may or may not be one of the group sentinels
+    \return The matching channel list, or nullptr if \a id is an ordinary channel
+
+    Lets the four count/sum entry points share one dispatch rather than each
+    growing a branch per sentinel. */
+const QVector<ChannelID> * ahiChannelGroup(ChannelID id);
 
 extern ChannelID NoChannel, SESSION_ENABLED, CPAP_SummaryOnly;
 extern ChannelID CPAP_IPAP, CPAP_IPAPLo, CPAP_IPAPHi, CPAP_EPAP, CPAP_EPAPLo, CPAP_EPAPHi, CPAP_EEPAP, CPAP_EEPAPLo, CPAP_EEPAPHi,
        CPAP_Pressure, CPAP_PS, CPAP_PSMin, CPAP_PSMax,
        CPAP_Mode, CPAP_AHI,
        CPAP_PressureMin, CPAP_PressureMax, CPAP_Ramp, CPAP_RampTime, CPAP_RampPressure, CPAP_Obstructive,
-       CPAP_Hypopnea, CPAP_AllApnea,
+       CPAP_Hypopnea, CPAP_ObstructiveHypopnea, CPAP_CentralHypopnea, CPAP_AllApnea,
        CPAP_ClearAirway, CPAP_Apnea, CPAP_PB, CPAP_CSR, CPAP_LeakFlag, CPAP_ExP, CPAP_NRI, CPAP_VSnore,
        CPAP_VSnore2,
        CPAP_RERA, CPAP_PressurePulse, CPAP_FlowLimit, CPAP_SensAwake, CPAP_FlowRate, CPAP_MaskPressure,

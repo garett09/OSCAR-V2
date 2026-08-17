@@ -20,19 +20,49 @@ const int sefam_data_version = 1;
 
 const QString sefam_class_name = "SefamLoader";
 
-//! The one model validated end-to-end against a manufacturer report.
-const QString sefam_validated_model = "1279R";
+/*! \brief Has this hardware model code been validated well enough not to warn?
 
-//! Humidifier level, the one accessory setting decoded from the card.
-extern ChannelID SEFAM_HumidLevel;
+    Model codes are hardware family identifiers, not product names: the Rêve Auto
+    reports "1279R" and the S.Box AUTO has been seen as both "1200R" and "1263R".
+
+    - 1279R — Rêve Auto, reconciled against a manufacturer report over 31
+      sessions: event taxonomy, indices, pressures and settings.
+    - 1200R — S.Box AUTO, reconciled against a manufacturer report over 6 days:
+      event counts per type, operating time and the full settings history.
+    - 1263R — S.Box AUTO. No manufacturer report exists for it, so it rides on
+      1200R's validation: same product name, same firmware version and the same
+      card layout. Its decoded pressure settings were separately checked against
+      the pressure the device actually delivered.
+
+    Anything else still warns, which is the point — the loader accepts any card
+    matching the directory pattern, so an unrecognised model code means a device
+    nobody has checked. */
+inline bool sefamModelIsValidated(const QString &modelCode)
+{
+    return modelCode == QLatin1String("1279R")
+        || modelCode == QLatin1String("1200R")
+        || modelCode == QLatin1String("1263R");
+}
+
+/*! \name SEFAM accessory settings
+    The three settings decoded from the card's log settings record. Each was
+    pinned by a controlled single-setting change on a card from the same device;
+    see Notes/loaders/SEFAM_REVE_CARD_ANALYSIS.md. Patient circuit and heated
+    tube are the two the analyzer prints that remain undecoded.
+    @{ */
+extern ChannelID SEFAM_HumidLevel;    //!< Humidifier level, 0 = off.
+extern ChannelID SEFAM_MaskLeakSet;   //!< Theoretical mask leak at 12 cmH2O, l/min.
+extern ChannelID SEFAM_ComfortLevel;  //!< Comfort Control Plus level.
+extern ChannelID SEFAM_Circuit;       //!< Patient circuit diameter in mm. S.Box only.
+/*! @} */
 
 /*! \class SefamLoader
     \brief Imports SEFAM CPAP SD cards.
 
     Any card matching <digits><letter>/<digits>/DATA_nnn/ is accepted. Sample
     rates and channel names come from each session's .INI, and header length is
-    detected rather than assumed, so models other than the validated one import
-    on a best-effort basis and raise deviceIsUntested(). */
+    detected rather than assumed, so model codes outside sefamModelIsValidated()
+    import on a best-effort basis and raise deviceIsUntested(). */
 class SefamLoader : public CPAPLoader
 {
     Q_OBJECT

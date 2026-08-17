@@ -3,7 +3,7 @@
 **Status:** Reverse-engineered; not vendor-documented.
 **Scope:** `<serial>.000`, `.001`, ... waveform files produced by BMC G3X devices.
 **Implementation:** `oscar/SleepLib/loader_plugins/bmcG3xDataParsing.cpp`
-**Last updated:** 2026-05-23
+**Last updated:** 2026-08-12 (tidal volume / minute ventilation scale confirmed; per-breath update cadence)
 
 ---
 
@@ -46,9 +46,9 @@ Confidence legend:
 | `0x380` | `50×2` | `uint16 LE[]` | **Pressure Wave** waveform, 50 samples at 50 Hz; loaded as `BMC_PressureWave`. Like `0x24A`, shows full IPAP–EPAP swing on BiPAP devices (e.g. 887–1022 raw on a 9/10 cmH₂O device). | Medium |
 | `0x3E4` | `50×2` | `uint16 LE[]` | **Raw differential-pressure (flow sensor) ADC output**, 50 samples; uint16 with DC bias ~16 000 (sensor mid-rail); AC amplitude scales with flow (r=0.985 per-packet vs flow, r=0.157 vs PressureWave); DC offset drifts slowly over the night tracking sleep/pressure state. Packet-to-packet correlation with `0x312` is 0.979 (slightly lower than vs flow), with per-packet differences std=319 and max=5079 — two tap points or calibration paths for the same sensor. **Not** a flow-abnormality block: investigated as a possible analogue of the legacy BMC loader's flow-abnormality block (which immediately follows the Pressure Wave in that format — same relative offset relationship), but confirmed to be a flow waveform, not event flags. Not loaded. | Low |
 | `0x52A` | 2 | `uint16 LE` | **Unintentional leak rate** (firmware SC.72 / user version G3-2.11.x only); `raw × 0.16 = L/min`. Confirmed for JCCPAP (Luna G3X, config `110A40113`). **Zero (unused) in firmware SC.74+** (e.g. Kavolodin G3 A20, config `880A40383`). OSCAR selects 0x52A or 0x568 automatically by sampling the first 200 packets of each day. See also `0x568`. | Medium |
-| `0x52C` | 2 | `uint16 LE` | **Tidal Volume**, raw units; range 0–2559 observed | Low |
-| `0x52E` | 2 | `uint16 LE` | **Minute Ventilation**, raw units | Low |
-| `0x530` | 2 | `uint16 LE` | **Respiratory Rate**, breaths/min; range 0–29 bpm observed, mean ~15 | Medium |
+| `0x52C` | 2 | `uint16 LE` | **Tidal Volume in millilitres**, gain 1.0; range 0–2559 observed. Updated once per breath (see §5a). Scale confirmed 2026-08-12 against `0x52E`/`0x530` — see §5a. | High |
+| `0x52E` | 2 | `uint16 LE` | **Minute Ventilation in tenths of L/min**, gain 0.1. Equals a 60-second moving average of `0x52C × 0x530 / 100`. Scale confirmed 2026-08-12 — see §5a. | High |
+| `0x530` | 2 | `uint16 LE` | **Respiratory Rate**, breaths/min; range 0–29 bpm observed, mean ~15 | High |
 | `0x538` | 2 | `uint16 LE` | Oscillating counter; range [0, 20 000] in steps of ~400; period ≈ 10–12 s; not correlated with pressure, leak, or flow. Likely a machine-internal timing or state counter. | Low |
 | `0x53E` | 2 | `uint16 LE` | Six discrete values {5400, 5520, 5640, 5760, 5880, 6000} in steps of 120; slowly varying. Possibly a pressure setpoint or algorithm scalar in hundredths cmH₂O (range 54–60 cmH₂O is above normal therapy range, suggesting an internal machine parameter rather than a displayed value). | Low |
 | `0x544` | 2 | `uint16 LE` | Breath-phase indicator; four values {0, 3, 1020, 1023} only; non-zero ≈ 57% of packets. Likely encodes inspiration/expiration phase or a related breath-cycle state machine. | Low |
@@ -137,8 +137,8 @@ The following single-value fields are read from every packet and stored as `EVL_
 | `CPAP_IPAP` | `0x76E` | See §6 | Same as `CPAP_Pressure` |
 | `CPAP_EPAP` | `0x76C` | See §6 | Identical to IPAP in CPAP mode |
 | `CPAP_Leak` | `0x52A` or `0x568` | `uint16 LE` × 1.6 = tenths L/min; gain 0.1 → L/min | Offset selected at runtime by Phase 3.5 probe: 0x52A for fw SC.72, 0x568 for fw SC.74+. See §5. |
-| `CPAP_TidalVolume` | `0x52C` | `uint16 LE`, gain 1.0 | Scale TBD |
-| `CPAP_MinuteVent` | `0x52E` | `uint16 LE` × 0.1 | Scale TBD |
+| `CPAP_TidalVolume` | `0x52C` | `uint16 LE`, gain 1.0 | Millilitres; confirmed 2026-08-12 (§5a). Current gain is correct. |
+| `CPAP_MinuteVent` | `0x52E` | `uint16 LE` × 0.1 | L/min; confirmed 2026-08-12 (§5a). Current gain is correct. |
 | `CPAP_RespRate` | `0x530` | `uint16 LE`, gain 1.0 | Breaths/min |
 | `OXI_SPO2` | `0x08A` | `uint8`, gain 1.0 | %; stored 0 = no data (skipped) |
 | `OXI_Pulse` | `0x08C` | `uint8`, gain 1.0 | BPM; stored 0 = no data (skipped) |
@@ -175,6 +175,112 @@ The scale factor can be overridden via the environment variable `OSCAR_BMC_G3X_L
 In OSCAR the `CPAP_Leak` EventList uses gain `0.1`, so the stored raw value is in tenths of L/min (gain × stored = displayed L/min).
 
 The `.evt` file's `0x0C` records were examined as an alternative leak source and were found **not** to match the BMC leak display.
+
+---
+
+## 5a) Tidal Volume / Minute Ventilation / Respiratory Rate Scale
+
+Confirmed 2026-08-12 on the E5-platform reference cards (53 day-records,
+982 063 waveform packets), prompted by a contributor's observation that the
+per-breath `.evt` `0x0C`/`0x0D` records trace a curve resembling tidal volume.
+
+### Vendor-confirmed against PAP-Link
+
+PAP-Link plots of Monitored Tidal Volume (mL), Minute Ventilation (L/min) and
+Respiratory Rate (BPM) were compared against the raw fields over the same window.
+At a zoom level where PAP-Link prints the value under the cursor, the readout is
+**byte-exact against the raw uint16 — no rounding, offset or derived quantity**:
+
+| Channel | Field | Raw at that second | PAP-Link readout |
+|---|---|---|---|
+| Monitored Tidal Volume | `0x52C` | 596 | `596.0` mL |
+| Minute Ventilation | `0x52E` | 189 | `18.9` L/min |
+| Respiratory Rate | `0x530` | 24 | `24.0` BPM |
+
+The minute-ventilation case is the decisive one: 189 displays as 18.9, not 19.0,
+which fixes the gain at exactly 0.1 rather than any nearby value. Six further
+features across a 42-minute window agree — peaks of 1188/260/27 raw against
+plotted ~1150 mL / ~25 L/min / ~26 BPM, a later spike of 1069/84 against
+~1050 mL / ~7.5 L/min, and a settled 19-minute stretch at 178/30/17 raw against
+~150–200 mL / ~3 L/min / ~17 BPM.
+
+So `0x52C` is millilitres read directly (gain 1.0), `0x52E` is tenths of L/min
+(gain 0.1) and `0x530` is BPM (gain 1.0) — exactly what `bmc_loader.cpp` already
+applies when it creates `CPAP_TidalVolume`, `CPAP_MinuteVent` and `CPAP_RespRate`.
+The finding retires open question 1 without changing any behaviour.
+
+### All three are per-breath values, refreshed together
+
+The packet stream is 1 Hz, but these three fields are **per-breath measurements
+held constant across the packets spanning each breath**. Card-wide (371 359
+packets):
+
+- `0x52C` holds its value for a median of 3.0 s and a mean of 3.19 s (68% of holds
+  are exactly 3 packets, 15% are 2, 12% are 4). The card's median respiratory rate
+  is 19 BPM, a breath period of 3.16 s.
+- `0x52E` changes **only** at instants where `0x52C` also changes — 830 exceptions
+  in 60 909 changes. It is refreshed on the same per-breath tick and simply lands
+  on the same tenth of a litre for consecutive breaths about half the time.
+- Cross-checked against the `.evt` stream on the reference night, `0x52C` changes
+  7 782 times against 7 982 `0x0C` inspiration records: **0.97 updates per breath**,
+  landing a median 1.33 s after the `0x0D` that closes the breath.
+
+### Minute ventilation is *not* computed from the other two
+
+`0x52E ≈ 0x52C × 0x530 / 100` holds well in settled breathing, but that is the
+physical definition of minute ventilation, **not the arithmetic the device
+performs**. At session start the two fields go live at different times:
+
+| Observation | Result (49 session starts) |
+|---|---|
+| `0x52E` live in the same packet as `0x52C` | **49 / 49** |
+| `0x530` live strictly later than `0x52E` | **49 / 49** |
+| `0x530` lag behind `0x52C` | 5–10 s, median **7 s** |
+
+For those seconds the device reports a real minute ventilation while the rate
+field still reads zero — 2 255 packets card-wide, median 10.0 L/min and up to
+58.9 L/min, every one of which would compute to 0.0 from `TV × RR / 100`. The
+rate estimator needs roughly two breaths before it will publish; ventilation is
+available immediately, so it is derived independently of the reported rate
+(flow integration over a trailing window being the obvious candidate).
+
+**Do not recompute any one of these fields from the other two.** The relation is
+useful for reasoning about them and for sanity-checking a decode, nothing more.
+
+### How closely the relation does hold
+
+Treating `0x52E` as a moving average of `0x52C × 0x530 / 100`, the best-fitting
+window is about 60 seconds:
+
+| Averaging window | median `MV / (TV·RR/100)` | within ±5% |
+|---|---|---|
+| 1 s (no smoothing) | 1.0201 | 36.4% |
+| 30 s | 1.0133 | 61.3% |
+| **60 s** | **1.0102** | **86.4%** |
+| 120 s | 1.0098 | 66.3% |
+| 300 s | 1.0070 | 56.5% |
+
+The window is a clean optimum at 60 s, which is what "minute ventilation" should
+be. Across every one of the 53 day-records the median ratio lands between 1.0055
+and 1.0145 — a systematic +1% that is the same on every night. It also holds on
+the one short awake recording where the values sit far outside the normal range
+(TV 640, RR 27, MV 184; ratio 1.0094), which rules out a coincidence of the
+resting distribution.
+
+In settled breathing the 60-second box filter is near-exact — spot ratios of
+1.029, 0.989, 0.937 and 1.008 at four points in the PAP-Link window. Through a
+mask-on transient, where tidal volume swings 27–721 mL and rate 9–20 BPM second to
+second, it scatters between 0.72 and 1.64 while the reported minute ventilation
+decays smoothly from 26 to 3 L/min. Given the startup evidence above, that
+divergence is expected: the box filter is a description of where two independently
+derived signals happen to agree, not a reconstruction of either.
+
+### `0x52C` is not an average of the `.evt` breath records
+
+Smoothing the per-breath `.evt` `0x0C`/`0x0D` `value2` series over 3–45 breaths
+*lowers* its correlation with `0x52C` monotonically (r 0.845 → 0.641), so the
+waveform field is an instantaneous per-breath measurement rather than a rolling
+mean of the event stream. See `BMC_G3X_EVT_FORMAT.md` §3b.
 
 ---
 
@@ -232,7 +338,7 @@ BMC firmware writes the same `uint16` value into two consecutive `uint16` slots 
 
 ## 9) Known Open Questions
 
-1. Confirmed scale factors for Tidal Volume (`0x52C`) and Minute Ventilation (`0x52E`) — units/gain not yet validated against BMC display.
+1. ~~Confirmed scale factors for Tidal Volume (`0x52C`) and Minute Ventilation (`0x52E`)~~ — **answered 2026-08-12** (§5a), byte-exact against a PAP-Link cursor readout: `0x52C` is millilitres and `0x52E` is tenths of L/min. OSCAR's existing gains (1.0 and 0.1) are correct. What remains unknown is how `0x52E` is derived — it is independent of the reported rate field (it goes live 5–10 s before it), and tracks a ~60 s average of `0x52C × 0x530 / 100` only because that is what minute ventilation physically is.
 2. Semantic meaning of `0x546` (range 512–1023, bounded counter or bitfield?).
 3. Whether any additional paired `uint16` instances exist beyond `0x76C`/`0x76E`.
 4. Whether `0x76C`/`0x76E` represent titrated target pressure, smoothed actual pressure, or something else.

@@ -16,6 +16,7 @@
 #include <QVariant>
 #include <QDateTime>
 #include <QDebug>
+#include <QDir>
 
 /*
  * Constructor
@@ -783,25 +784,23 @@ int ProfileRepository::count()
  *   Input:  "%PROFDIR%/John"
  *   Base:   "C:/Users/Guy/Documents/OSCAR20_Data/Profiles"
  *   Output: "C:/Users/Guy/Documents/OSCAR20_Data/Profiles/John"
+ *
+ * Normalisation is delegated to QDir::cleanPath(), which converts native
+ * separators to '/' and collapses redundant slashes while preserving the
+ * leading "//" of a UNC path on platforms that support them.  A data folder
+ * on a Windows network share resolves to "//server/share/...", and stripping
+ * that second leading slash would leave a path that cannot be opened.
  */
 QString ProfileRepository::resolvePath(const QString& portablePath, const QString& profilesBasePath)
 {
     QString resolved = portablePath;
-    
+
     // Replace %PROFDIR% with actual base path
     if (resolved.contains("%PROFDIR%")) {
         resolved.replace("%PROFDIR%", profilesBasePath);
     }
-    
-    // Normalize path separators
-    resolved.replace("\\", "/");
-    
-    // Remove duplicate slashes
-    while (resolved.contains("//")) {
-        resolved.replace("//", "/");
-    }
-    
-    return resolved;
+
+    return QDir::cleanPath(resolved);
 }
 
 /*

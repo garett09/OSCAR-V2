@@ -8,6 +8,8 @@
    <layer name="Obstructive" func="data" type="bar">
    <layer name="Apnea" func="data" type="bar">
    <layer name="Hypopnea" func="data" type="bar">
+   <layer name="ObstructiveHypopnea" func="data" type="bar">
+   <layer name="CentralHypopnea" func="data" type="bar">
    <layer name="FlowLimit" func="data" type="bar">
    <layer name="RERA" func="data" type="bar">
    <layer name="VSnore" func="data" type="bar">
@@ -19,6 +21,8 @@
   <layer type="waveform" data="FlowRate"/>
   <layer type="overlay" data="Obstructive" visual="bar"/>
   <layer type="overlay" data="Hypopnea" visual="bar"/>
+  <layer type="overlay" data="ObstructiveHypopnea" visual="bar"/>
+  <layer type="overlay" data="CentralHypopnea" visual="bar"/>
   <layer type="overlay" data="Apnea" visual="bar"/>
   <layer type="overlay" data="ClearAirway" visual="bar"/>
   <layer type="overlay" data="FlowLimit" visual="bar"/>
@@ -29,6 +33,8 @@
  <Graph name="AHI" group="Overview">
   <layer type="barchart">
    <slice name="Hypopnea" func="cph">
+   <slice name="ObstructiveHypopnea" func="cph">
+   <slice name="CentralHypopnea" func="cph">
    <slice name="Apnea" func="cph">
    <slice name="Obstructive" func="cph">
    <slice name="ClearAirway" func="cph">

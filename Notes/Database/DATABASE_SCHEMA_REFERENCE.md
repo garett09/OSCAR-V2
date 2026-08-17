@@ -1,13 +1,13 @@
 # OSCAR Database Schema Reference
-**Version:** Schema Version 16
-**Last Updated:** 2026 Q2
+**Version:** Schema Version 19
+**Last Updated:** 2026 Q3
 **Database Type:** SQLite
 
 ---
 
 ## Overview
 
-The OSCAR database uses SQLite to store user profiles, machine configurations, session data, and preferences. This document provides a complete reference for all tables, fields, and relationships in schema version 16.
+The OSCAR database uses SQLite to store user profiles, machine configurations, session data, and preferences. This document provides a complete reference for all tables, fields, and relationships in schema version 19.
 
 **Key Design Principles:**
 - **Profile-centric**: All data organized around user profiles
@@ -43,6 +43,8 @@ The OSCAR database uses SQLite to store user profiles, machine configurations, s
 | 14 | 2026 Q2 | 🗄️ **FILE-TO-DB MIGRATION**: Added `app_preferences` table (replaces Preferences.xml); added `graph_layouts` table (replaces layoutSettings/*.shg and per-profile daily.shg/overview.shg); added `blob_value BLOB` column to `profile_preferences`. Legacy files imported once on first launch then deleted. |
 | 15 | 2026 Q2 | 🧹 **CLEANUP**: Dropped `dst_enabled` column from `user_info` (stored but never read); deleted orphaned `DST` rows from `profile_preferences`. |
 | 16 | 2026 Q2 | 🔧 **DESIGN FIX**: Dropped `machine_id` column, its FK to `machines`, and `idx_daily_summaries_profile_machine` from `daily_summaries`. Natural key is now `(profile_id, date)`. Each row is a profile-day rollup that already aggregates across all machines for that date — the per-machine dimension was a design mistake never used by callers. |
+| 17 | 2026 Q3 | 🕐 **NEW FEATURE**: Added `device_time_corrections` table for per-device per-night time corrections (timezone, travel, dst, reset, offset, drift). |
+| 18 | 2026 Q3 | 📊 **NEW FEATURE**: Central / Obstructive hypopnea split. Added `obstructive_hypopnea_count`, `central_hypopnea_count`, `all_apnea_count` (INTEGER) and `oahi`, `cahi` (REAL) to both `session_summaries` and `daily_summaries`. `all_apnea_count` closes a pre-existing gap — `CPAP_AllApnea` contributes to AHI but was never stored, so SQL sums could not reproduce the app's AHI for devices reporting an undifferentiated apnea. Purely additive; pre-v18 rows read 0 in all five columns and are **not** backfilled. |
 
 ---
 
@@ -293,11 +295,16 @@ CREATE TABLE session_summaries (
     profile_id INTEGER NOT NULL,
     ahi REAL DEFAULT 0,
     rdi REAL DEFAULT 0,
+    oahi REAL DEFAULT 0,
+    cahi REAL DEFAULT 0,
     obstructive_count INTEGER DEFAULT 0,
     unclassified_count INTEGER DEFAULT 0,
     hypopnea_count INTEGER DEFAULT 0,
     rera_count INTEGER DEFAULT 0,
     clear_airway_count INTEGER DEFAULT 0,
+    obstructive_hypopnea_count INTEGER DEFAULT 0,
+    central_hypopnea_count INTEGER DEFAULT 0,
+    all_apnea_count INTEGER DEFAULT 0,
     pressure_avg REAL,
     pressure_min REAL,
     pressure_max REAL,
@@ -395,11 +402,16 @@ CREATE TABLE daily_summaries (
 
     ahi REAL DEFAULT 0,
     rdi REAL DEFAULT 0,
+    oahi REAL DEFAULT 0,
+    cahi REAL DEFAULT 0,
     obstructive_count INTEGER DEFAULT 0,
     unclassified_count INTEGER DEFAULT 0,
     hypopnea_count INTEGER DEFAULT 0,
     rera_count INTEGER DEFAULT 0,
     clear_airway_count INTEGER DEFAULT 0,
+    obstructive_hypopnea_count INTEGER DEFAULT 0,
+    central_hypopnea_count INTEGER DEFAULT 0,
+    all_apnea_count INTEGER DEFAULT 0,
 
     pressure_avg REAL,
     pressure_min REAL,
@@ -791,11 +803,16 @@ Re-import is required to repair pre-fix rows; the discontinuity is accepted.
 | profile_id | INTEGER | FK | NO | → profiles(id) (denormalized, NEW IN v12) |
 | ahi | REAL | | NO | Apnea-Hypopnea Index |
 | rdi | REAL | | NO | Respiratory Disturbance Index |
+| oahi | REAL | | NO | Obstructive AHI (added in v18); oahi + cahi = ahi |
+| cahi | REAL | | NO | Central AHI (added in v18) |
 | obstructive_count | INTEGER | | NO | OA count |
 | unclassified_count | INTEGER | | NO | UA count (renamed from central_count in v10) |
-| hypopnea_count | INTEGER | | NO | H Hypopnea count |
+| hypopnea_count | INTEGER | | NO | H Hypopnea count (unclassified by mechanism) |
 | rera_count | INTEGER | | NO | RERA count |
 | clear_airway_count | INTEGER | | NO | CA count (added in v10) |
+| obstructive_hypopnea_count | INTEGER | | NO | OH count (added in v18) |
+| central_hypopnea_count | INTEGER | | NO | CH count (added in v18) |
+| all_apnea_count | INTEGER | | NO | A count — undifferentiated apnea (added in v18) |
 | pressure_avg | REAL | | YES | Average pressure (cmH₂O) |
 | pressure_min | REAL | | YES | Min pressure |
 | pressure_max | REAL | | YES | Max pressure |
@@ -868,11 +885,16 @@ Re-import is required to repair pre-fix rows; the discontinuity is accepted.
 | mask_on_hours | REAL | | NO | Mask-on hours |
 | ahi | REAL | | NO | Apnea-Hypopnea Index |
 | rdi | REAL | | NO | Respiratory Disturbance Index |
+| oahi | REAL | | NO | Obstructive AHI (added in v18); oahi + cahi = ahi |
+| cahi | REAL | | NO | Central AHI (added in v18) |
 | obstructive_count | INTEGER | | NO | OA count |
 | central_count | INTEGER | | NO | UA count |
-| hypopnea_count | INTEGER | | NO | Hypopnea count |
+| hypopnea_count | INTEGER | | NO | Hypopnea count (unclassified by mechanism) |
 | rera_count | INTEGER | | NO | RERA count |
 | clear_airway_count | INTEGER | | NO | CA Clear airway count |
+| obstructive_hypopnea_count | INTEGER | | NO | OH count (added in v18) |
+| central_hypopnea_count | INTEGER | | NO | CH count (added in v18) |
+| all_apnea_count | INTEGER | | NO | A count — undifferentiated apnea (added in v18) |
 | pressure_avg | REAL | | YES | Average pressure (cmH₂O) |
 | pressure_min | REAL | | YES | Min pressure |
 | pressure_max | REAL | | YES | Max pressure |

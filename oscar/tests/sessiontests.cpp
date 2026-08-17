@@ -8,6 +8,7 @@
 
 #include <QFile>
 #include "sessiontests.h"
+#include "SleepLib/day.h"
 
 static QString ts(qint64 msecs)
 {
@@ -150,6 +151,8 @@ static QString eventChannel(ChannelID i)
         CHANNELNAME(CPAP_Obstructive);
         CHANNELNAME(CPAP_AllApnea);
         CHANNELNAME(CPAP_Hypopnea);
+        CHANNELNAME(CPAP_ObstructiveHypopnea);
+        CHANNELNAME(CPAP_CentralHypopnea);
         CHANNELNAME(CPAP_PB);
         CHANNELNAME(CPAP_LeakTotal);
         CHANNELNAME(CPAP_Leak);

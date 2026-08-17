@@ -4,6 +4,338 @@ Notable bugs found and fixed during development/investigation.
 
 ---
 
+## 2026-08-16 — Screenshot shrunk into the corner of a large black area on high-DPI displays
+
+**File:** `oscar/mainwindow.cpp` (`MainWindow::DelayedScreenshot()`)
+
+GitLab #272. On a high-DPI Windows display the saved screenshot showed the OSCAR window
+scaled down into the top-left corner of a much larger, otherwise black image. 1.7 was
+unaffected. Switching the graphics engine to Software made no difference, which had
+previously been assumed to be a workaround.
+
+**Root cause:** a device-pixel-ratio mismatch introduced when the screenshot switched from
+`QScreen::grabWindow()` to `QWidget::grab()` in order to drop the title bar. `QWidget::grab()`
+returns a pixmap sized `widgetSize * devicePixelRatio` and tags it with that ratio
+(`qwidget.cpp`). The version header was then composited onto a canvas built from
+`clientPixmap.width()/height()`, which are *raw* pixel counts, producing a canvas of the
+right raw size but with a device pixel ratio of 1.0. `QPainter::drawPixmap()` draws a pixmap
+at its *device-independent* size (`QPaintEngineEx::drawPixmap()` uses
+`pm.deviceIndependentSize()`), so the grab landed at 1/ratio of the canvas — 40% of it in the
+reported case. The remainder of the canvas was never initialised, and uninitialised pixmap
+memory renders as black. The graphics engine setting has no bearing on the device pixel
+ratio, hence no effect on the symptom, and 1.7 escaped it because it saved the grab directly
+with no compositing step.
+
+**Fix:** compose in device-independent coordinates. The destination pixmap is allocated at
+`deviceIndependentSize * ratio` and tagged with the same ratio, so the painter's logical
+coordinates match the grab's and the copy is pixel-for-pixel. The canvas is also filled white
+up front, so no uninitialised memory can reach the file. At ratio 1.0 the result is identical
+to the previous behaviour. A `qDebug()` line now records the ratio and grabbed size, so a log
+from an affected machine confirms the ratio in play.
+
+---
+
+## 2026-08-14 — Three summary-storage defects found while splitting CH/OH
+
+**Files:** `oscar/SleepLib/session.cpp`, `oscar/database/daily_summary_repository.cpp`,
+`oscar/database/database_schema.cpp`, `oscar/docs/system_reports.orf`
+
+All three surfaced while implementing separate Central/Obstructive Hypopnea channels,
+because OAHI + CAHI == AHI has to hold in SQL as well as in the app, and it did not.
+Filed retroactively as GitLab #269, #270 and #271.
+
+**1. `Session::StoreSummaryToDatabase()` stored RDI under the name AHI.** (#269) The fallback
+used for summary-only sessions (those with no `m_wavg[CPAP_AHI]`) hand-summed the event
+counts, and the list was wrong in two directions: it omitted `CPAP_AllApnea` and included
+`CPAP_RERA`. That is the definition of RDI, not AHI. Fixed by calling
+`count(AllAhiChannels)`, which walks the same `ahiChannels` list `Day::calcAHI()` uses, so
+the two can no longer drift.
+
+**2. `CPAP_AllApnea` was never stored in either summary table.** (#270) It contributes to AHI, so
+every hand-rolled AHI in `system_reports.orf` (`obstructive + unclassified + hypopnea +
+clear_airway`) disagreed with the stored `ahi` column for any device reporting an
+undifferentiated apnea. Schema v18 adds `all_apnea_count` to `session_summaries` and
+`daily_summaries`, `DailySummaryRepository::calculateFromDay()` and
+`Session::StoreSummaryToDatabase()` populate it, and the `.orf` sums now include it.
+Pre-v18 rows read 0 and are not backfilled, so a stale row still understates those days
+until it is recalculated.
+
+**3. Summary-only sessions lost their unclassified-apnea count on reload.** (#271)
+`Session::LoadFromDatabase()` restored `m_cnt` for OA, CA, H and RERA only, so
+`unclassified_count` was written on store and dropped on load — a summary-only session
+with UA events under-reported its AHI after a restart. The restore is now a small lambda
+applied to every stored channel, including UA and the new A/OH/CH.
+
+**Impact:** items 1 and 3 affect only summary-only sessions (devices that record no
+detailed data). Item 2 affects SQL reporting for the few loaders that emit `CPAP_AllApnea`;
+the in-app AHI was always correct, since `Day::calcAHI()` counts events directly.
+
+---
+
+## 2026-08-14 — BMC G3X periodic breathing duration truncated instead of rounded
+
+**File:** `oscar/SleepLib/loader_plugins/bmcG3xDataParsing.cpp`
+
+**Bug:** the EVT 0x09 periodic-breathing marker carries its episode length as a uint32
+millisecond count, and the conversion to OSCAR's whole-second event duration used integer
+division:
+
+```cpp
+pbEvt.DurationSeconds = static_cast<int>(durationMs / 1000);
+```
+
+Every PB episode was therefore reported up to one second short — a 159 900 ms episode
+became 159 s. The respiratory-event path a few hundred lines further down already rounded
+(`static_cast<int>(rawEvt.Value2Millis / 1000.0 + 0.5)`), so the same field was being
+converted by two different rules in the same file. The PB path was the odd one out.
+
+**Fix:** round to nearest in the PB path as well, matching the respiratory-event
+conversion, with a comment recording why whole seconds is the target.
+
+**Why whole seconds at all** — this is a property of OSCAR's event storage, not of the
+BMC format. `EventList::AddEvent()` takes an `EventStoreType`, which is `typedef qint16`
+(`machine_common.h:29`), and every loader creates the apnea/hypopnea/PB channels with the
+default gain of 1.0, so the stored integer *is* the number of seconds. The constraint is
+reinforced by the daily Flow Rate overlay, which reads `rawData()` and hard-codes the
+raw value as seconds without consulting the gain — `Y = X - (qint64(raw) * 1000.0L)` for
+spans (`gLineOverlay.cpp:131`) and `double d1 = jj * double(raw) * 1000.0` for flags
+(`:212`), with the hover tooltip printing `raw` verbatim (`:237`). A loader that tried to
+smuggle sub-second resolution through a fractional gain would render correctly in
+`Session::sum()`-based statistics, which do apply gain (`session.cpp:2132`), and
+incorrectly on the graph.
+
+**Impact:** cosmetic and small — at most one second per PB episode, in the span drawn on
+the Flow Rate graph and anything summing PB duration. Worth fixing because the
+inconsistency between the two conversions in one file is a trap for the next reader.
+
+---
+
+## 2026-08-13 — SEFAM S.Box: patient circuit imported, decoded via the vendor software
+
+**Files:** `oscar/SleepLib/loader_plugins/sefamDataParsing.cpp`, `sefamDataParsing.h`,
+`sefam_loader.cpp`, `sefam_loader.h`
+
+**Change (not a bug):** S.Box sessions now report the **patient circuit diameter**, from
+settings word 9 of each archive block header (image word 40). Bit 0 is the vendor's own
+`IsCalibTube15mm` flag: set means 15 mm, clear means 22 mm. New channel `SEFAM_Circuit`
+(0xe503) with named options so the panel reads "15 mm" rather than "15 mm mm".
+
+**How it was decoded, and why the method matters.** *Sefam Analyze* 4.4.2 can be driven
+with **no device attached**: changing a setting and writing to the card produces
+`upload.dat` at the card root — XOR-0xBF, and carrying the full settings block in the
+clear. That makes a controlled single-setting experiment possible without the hardware,
+which had been the blocker on every remaining accessory setting. Writing 22 mm then
+15 mm, with nothing else touched, moved exactly one byte: 184 → 185.
+
+That byte is settings word 9, which the memory image already stores per session. Card A's
+own vendor report prints `Patient circuit 22 mm` against the 184 the device had recorded,
+so the decode rests on two independent lines rather than one.
+
+**This answers a question the analysis carried for weeks** — "no byte anywhere holds 15
+or 22" — with the reason: the diameter is never stored as a number, only as a boolean.
+
+**Verification:** all 467 archive blocks on card A decode, splitting 172 sessions at 15 mm
+and 295 at 22 mm, with the settings table (current values only) reading 22 mm throughout,
+matching the report's "latest settings for the period". Card B reads 15 mm on all three of
+its sessions and 185 in its table. The mask leak, previously *inherited* from the Rêve on
+this model, is confirmed at the same time: card A's report prints 36 lpm and all 467
+blocks decode 36.
+
+**The field turned out to carry two settings.** Later writes of Comfort Control Plus
+off, level 1 and level 3 moved the *same* byte — `0x00`, `0x38`, `0xB8` — so word 9 is
+packed: CC+ level in bits 7–6, an enabled marker in bits 5–3, the circuit in bit 0.
+Card A's report agrees on both halves at once, printing `Level 3` and `22 mm` against
+the stored `0xB8`.
+
+**That also fixed a wrong conclusion about the Rêve.** This entry first recorded the
+circuit as not transferring to that model, because the byte aligning with word 9 looked
+like code 2 byte 20, whose bit 0 is clear while the Rêve's report says 15 mm. The
+alignment was off by one: byte 20 is a Rêve-only insertion and **byte 21** is word 9. It
+reads `0x79` — CC+ level 2 and 15 mm — which is exactly what that card's report prints.
+So both models now report the circuit, and the S.Box gains CC+ as well.
+
+Decoded over every settings record held — 467 S.Box archive blocks and 11 Rêve code 2
+records — the CC+ level never falls outside the manual's documented 1–3, and both cards
+with a vendor report match it on both settings simultaneously.
+
+**Deliberately not done:**
+
+- **The heated tube level is not imported.** The same experiment placed it at
+  `upload.dat` byte 0x234 (0 = off, 1–5, 6 = Auto), but it has no counterpart among the
+  twelve fields the device itself records, so it cannot be recovered from an ordinary
+  card.
+- **Nothing is imported from `upload.dat`.** It records what a clinician *sent*, not what
+  the device ran; it is present only when someone wrote settings; and its unselected
+  sections are stale. It is a decoding instrument, not a data source — and it exposes a
+  named patient's prescription, so it is also personal data.
+
+---
+
+## 2026-08-11 — SEFAM settings record: wrong field order, and two settings not imported
+
+**Files:** `oscar/SleepLib/loader_plugins/sefamDataParsing.cpp`,
+`sefamDataParsing.h`, `sefam_loader.cpp`, `sefam_loader.h`
+
+**Bug:** `parseSettings()` read the log settings record's payload index 0 as the
+**minimum pressure** and index 1 as the **ramp duration**. Those are in fact the ramp
+start pressure and a ramp-duration echo; the minimum is index 5 and the duration
+index 2. The mistake was invisible on every card held, because the one Rêve examined
+has minimum pressure equal to its ramp start (both 4.0) and ramp duration equal to its
+echo (both 45), so the two orders give identical numbers.
+
+**Why it mattered anyway.** Index 1 is not merely mislabelled: the S.Box writes **0**
+into the echo field whenever the ramp mode is I.Ramp, and the caller suppresses both
+`CPAP_RampTime` and `CPAP_RampPressure` when the value it reads is 0. A device in that
+mode would have silently reported no ramp settings at all. The minimum pressure would
+have been wrong on any Rêve whose ramp start differs from its minimum — the common
+case, since a ramp that starts at the therapy minimum is a ramp that does nothing.
+
+**How it was found.** A third card from the same device established that the Rêve's
+code 2 payload is the same 12-field record the S.Box keeps in its memory image, one
+byte per field instead of one uint16. The S.Box's six vendor-printed settings snapshots
+vary every pressure and ramp field independently, which fixes the order; the Rêve's own
+records never can. Align against the S.Box **archive block header**, not its settings
+table — the block header stores the record already rotated to the Rêve's byte order.
+Aligning against the table instead lands two positions off and still matches every
+pressure, which is exactly why it is worth writing down.
+
+**Also added:** two settings that are now confirmed, each by a controlled single-setting
+change on a card from the same device. *(The CC+ field was later found to carry the
+patient circuit in its low bit as well — see the 2026-08-13 entry.)*
+
+- **Theoretical mask leak** — `SEFAM_MaskLeakSet` (0xe501, l/min), from record byte 10,
+  in plain lpm in the low seven bits. It sat unnoticed for two cards because bytes 9–10
+  are the log record's 16-bit argument, a duration on apnoea records, so the settings
+  payload was taken to begin at byte 11. Range-gated to the 20–60 lpm the vendor manual
+  documents, so a model that puts something else there reports nothing rather than a
+  wrong number. The S.Box gets it too, from block header word 30.
+- **Comfort Control Plus level** — `SEFAM_ComfortLevel` (0xe502), from record byte 21
+  bits 7–6 as level − 1. Confirmed twice over: the field moved 1 → 2 as the setting moved
+  2 → 3, and the measured per-breath expiratory pressure relief rose to 0.707 cmH₂O
+  against a 0.345–0.535 range across the 34 preceding nights, while flow amplitude and
+  leak stayed mid-range — so a mask change, the obvious confound, is excluded. Neither
+  CC+ nor the humidifier has an S.Box counterpart in that record; those two are extra
+  fields the Rêve appends past the twelve.
+
+**Verification:** the edited decode was simulated over the card before building. All 11
+code 2 records reproduce the vendor report exactly (ramp 4.0/45 min, 20.0/4.0, CC+ 2,
+mask leak 36) and pick up the last record's changes to CC+ 3 and 34 lpm, plus the
+humidifier history 4 → 5 → 4 → 7. All 467 S.Box archive blocks decode a mask leak of
+36 lpm with none out of range. Full analysis in
+`Notes/loaders/SEFAM_REVE_CARD_ANALYSIS.md`.
+
+---
+
+## 2026-08-10 — Device images for the SEFAM Rêve and S.Box
+
+**Files:** `oscar/SleepLib/loader_plugins/sefam_loader.cpp`, `oscar/Resources.qrc`,
+`oscar/icons/sanrai-reve.png`, `oscar/icons/sefam-sbox.png`, `oscar/icons/sefam-nea.png`
+
+**Change (not a bug):** SEFAM devices showed the generic CPAP image, because the loader
+registered no pixmap. Three device photos were supplied and are now bound in through
+`Resources.qrc`. Filenames are all lower case, matching every other icon in that
+directory; a case mismatch between file and `.qrc` entry is invisible on Windows and
+fatal on the case-sensitive platforms OSCAR ships to.
+
+**Mechanism:** `MachineLoader::getPixmap()` keys on `MachineInfo::series`, so a device
+needing its own image needs its own series value — the arrangement `prs1_loader.cpp` and
+`intellipap_loader.cpp` already use. Every consumer of `series` was checked first: the
+image lookup, database persistence, an XML export, and a ResMed-only S9 test in
+`welcome.cpp:58`. It is displayed nowhere in the UI, so it is free to use as a key.
+
+`SefamLoader`'s constructor registers the images against `kSeriesReve` / `kSeriesSBox` /
+`kSeriesNea`, and `PeekInfo()` assigns the same constants — deliberately the same symbols
+on both sides, because the AirSense 11 icon was once invisible when `PeekInfo()` produced
+`"AirSense11"` while the hash was keyed `"AirSense 11"` (see the 3-part ResMed icon entry
+later in this log).
+
+Brand and image are now both derived from one `sefamModelOf()` answer returning a
+`SefamModel` enum, rather than two parallel string rules that could drift as models are
+added. Model-code matching was extended to `1200R` / `1263R` for the S.Box so that a card
+with an unreadable `.INI` still gets its image.
+
+Unlike brand, series **does** reach an already-imported device: `Machine::SaveToDatabase()`
+includes it in the fields it refreshes on an existing record.
+
+**The Néa image ships deliberately unreachable.** No Néa card has ever been seen, so
+nothing assigns `kSeriesNea` and an unrecognised model keeps series `"Sefam"`, matches no
+entry, and falls through to the generic image. Using the Néa photo as the SEFAM default
+was considered and rejected: it would show an unconfirmed device's photo for whatever
+turned up. Recognising a Néa is a one-line addition to `sefamModelOf()`.
+
+---
+
+## 2026-08-10 — SEFAM Rêve Auto now displays as "Sanrai"
+
+**Files:** `oscar/SleepLib/loader_plugins/sefam_loader.cpp`
+
+**Change (not a bug):** OSCAR showed every SEFAM-family device under the brand "Sefam".
+The Rêve Auto reaches its owners as the **Sanrai Rêve Auto** — Sanrai Med relabels a SEFAM
+unit with an applied sticker — so "Sanrai" is the only brand printed on the machine the
+user actually has, and the name they will look for.
+
+**Constraint:** the brand cannot be read from the card. A SEFAM card's only identity is
+`Created By` (e.g. `REVE_AUTO`), the model code directory name, and the serial. Verified
+by searching the whole sample collection: neither "Sefam" nor "Sanrai" appears in any card
+file or in either device memory image. The brand therefore has to be decided per model.
+
+**Fix:** new `sefamBrandName()` returns `"Sanrai"` when `Created By` normalises to
+`REVEAUTO` **or** the model code is `1279R`, and `"Sefam"` otherwise. Two signals rather
+than one because `PeekInfo()` resolves the model code before it reads any `.INI`, so a card
+with an unreadable `.INI` is still branded from its directory name. The `Created By`
+normalisation was factored out of `sefamModelName()` into `sefamModelKey()` so both share
+it. `resvent_loader.cpp` resolves Hoffrichter vs Resvent the same way, per model.
+
+The import progress message was hardcoded to `"Reading SEFAM card..."` and now reads
+`"Reading %1 card..."` with the resolved brand, so it does not contradict the brand shown
+on every other page. It was the loader's only brand-specific user-visible string; the
+others are the humidifier channel names and "Creating data backup...".
+
+`info.series` deliberately stays `"Sefam"` — it is what keys the device-pixmap lookup in
+`MachineLoader::getPixmap()`. The SEFAM loader registers no pixmap of its own today, so
+that lookup already falls through to the generic CPAP image, but `series` is the wrong
+field to carry a distributor name regardless.
+*(Superseded the next day — device photos were added and `series` became one value per
+device. See the entry above.)*
+
+**Known limits, both accepted:**
+
+- A French-market Rêve sold under SEFAM's own name would also show as "Sanrai". Nothing on
+  the card distinguishes the two; revisit if such a card appears.
+- The brand is written when the `machines` row is created and never rewritten —
+  `Machine::SaveToDatabase()` refreshes series, model, model number and serial on an
+  existing record but not brand. A device imported before this change keeps showing
+  "Sefam" until it is re-imported into a fresh profile. Not worth a migration: the SEFAM
+  loader has only ever shipped in the v2.0.2 draft.
+
+---
+
+## 2026-08-10 — Calendar colours not refreshed after Purge Range of Days (#267)
+
+**Files:** `oscar/daily.cpp`, `oscar/daily.h` (new `Daily::updateCalendarDays()`),
+`oscar/mainwindow.cpp` (`MainWindow::on_actionPurgeRangeOfDays_triggered()`)
+
+**Symptom:** After `Data ▸ Advanced ▸ Purge Range of Days...`, the purged days kept their
+old colour and font attributes in the Daily view calendar. Selecting one of the purged days
+and then moving off it repainted that single day correctly, so the underlying data really
+was gone — only the calendar was stale.
+
+**Root cause:** `Daily::UpdateCalendarDay()` had exactly two callers.
+`Daily::on_calendar_currentPageChanged()` repaints a whole month, but is only reached when
+the displayed month actually changes; `Daily::LoadDate()` calls it solely when
+`date.month() != previous_date.month()`. The other caller is `Daily::Unload()`, which
+repaints a single date. The range purge finished with `daily->LoadDate(viewDate)`, so the
+only date that ever got repainted was `previous_date`, by way of the `Unload()` inside
+`on_ReloadDay()`. Every other purged day kept the `QTextCharFormat` stored for it in the
+calendar until the user paged to another month and back.
+
+**Fix:** Added `Daily::updateCalendarDays(const QList<QDate> &dates)`, which calls
+`UpdateCalendarDay()` for each supplied date, and called it from the range purge with the
+`purgedDates` list that the purge loop already builds. Single-day purge was traced and left
+alone — it purges `previous_date`, which the existing `Unload()` path already repaints.
+
+---
+
 ## 2026-08-02 — BMC G3X air tube type located and decoded
 
 **Files:** `oscar/SleepLib/loader_plugins/bmcG3xDataParsing.cpp` (`DecodeTsBlock()`),
@@ -5173,3 +5505,182 @@ right place for vendor-specific wording.
 new labels take effect for new profiles, after a language change, or after "reset
 channel defaults". Making them visible to existing profiles needs a migration, which
 is not included here.
+
+## 2026-08-08 - SEFAM S.Box AUTO imported waveforms only, with no events and no settings
+
+**Symptom:** an S.Box card imported plausible flow, pressure and leak graphs, but the
+daily view showed no events at all and no therapy settings - no mode, pressures or
+ramp. Reported against real user data from a `1200R`; a `1263R` sample behaves the
+same way.
+
+**Root cause:** the S.Box writes **no `.LOG` file anywhere on the card**, and the
+loader took every event and every setting from that file alone. A second, independent
+blocker sat behind it: S.Box channel files carry the short 38-byte header with no UTC
+epoch, and the event loop is gated on that epoch being non-zero, so events would have
+been skipped even had a log been present.
+
+**Where the data actually is:** the device memory image, `<serial>.RAM`, which the
+loader never opened. It holds a lifetime per-session archive - a contiguous chain of
+blocks, one per session, each an 88-byte big-endian header followed by one 6-byte
+record per minute. The header carries per-type event counts and the settings in force
+for that session; the per-minute record carries mean pressure, four two-bit event
+counters, and snore and flow-limitation counts. Format and evidence are in
+`Notes/loaders/SEFAM_SBOX_CARD_ANALYSIS.md`.
+
+**Fix:** `SefamParsing::readMemoryImage()` decodes the archive, and `SefamLoader::Open()`
+matches its tail to the session directories by minute count and applies the result -
+but **only when a session has no `.LOG`**. A Rêve session always has one, so that path
+is untouched, which was the agreed scope.
+
+**Two traps worth keeping:** bit 7 of the per-minute snore and flow-limitation bytes is
+a separate flag and must be masked off, or the totals disagree with the block header on
+about a fifth of sessions; and the apnoea/hypopnoea byte is four two-bit counters, not
+four presence flags, so reading it as flags silently undercounts any minute holding two
+events of one kind.
+
+**Verified.** Before building, by simulating the matching and decoding logic over both
+sample cards: every matched block's per-minute sums agree with its own header totals,
+and the recovered settings reproduce the three mid-history changes the manufacturer's
+report lists for the `1200R`. After building, by importing a real S.Box card - waveforms,
+settings and events all render sensibly, which rules out a block matched to the wrong
+session, events outside the session span, or settings taken from the wrong slot.
+
+**Resolution limit:** events are placed within the minute they occurred, spread evenly
+across it, because that is the resolution the card stores. The card records no event
+durations.
+
+## 2026-08-08 - SEFAM S.Box still reported "device has not been tested yet"
+
+**Symptom:** after S.Box event and settings import was added, importing an S.Box card
+still raised the "Your ... CPAP Device (Model ...) has not been tested yet" dialog.
+
+**Root cause:** `sefam_loader.h` held a single validated model code,
+`sefam_validated_model = "1279R"` (the Rêve Auto), and `SefamLoader::Open()` warned on
+anything else. Both S.Box hardware codes seen - `1200R` and `1263R` - therefore warned,
+regardless of how well the format was understood.
+
+**Fix:** replaced the single constant with `sefamModelIsValidated()`, listing the codes
+that have been checked and recording in the comment what each one rests on. `1279R` and
+`1200R` are each reconciled against a manufacturer report; `1263R` rides on `1200R`,
+being the same product name, firmware version and card layout, with its decoded
+pressure settings separately checked against the pressure the device delivered. Every
+other SEFAM model code still warns, which is the point - the loader accepts any card
+matching the directory pattern, so an unrecognised code means a device nobody has seen.
+
+**Note on repeat warnings:** the dialog is suppressed per machine by
+`Machine::suppressWarnOnUntested()` (`importcontext.cpp:237`), so a warning that
+reappears for a device already acknowledged points at a duplicate machine record
+rather than at this check.
+
+## 2026-08-09 - Apex XT: no Leak Rate graph on almost every session
+
+**Symptom:** after importing an XT Auto card, the Daily page showed the flat Total Leak
+line but no Leak Rate (unintentional leak) graph at all - except on one short session,
+where it appeared normally.
+
+**Root cause:** three things lining up. The device supplies only a session-average total
+leak, so `importLeakChannel()` represents it as two `CPAP_LeakTotal` samples, at the
+session start and at `rec.end`. `importMinuteDetail()` gives the pressure waveform a
+duration of exactly `minutes.size() * 60000`, which is honest but short: the device
+writes one to three fewer minute records than the session's wall-clock span. `calcLeaks()`
+(`calcs.cpp:1301`) derives a `CPAP_Leak` sample only where `TimeSeries::valueAt()` can
+resolve a pressure, and that lookup is bounded by the pressure list's own `first()` and
+`last()` (`calcs.cpp:1256-1264`). The trailing leak sample therefore fell past the end of
+the pressure waveform and was dropped, leaving a one-sample `CPAP_Leak` list - and
+`gLineChart` skips any list of one sample or fewer outright (`gLineChart.cpp:664`), so
+nothing was drawn.
+
+**Fix:** clamp the total-leak trace to the pressure waveform's extent,
+`qMin(rec.end, startMs + sampleDuration)`, so both synthetic traces end together and
+`calcLeaks()` resolves a pressure for both samples. Costs at most the final partial
+minute of a flat, session-average line. `qMin` is safe in both directions: when the
+decoded minutes outrun the session span, `rec.end` is already the smaller value.
+
+**Verified.** By decoding a real XT Auto card outside OSCAR: eight of its nine sessions
+had a minute count one to three short of the start-to-end span, and the ninth - the one
+session that rendered - was the only one where the two were exactly equal. The `<=`
+bound in `findEventListContaining()` is inclusive, which is why equality still worked.
+The reported symptom matched that split exactly, session for session.
+
+**Note:** the `.APF` timestamps carry no seconds field, so a session span is always a
+whole number of minutes. The shortfall is the device recording fewer minute records than
+the elapsed span, not rounding. `.APF` byte `0x0B` ("Duration - Util") does not account
+for it - it reads zero on every record while the shortfall varies from zero to three.
+
+## 2026-08-12 - Profile on a network share could not be opened (#268)
+
+**Symptom:** with the OSCAR data folder on a Windows network share, startup logged
+`Profile directory does not exist` followed by `Skipping profile ... - directory was
+deleted`, and `Profiles::Scan()` loaded 0 profiles. The profile still appeared in the
+profile selector, but clicking it did nothing - the log showed `Opening profile` with
+nothing after it.
+
+**Root cause:** `ProfileRepository::resolvePath()` normalised the resolved path by hand,
+ending with an unconditional loop that collapsed every `//` to `/`. On a UNC path the
+leading `//` is significant: `//server/share/...` became `/server/share/...`, which
+names nothing, so `QDir::exists()` returned false. The profile was skipped and never
+entered `Profiles::profiles`. The selector populates its list straight from the
+`profiles` table rather than from memory, which is why the entry stayed visible; the
+subsequent `MainWindow::OpenProfile()` lookup missed and returned false without a
+message (`mainwindow.cpp:600-602`).
+
+Two log lines from the same run made the diagnosis: the connections log opened fine at
+`//server/share/.../logs/connections/devices.xml` while the profile check reported
+`/server/share/.../Profiles/<name>`, differing only in the leading slash. That also
+ruled out the data folder's non-default name, which was the initial suspicion - the same
+directory name resolved correctly one line earlier.
+
+**Fix:** delegate normalisation to `QDir::cleanPath()`, which converts native separators
+and collapses redundant slashes while preserving a UNC prefix on platforms that support
+one. This matches `RecentDatabases::canonicalize()` (`recent_databases.cpp:19`) and every
+other path-normalising site in the codebase; `resolvePath()` was the only one hand-rolling
+it. No database change is needed, because `data_folder` is stored portably as
+`%PROFDIR%/<username>` and only the resolution step was at fault.
+
+**Scope:** the bug reaches any profile whose data folder sits on a UNC path, and dates
+from the function's introduction (`973749d6`) rather than from a recent change. A drive
+letter mapped to the share avoids it, since that path has no `//` prefix.
+
+**Second change, forced by the first:** `cleanPath()` also strips a trailing slash, and
+the "profile contains no data and cannot be removed" guard in
+`ProfileSelector::on_buttonDestroyProfile_clicked()` compared against
+`GetAppData() + "/Profiles/"` - with one. A row resolving to the Profiles directory
+itself would have slipped past the guard and offered the whole directory for deletion.
+The comparison now cleans both sides, which also closes the same hole on the other
+branch of that function, where the path comes from `STR_GEN_DataFolder` and carries no
+trailing slash - so it never matched the guard to begin with.
+
+**How the UNC behaviour was confirmed:** by reading Qt 6.10.2's own sources rather than
+from the API docs. `QDir::cleanPath()` calls `qt_cleanPath()` (`qdir.cpp:2380`), which
+normalises with `QDirPrivate::DefaultNormalization` - note that Qt 5's `AllowUncPaths`
+flag no longer exists. UNC handling instead lives in `rootLength()`: under Windows rules
+and outside URL mode, a leading `//` makes the server name part of the root prefix, and
+`qt_normalizePathSegments()` only collapses slashes *after* that prefix. The `//` is
+therefore preserved on Windows and, as before, collapsed on Unix, where the form has no
+meaning. `qt_cleanPath()` also converts native separators, so dropping the manual
+`replace("\\", "/")` loses nothing on Windows; on Unix a backslash is a legal filename
+character and is now correctly left alone.
+
+**Not a Qt 5 to Qt 6 regression.** The broken code is plain `QString::contains()` and
+`QString::replace()`, which behave identically under both. It is also new code: 1.7.1
+has no `resolvePath()` and no `%PROFDIR%` anywhere, and its `Profiles::Scan()` enumerates
+the Profiles directory with `entryInfoList()` and takes each entry's
+`canonicalFilePath()`, so it never manipulates a path as a string and a network-share
+data folder worked. What exposed the bug was the 1.7 to 2.0 migration itself - profile
+discovery moved from directory enumeration to resolving a stored portable path.
+
+If anything the Qt-version angle runs the other way: `QDir::cleanPath()`, the call that
+should have been used from the start, has been UNC-safe on Windows in both versions.
+Qt 5.15 passed an explicit `AllowUncPaths` flag to `qt_normalizePathSegments()`
+(`qdir.cpp:2361`); Qt 6.10 dropped that flag and folded the same rule into `rootLength()`.
+Different implementations, same result - so nothing here needs a version guard, and the
+fix would be correct in 1.7.1 too if that branch ever grows the same code.
+
+**Silent failure, fixed alongside:** `MainWindow::OpenProfile()` returned false without a
+word when a listed profile was absent from `Profiles::profiles`, which is what made this
+present as a dead click whose log ended at `Opening profile`. Every early exit now leaves
+a trace: a `qWarning` when the profile is listed but was not loaded (pointing the reader
+back at the skipped-directory lines above it) and when `SelectProfile()` returns null; a
+`qDebug` for the two non-error exits, the profile already being open and the user
+cancelling at the lockfile prompt. The two pre-existing `qCritical` exits were already
+covered.

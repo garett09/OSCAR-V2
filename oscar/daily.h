@@ -133,6 +133,16 @@ public:
     void clearLastDay();
     void clearJournalNotesEditor();
 
+    /*! \fn updateCalendarDays(const QList<QDate> &dates)
+        \brief Refreshes the calendar appearance for each of the supplied dates.
+        \param dates Dates whose data changed outside the normal load/unload cycle
+
+        Used after bulk operations such as purging a range of days, where the
+        affected dates are not reloaded individually and would otherwise keep
+        their stale colour and font attributes.
+        */
+    void updateCalendarDays(const QList<QDate> &dates);
+
     /*! \fn Unload(QDate date)
         \brief Saves any journal changes for the provided date.
         \param QDate date

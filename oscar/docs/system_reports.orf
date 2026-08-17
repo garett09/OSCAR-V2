@@ -11,6 +11,12 @@
 #   #START_DATE  - Replaced with the start date in ISO format, quoted ('YYYY-MM-DD')
 #   #END_DATE    - Replaced with the end date in ISO format, quoted ('YYYY-MM-DD')
 #
+# Note on OH / CH / A / OAHI / CAHI: these columns arrived with schema v18. Summary
+# rows written before the upgrade read 0 for them and are not backfilled, so days
+# imported under an older OSCAR show 0 until they are recalculated or re-imported.
+# On such rows the hand-rolled AHI sums below also understate any device-reported
+# undifferentiated apnea, which is what all_apnea_count now records.
+#
 # Copyright (c) 2026 The OSCAR Team
 
 # ============================================================================
@@ -31,9 +37,14 @@ SELECT
   ds.date as Date,
   ROUND(ds.ahi, 2) as AHI,
   ROUND(ds.rdi, 2) as RDI,
+  ROUND(ds.oahi, 2) as OAHI,
+  ROUND(ds.cahi, 2) as CAHI,
   ds.obstructive_count as OA,
   ds.unclassified_count as UA,
+  ds.all_apnea_count as A,
   ds.hypopnea_count as H,
+  ds.obstructive_hypopnea_count as OH,
+  ds.central_hypopnea_count as CH,
   ds.clear_airway_count as CA,
   ds.rera_count as RERA,
   ROUND(ds.pressure_avg, 2) as Pressure_Avg,
@@ -67,11 +78,16 @@ SELECT
   strftime('%Y-W%W', ds.date) as Period,
   MIN(ds.date) as Week_Start,
   MAX(ds.date) as Week_End,
-  ROUND((SUM(ds.obstructive_count) + SUM(ds.unclassified_count) + SUM(ds.hypopnea_count) + SUM(ds.clear_airway_count)) / NULLIF(SUM(ds.mask_on_hours), 0), 2) as AHI,
-  ROUND((SUM(ds.obstructive_count) + SUM(ds.unclassified_count) + SUM(ds.hypopnea_count) + SUM(ds.clear_airway_count) + SUM(ds.rera_count)) / NULLIF(SUM(ds.mask_on_hours), 0), 2) as RDI,
+  ROUND((SUM(ds.obstructive_count) + SUM(ds.unclassified_count) + SUM(ds.all_apnea_count) + SUM(ds.hypopnea_count) + SUM(ds.obstructive_hypopnea_count) + SUM(ds.central_hypopnea_count) + SUM(ds.clear_airway_count)) / NULLIF(SUM(ds.mask_on_hours), 0), 2) as AHI,
+  ROUND((SUM(ds.obstructive_count) + SUM(ds.unclassified_count) + SUM(ds.all_apnea_count) + SUM(ds.hypopnea_count) + SUM(ds.obstructive_hypopnea_count) + SUM(ds.central_hypopnea_count) + SUM(ds.clear_airway_count) + SUM(ds.rera_count)) / NULLIF(SUM(ds.mask_on_hours), 0), 2) as RDI,
+  ROUND((SUM(ds.obstructive_count) + SUM(ds.unclassified_count) + SUM(ds.all_apnea_count) + SUM(ds.hypopnea_count) + SUM(ds.obstructive_hypopnea_count)) / NULLIF(SUM(ds.mask_on_hours), 0), 2) as OAHI,
+  ROUND((SUM(ds.clear_airway_count) + SUM(ds.central_hypopnea_count)) / NULLIF(SUM(ds.mask_on_hours), 0), 2) as CAHI,
   SUM(ds.obstructive_count) as OA,
   SUM(ds.unclassified_count) as UA,
+  SUM(ds.all_apnea_count) as A,
   SUM(ds.hypopnea_count) as H,
+  SUM(ds.obstructive_hypopnea_count) as OH,
+  SUM(ds.central_hypopnea_count) as CH,
   SUM(ds.clear_airway_count) as CA,
   SUM(ds.rera_count) as RERA,
   ROUND(SUM(ds.pressure_avg * ds.mask_on_hours) / NULLIF(SUM(ds.mask_on_hours), 0), 2) as Pressure_Avg,
@@ -92,11 +108,16 @@ Description: Monthly aggregation of daily data
 Query: <<SQL
 SELECT
   strftime('%Y-%m', ds.date) as Period,
-  ROUND((SUM(ds.obstructive_count) + SUM(ds.unclassified_count) + SUM(ds.hypopnea_count) + SUM(ds.clear_airway_count)) / NULLIF(SUM(ds.mask_on_hours), 0), 2) as AHI,
-  ROUND((SUM(ds.obstructive_count) + SUM(ds.unclassified_count) + SUM(ds.hypopnea_count) + SUM(ds.clear_airway_count) + SUM(ds.rera_count)) / NULLIF(SUM(ds.mask_on_hours), 0), 2) as RDI,
+  ROUND((SUM(ds.obstructive_count) + SUM(ds.unclassified_count) + SUM(ds.all_apnea_count) + SUM(ds.hypopnea_count) + SUM(ds.obstructive_hypopnea_count) + SUM(ds.central_hypopnea_count) + SUM(ds.clear_airway_count)) / NULLIF(SUM(ds.mask_on_hours), 0), 2) as AHI,
+  ROUND((SUM(ds.obstructive_count) + SUM(ds.unclassified_count) + SUM(ds.all_apnea_count) + SUM(ds.hypopnea_count) + SUM(ds.obstructive_hypopnea_count) + SUM(ds.central_hypopnea_count) + SUM(ds.clear_airway_count) + SUM(ds.rera_count)) / NULLIF(SUM(ds.mask_on_hours), 0), 2) as RDI,
+  ROUND((SUM(ds.obstructive_count) + SUM(ds.unclassified_count) + SUM(ds.all_apnea_count) + SUM(ds.hypopnea_count) + SUM(ds.obstructive_hypopnea_count)) / NULLIF(SUM(ds.mask_on_hours), 0), 2) as OAHI,
+  ROUND((SUM(ds.clear_airway_count) + SUM(ds.central_hypopnea_count)) / NULLIF(SUM(ds.mask_on_hours), 0), 2) as CAHI,
   SUM(ds.obstructive_count) as OA,
   SUM(ds.unclassified_count) as UA,
+  SUM(ds.all_apnea_count) as A,
   SUM(ds.hypopnea_count) as H,
+  SUM(ds.obstructive_hypopnea_count) as OH,
+  SUM(ds.central_hypopnea_count) as CH,
   SUM(ds.clear_airway_count) as CA,
   SUM(ds.rera_count) as RERA,
   ROUND(SUM(ds.pressure_avg * ds.mask_on_hours) / NULLIF(SUM(ds.mask_on_hours), 0), 2) as Pressure_Avg,
@@ -131,9 +152,14 @@ SELECT
   time(s.start_time/1000, 'unixepoch', 'localtime') as Start,
   ROUND(ss.ahi, 2) as AHI,
   ROUND(ss.rdi, 2) as RDI,
+  ROUND(ss.oahi, 2) as OAHI,
+  ROUND(ss.cahi, 2) as CAHI,
   ss.obstructive_count as OA,
   ss.unclassified_count as UA,
+  ss.all_apnea_count as A,
   ss.hypopnea_count as H,
+  ss.obstructive_hypopnea_count as OH,
+  ss.central_hypopnea_count as CH,
   ss.clear_airway_count as CA,
   ss.rera_count as RERA,
   ROUND(ss.pressure_avg, 2) as Pressure_Avg,
@@ -165,10 +191,15 @@ Description: Daily aggregation of session summaries
 Query: <<SQL
 SELECT
   date(s.start_time/1000 - 43200, 'unixepoch', 'localtime') as Period,
-  ROUND((SUM(ss.obstructive_count) + SUM(ss.unclassified_count) + SUM(ss.hypopnea_count) + SUM(ss.clear_airway_count)) / NULLIF(SUM(ss.mask_on_hours), 0), 2) as AHI,
+  ROUND((SUM(ss.obstructive_count) + SUM(ss.unclassified_count) + SUM(ss.all_apnea_count) + SUM(ss.hypopnea_count) + SUM(ss.obstructive_hypopnea_count) + SUM(ss.central_hypopnea_count) + SUM(ss.clear_airway_count)) / NULLIF(SUM(ss.mask_on_hours), 0), 2) as AHI,
+  ROUND((SUM(ss.obstructive_count) + SUM(ss.unclassified_count) + SUM(ss.all_apnea_count) + SUM(ss.hypopnea_count) + SUM(ss.obstructive_hypopnea_count)) / NULLIF(SUM(ss.mask_on_hours), 0), 2) as OAHI,
+  ROUND((SUM(ss.clear_airway_count) + SUM(ss.central_hypopnea_count)) / NULLIF(SUM(ss.mask_on_hours), 0), 2) as CAHI,
   SUM(ss.obstructive_count) as OA,
   SUM(ss.unclassified_count) as UA,
+  SUM(ss.all_apnea_count) as A,
   SUM(ss.hypopnea_count) as H,
+  SUM(ss.obstructive_hypopnea_count) as OH,
+  SUM(ss.central_hypopnea_count) as CH,
   SUM(ss.clear_airway_count) as CA,
   ROUND(SUM(ss.mask_on_hours), 2) as Hours
 FROM session_summaries ss
@@ -190,10 +221,15 @@ SELECT
   strftime('%Y-W%W', date(s.start_time/1000 - 43200, 'unixepoch', 'localtime')) as Period,
   MIN(date(s.start_time/1000 - 43200, 'unixepoch', 'localtime')) as Week_Start,
   MAX(date(s.start_time/1000 - 43200, 'unixepoch', 'localtime')) as Week_End,
-  ROUND((SUM(ss.obstructive_count) + SUM(ss.unclassified_count) + SUM(ss.hypopnea_count) + SUM(ss.clear_airway_count)) / NULLIF(SUM(ss.mask_on_hours), 0), 2) as AHI,
+  ROUND((SUM(ss.obstructive_count) + SUM(ss.unclassified_count) + SUM(ss.all_apnea_count) + SUM(ss.hypopnea_count) + SUM(ss.obstructive_hypopnea_count) + SUM(ss.central_hypopnea_count) + SUM(ss.clear_airway_count)) / NULLIF(SUM(ss.mask_on_hours), 0), 2) as AHI,
+  ROUND((SUM(ss.obstructive_count) + SUM(ss.unclassified_count) + SUM(ss.all_apnea_count) + SUM(ss.hypopnea_count) + SUM(ss.obstructive_hypopnea_count)) / NULLIF(SUM(ss.mask_on_hours), 0), 2) as OAHI,
+  ROUND((SUM(ss.clear_airway_count) + SUM(ss.central_hypopnea_count)) / NULLIF(SUM(ss.mask_on_hours), 0), 2) as CAHI,
   SUM(ss.obstructive_count) as OA,
   SUM(ss.unclassified_count) as UA,
+  SUM(ss.all_apnea_count) as A,
   SUM(ss.hypopnea_count) as H,
+  SUM(ss.obstructive_hypopnea_count) as OH,
+  SUM(ss.central_hypopnea_count) as CH,
   SUM(ss.clear_airway_count) as CA,
   ROUND(SUM(ss.mask_on_hours), 2) as Hours
 FROM session_summaries ss
@@ -213,10 +249,15 @@ Description: Monthly aggregation of session summaries
 Query: <<SQL
 SELECT
   strftime('%Y-%m', date(s.start_time/1000 - 43200, 'unixepoch', 'localtime')) as Period,
-  ROUND((SUM(ss.obstructive_count) + SUM(ss.unclassified_count) + SUM(ss.hypopnea_count) + SUM(ss.clear_airway_count)) / NULLIF(SUM(ss.mask_on_hours), 0), 2) as AHI,
+  ROUND((SUM(ss.obstructive_count) + SUM(ss.unclassified_count) + SUM(ss.all_apnea_count) + SUM(ss.hypopnea_count) + SUM(ss.obstructive_hypopnea_count) + SUM(ss.central_hypopnea_count) + SUM(ss.clear_airway_count)) / NULLIF(SUM(ss.mask_on_hours), 0), 2) as AHI,
+  ROUND((SUM(ss.obstructive_count) + SUM(ss.unclassified_count) + SUM(ss.all_apnea_count) + SUM(ss.hypopnea_count) + SUM(ss.obstructive_hypopnea_count)) / NULLIF(SUM(ss.mask_on_hours), 0), 2) as OAHI,
+  ROUND((SUM(ss.clear_airway_count) + SUM(ss.central_hypopnea_count)) / NULLIF(SUM(ss.mask_on_hours), 0), 2) as CAHI,
   SUM(ss.obstructive_count) as OA,
   SUM(ss.unclassified_count) as UA,
+  SUM(ss.all_apnea_count) as A,
   SUM(ss.hypopnea_count) as H,
+  SUM(ss.obstructive_hypopnea_count) as OH,
+  SUM(ss.central_hypopnea_count) as CH,
   SUM(ss.clear_airway_count) as CA,
   ROUND(SUM(ss.mask_on_hours), 2) as Hours
 FROM session_summaries ss
@@ -388,16 +429,26 @@ SELECT
   ROUND(SUM(mask_on_hours) / NULLIF(COUNT(*), 0), 2)                                  AS Avg_Hours,
   ROUND(AVG(CASE WHEN rn_h = (month_n + 1) / 2 THEN mask_on_hours END), 2)           AS Median_Hours,
   -- Therapy Efficacy
-  ROUND((SUM(obstructive_count) + SUM(unclassified_count)
-       + SUM(hypopnea_count)    + SUM(clear_airway_count))
+  ROUND((SUM(obstructive_count) + SUM(unclassified_count) + SUM(all_apnea_count)
+       + SUM(hypopnea_count)    + SUM(obstructive_hypopnea_count)
+       + SUM(central_hypopnea_count) + SUM(clear_airway_count))
         / NULLIF(SUM(mask_on_hours), 0), 2)                                            AS AHI,
   ROUND(AVG(CASE WHEN rn_a = (month_n + 1) / 2 THEN ahi END), 2)                     AS Median_AHI,
+  ROUND((SUM(obstructive_count) + SUM(unclassified_count) + SUM(all_apnea_count)
+       + SUM(hypopnea_count)    + SUM(obstructive_hypopnea_count))
+        / NULLIF(SUM(mask_on_hours), 0), 2)                                            AS OAHI,
+  ROUND((SUM(clear_airway_count) + SUM(central_hypopnea_count))
+        / NULLIF(SUM(mask_on_hours), 0), 2)                                            AS CAHI,
   -- Event indices (events per hour)
-  ROUND((SUM(obstructive_count) + SUM(unclassified_count)
-       + SUM(hypopnea_count)    + SUM(clear_airway_count))
+  ROUND((SUM(obstructive_count) + SUM(unclassified_count) + SUM(all_apnea_count)
+       + SUM(hypopnea_count)    + SUM(obstructive_hypopnea_count)
+       + SUM(central_hypopnea_count) + SUM(clear_airway_count))
         / NULLIF(SUM(mask_on_hours), 0), 2)                                            AS AllApnea_Index,
   ROUND(SUM(obstructive_count)  / NULLIF(SUM(mask_on_hours), 0), 2)                   AS OA_Index,
+  ROUND(SUM(all_apnea_count)    / NULLIF(SUM(mask_on_hours), 0), 2)                   AS A_Index,
   ROUND(SUM(hypopnea_count)     / NULLIF(SUM(mask_on_hours), 0), 2)                   AS H_Index,
+  ROUND(SUM(obstructive_hypopnea_count) / NULLIF(SUM(mask_on_hours), 0), 2)           AS OH_Index,
+  ROUND(SUM(central_hypopnea_count)     / NULLIF(SUM(mask_on_hours), 0), 2)           AS CH_Index,
   ROUND(SUM(unclassified_count) / NULLIF(SUM(mask_on_hours), 0), 2)                   AS UA_Index,
   ROUND(SUM(clear_airway_count) / NULLIF(SUM(mask_on_hours), 0), 2)                   AS CA_Index,
   ROUND(SUM(rera_count)         / NULLIF(SUM(mask_on_hours), 0), 2)                   AS RERA_Index,

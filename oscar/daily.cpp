@@ -369,6 +369,8 @@ Daily::Daily(QWidget *parent,gGraphView * shared)
     graphlist[STR_GRAPH_EventBreakdown] = GAHI = new gGraph(STR_GRAPH_EventBreakdown, snapGV,tr("Breakdown"),tr("events"),172);
     gSegmentChart * evseg=new gSegmentChart(GST_Pie);
     evseg->AddSlice(CPAP_Hypopnea,QColor(0x40,0x40,0xff,0xff),STR_TR_H);
+    evseg->AddSlice(CPAP_ObstructiveHypopnea,QColor(0x30,0x90,0xd0,0xff),STR_TR_OH);
+    evseg->AddSlice(CPAP_CentralHypopnea,QColor(0xd0,0x60,0xd0,0xff),STR_TR_CH);
     evseg->AddSlice(CPAP_Apnea,QColor(0x20,0x80,0x20,0xff),STR_TR_UA);
     evseg->AddSlice(CPAP_Obstructive,QColor(0x40,0xaf,0xbf,0xff),STR_TR_OA);
     evseg->AddSlice(CPAP_ClearAirway,QColor(0xb2,0x54,0xcd,0xff),STR_TR_CA);
@@ -1148,6 +1150,17 @@ void Daily::UpdateCalendarDay(QDate date)
 ***/
     ui->calendar->setHorizontalHeaderFormat(QCalendarWidget::ShortDayNames);
 }
+
+// Refreshes the calendar appearance for a list of dates whose data has changed
+// outside of the normal load/unload cycle (for example after a range purge).
+void Daily::updateCalendarDays(const QList<QDate> &dates)
+{
+    for (const QDate &date : dates) {
+        if (date.isValid())
+            UpdateCalendarDay(date);
+    }
+}
+
 void Daily::LoadDate(QDate date, bool forceCalendarUpdate)
 {
     DEBUGXD O("Daily::LoadDate") O(date);
@@ -1778,6 +1791,23 @@ QString Daily::getAHI(Day * day, bool isBrick) {
                 .arg("#F88017").arg(tr("This CPAP device does NOT record detailed data"));
     }
     html +="</tr>\n";
+
+    // Obstructive and central breakdown of the same index. The two always sum to AHI,
+    // so they are shown together on one line directly beneath it. RERA is excluded even
+    // in RDI mode, since an arousal is neither obstructive nor central.
+    if (!isBrick && hours > 0) {
+        EventDataType oahi = day->calcOAHI();
+        EventDataType cahi = day->calcCAHI();
+        html +="<tr>";
+        html +=QString("<td colspan=5 bgcolor='%1' align=center><div title='  %2 \t  ' style='white-space: nowrap;'><font color='%3'>%4&nbsp;<b>%5</b>&nbsp;&nbsp;&nbsp;&nbsp;%6&nbsp;<b>%7</b></font></div></td>\n")
+                .arg("#F88017")
+                .arg(tr("Obstructive and Central shares of the %1").arg(STR_TR_AHI))
+                .arg(COLOR_Text.name())
+                .arg(STR_TR_OAHI).arg(oahi,0,'f',2)
+                .arg(STR_TR_CAHI).arg(cahi,0,'f',2);
+        html +="</tr>\n";
+    }
+
     html +="</table>\n";
 
     return html;
@@ -2135,6 +2165,7 @@ void Daily::Load(QDate date)
             htmlLeftIndices = getIndices(day,values);
 
             htmlLeftPieChart = getPieChart((values[CPAP_Obstructive] + values[CPAP_Hypopnea] + values[CPAP_AllApnea] +
+                                            values[CPAP_ObstructiveHypopnea] + values[CPAP_CentralHypopnea] +
                                             values[CPAP_ClearAirway] + values[CPAP_Apnea] + values[CPAP_RERA] +
                                             values[CPAP_FlowLimit] + values[CPAP_SensAwake]), day);
             htmlLsbSectionHeaderInit();

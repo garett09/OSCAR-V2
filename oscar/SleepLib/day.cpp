@@ -642,9 +642,9 @@ EventDataType Day::sum(ChannelID code)
     // Cache this?
     EventDataType val = 0;
 
-    if (code == AllAhiChannels) {
-        for (int i = 0; i < ahiChannels.size(); i++)
-            val += sum(ahiChannels.at(i));
+    if (const QVector<ChannelID> * group = ahiChannelGroup(code)) {
+        for (int i = 0; i < group->size(); i++)
+            val += sum(group->at(i));
         return val;
     }
 
@@ -1131,9 +1131,9 @@ EventDataType Day::count(ChannelID code)
 //    qDebug() << "Day::count() for code" << code;
     EventDataType total = 0;
 
-    if (code == AllAhiChannels) {
-        for (int i = 0; i < ahiChannels.size(); i++)
-            total += count(ahiChannels.at(i));
+    if (const QVector<ChannelID> * group = ahiChannelGroup(code)) {
+        for (int i = 0; i < group->size(); i++)
+            total += count(group->at(i));
         return total;
     }
 

@@ -62,6 +62,14 @@ from datetime import datetime, timedelta, date
 #   avglist   = the pressure family
 # (channel_id, fallback_code) -- the code is read from the DB channels table
 # when present, falling back to these static schema codes otherwise.
+#
+# Deliberately frozen at the 1.7.1 channel set. OSCAR 2.0 added
+# ObstructiveHypopnea (0x1011) and CentralHypopnea (0x1012), which its own CSV
+# export does include -- they are omitted here because the point of this script
+# is byte-for-byte parity with 1.7.1. A 2.0 database recorded from a SEFAM, BMC
+# Luna G3X or Loewenstein prisma device will therefore have hypopnea events this
+# script does not emit. Add the two IDs after Hypopnea(0x1003) if you want the
+# 2.0 set instead of the 1.7.1 one.
 # ---------------------------------------------------------------------------
 TARGET_CHANNELS = [
     # --- countlist: ahiChannels first (order from schema.cpp) ---

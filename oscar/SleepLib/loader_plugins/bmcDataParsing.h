@@ -64,12 +64,14 @@ public:
 
 enum class BmcRespiratoryEventType
 {
-    HYP = 0,
+    HYP = 0,    ///< Hypopnea the device did not classify by mechanism
     OSA,
     CSA,
     UA,
     PB,         ///< Periodic breathing / Cheyne-Stokes respiration episode
     RERA,       ///< Respiratory Effort Related Arousal
+    OH,         ///< Obstructive hypopnea (G3X only; legacy cards never report one)
+    CH,         ///< Central hypopnea (G3X only)
     Unknown
 };
 

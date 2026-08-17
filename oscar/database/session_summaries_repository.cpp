@@ -35,22 +35,28 @@ qint64 SessionSummariesRepository::create(const SessionSummaryData& data)
     QSqlQuery query(db);
     query.prepare(
         "INSERT INTO session_summaries "
-        "(session_id, profile_id, ahi, rdi, obstructive_count, unclassified_count, hypopnea_count, rera_count, "
-        " clear_airway_count, pressure_avg, pressure_min, pressure_max, pressure_95th, "
+        "(session_id, profile_id, ahi, rdi, oahi, cahi, obstructive_count, unclassified_count, hypopnea_count, rera_count, "
+        " clear_airway_count, obstructive_hypopnea_count, central_hypopnea_count, all_apnea_count, "
+        " pressure_avg, pressure_min, pressure_max, pressure_95th, "
         " leak_total_avg, leak_total_95th, leak_total_max, "
         " spo2_avg, spo2_min, pulse_avg, hours_used, mask_on_hours) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     );
 
     query.addBindValue(data.sessionId);
     query.addBindValue(data.profileId);
     query.addBindValue(data.ahi);
     query.addBindValue(data.rdi);
+    query.addBindValue(data.oahi);
+    query.addBindValue(data.cahi);
     query.addBindValue(data.obstructiveCount);
     query.addBindValue(data.unclassifiedCount);
     query.addBindValue(data.hypopneaCount);
     query.addBindValue(data.reraCount);
     query.addBindValue(data.clearAirwayCount);
+    query.addBindValue(data.obstructiveHypopneaCount);
+    query.addBindValue(data.centralHypopneaCount);
+    query.addBindValue(data.allApneaCount);
     query.addBindValue(data.pressureAvg);
     query.addBindValue(data.pressureMin);
     query.addBindValue(data.pressureMax);
@@ -84,8 +90,10 @@ bool SessionSummariesRepository::update(const SessionSummaryData& data)
     QSqlQuery query(db);
     query.prepare(
         "UPDATE session_summaries SET "
-        "ahi = ?, rdi = ?, obstructive_count = ?, unclassified_count = ?, "
-        "hypopnea_count = ?, rera_count = ?, clear_airway_count = ?, pressure_avg = ?, pressure_min = ?, "
+        "ahi = ?, rdi = ?, oahi = ?, cahi = ?, obstructive_count = ?, unclassified_count = ?, "
+        "hypopnea_count = ?, rera_count = ?, clear_airway_count = ?, "
+        "obstructive_hypopnea_count = ?, central_hypopnea_count = ?, all_apnea_count = ?, "
+        "pressure_avg = ?, pressure_min = ?, "
         "pressure_max = ?, pressure_95th = ?, leak_total_avg = ?, leak_total_95th = ?, "
         "leak_total_max = ?, spo2_avg = ?, spo2_min = ?, pulse_avg = ?, "
         "hours_used = ?, mask_on_hours = ?, updated_at = CURRENT_TIMESTAMP "
@@ -94,11 +102,16 @@ bool SessionSummariesRepository::update(const SessionSummaryData& data)
 
     query.addBindValue(data.ahi);
     query.addBindValue(data.rdi);
+    query.addBindValue(data.oahi);
+    query.addBindValue(data.cahi);
     query.addBindValue(data.obstructiveCount);
     query.addBindValue(data.unclassifiedCount);
     query.addBindValue(data.hypopneaCount);
     query.addBindValue(data.reraCount);
     query.addBindValue(data.clearAirwayCount);
+    query.addBindValue(data.obstructiveHypopneaCount);
+    query.addBindValue(data.centralHypopneaCount);
+    query.addBindValue(data.allApneaCount);
     query.addBindValue(data.pressureAvg);
     query.addBindValue(data.pressureMin);
     query.addBindValue(data.pressureMax);
@@ -133,9 +146,13 @@ SessionSummaryData SessionSummariesRepository::findBySession(qint64 sessionId)
     }
 
     QSqlQuery query(db);
+    // Columns are read by name so that adding a column to the SELECT list never
+    // silently shifts the positional indexes of the ones after it.
     query.prepare(
-        "SELECT id, session_id, ahi, rdi, obstructive_count, unclassified_count, "
-        "hypopnea_count, rera_count, clear_airway_count, pressure_avg, pressure_min, pressure_max, pressure_95th, "
+        "SELECT id, session_id, ahi, rdi, oahi, cahi, obstructive_count, unclassified_count, "
+        "hypopnea_count, rera_count, clear_airway_count, "
+        "obstructive_hypopnea_count, central_hypopnea_count, all_apnea_count, "
+        "pressure_avg, pressure_min, pressure_max, pressure_95th, "
         "leak_total_avg, leak_total_95th, leak_total_max, spo2_avg, spo2_min, pulse_avg, "
         "hours_used, mask_on_hours, created_at, updated_at "
         "FROM session_summaries WHERE session_id = ?"
@@ -149,29 +166,34 @@ SessionSummaryData SessionSummariesRepository::findBySession(qint64 sessionId)
     }
 
     if (query.next()) {
-        data.id = query.value(0).toLongLong();
-        data.sessionId = query.value(1).toLongLong();
-        data.ahi = query.value(2).toDouble();
-        data.rdi = query.value(3).toDouble();
-        data.obstructiveCount = query.value(4).toInt();
-        data.unclassifiedCount = query.value(5).toInt();
-        data.hypopneaCount = query.value(6).toInt();
-        data.reraCount = query.value(7).toInt();
-        data.clearAirwayCount = query.value(8).toInt();
-        data.pressureAvg = query.value(9).toDouble();
-        data.pressureMin = query.value(10).toDouble();
-        data.pressureMax = query.value(11).toDouble();
-        data.pressure95th = query.value(12).toDouble();
-        data.leakTotalAvg = query.value(13).toDouble();
-        data.leakTotal95th = query.value(14).toDouble();
-        data.leakTotalMax = query.value(15).toDouble();
-        data.spo2Avg = query.value(16).toDouble();
-        data.spo2Min = query.value(17).toDouble();
-        data.pulseAvg = query.value(18).toDouble();
-        data.hoursUsed = query.value(19).toDouble();
-        data.maskOnHours = query.value(20).toDouble();
-        data.createdAt = query.value(21).toDateTime();
-        data.updatedAt = query.value(22).toDateTime();
+        data.id = query.value("id").toLongLong();
+        data.sessionId = query.value("session_id").toLongLong();
+        data.ahi = query.value("ahi").toDouble();
+        data.rdi = query.value("rdi").toDouble();
+        data.oahi = query.value("oahi").toDouble();
+        data.cahi = query.value("cahi").toDouble();
+        data.obstructiveCount = query.value("obstructive_count").toInt();
+        data.unclassifiedCount = query.value("unclassified_count").toInt();
+        data.hypopneaCount = query.value("hypopnea_count").toInt();
+        data.reraCount = query.value("rera_count").toInt();
+        data.clearAirwayCount = query.value("clear_airway_count").toInt();
+        data.obstructiveHypopneaCount = query.value("obstructive_hypopnea_count").toInt();
+        data.centralHypopneaCount = query.value("central_hypopnea_count").toInt();
+        data.allApneaCount = query.value("all_apnea_count").toInt();
+        data.pressureAvg = query.value("pressure_avg").toDouble();
+        data.pressureMin = query.value("pressure_min").toDouble();
+        data.pressureMax = query.value("pressure_max").toDouble();
+        data.pressure95th = query.value("pressure_95th").toDouble();
+        data.leakTotalAvg = query.value("leak_total_avg").toDouble();
+        data.leakTotal95th = query.value("leak_total_95th").toDouble();
+        data.leakTotalMax = query.value("leak_total_max").toDouble();
+        data.spo2Avg = query.value("spo2_avg").toDouble();
+        data.spo2Min = query.value("spo2_min").toDouble();
+        data.pulseAvg = query.value("pulse_avg").toDouble();
+        data.hoursUsed = query.value("hours_used").toDouble();
+        data.maskOnHours = query.value("mask_on_hours").toDouble();
+        data.createdAt = query.value("created_at").toDateTime();
+        data.updatedAt = query.value("updated_at").toDateTime();
     }
 
     return data;

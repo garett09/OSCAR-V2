@@ -383,6 +383,8 @@ SOURCES += \
     SleepLib/event.cpp \
     SleepLib/importcontext.cpp \
     SleepLib/journal.cpp \
+    SleepLib/loader_plugins/apexDataParsing.cpp \
+    SleepLib/loader_plugins/apex_loader.cpp \
     SleepLib/loader_plugins/bmcDataParsing.cpp \
     SleepLib/loader_plugins/bmcG3xDataParsing.cpp \
     SleepLib/loader_plugins/bmc_loader.cpp \
@@ -564,6 +566,8 @@ HEADERS  += \
     SleepLib/profiles.h \
     SleepLib/schema.h \
     SleepLib/session.h \
+    SleepLib/loader_plugins/apexDataParsing.h \
+    SleepLib/loader_plugins/apex_loader.h \
     SleepLib/loader_plugins/bmcDataParsing.h \
     SleepLib/loader_plugins/bmcG3xDataParsing.h \
     SleepLib/loader_plugins/bmc_loader.h \
@@ -824,6 +828,7 @@ test {
     }
 
     SOURCES += \
+        tests/apextests.cpp \
         tests/prs1tests.cpp \
         tests/rawdatatests.cpp \
         tests/resmedtests.cpp \
@@ -840,6 +845,7 @@ test {
 
     HEADERS += \
         tests/AutoTest.h \
+        tests/apextests.h \
         tests/prs1tests.h \
         tests/rawdatatests.h \
         tests/resmedtests.h \

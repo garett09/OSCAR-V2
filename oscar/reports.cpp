@@ -224,6 +224,10 @@ void Report::PrintReport(gGraphView *gv, QString name, QDate date)
             float oai = day->count(CPAP_Obstructive) / hours;
             float ai = day->count(CPAP_AllApnea) / hours;
             float hi = (day->count(CPAP_ExP) + day->count(CPAP_Hypopnea)) / hours;
+            float ohi = day->count(CPAP_ObstructiveHypopnea) / hours;
+            float chi = day->count(CPAP_CentralHypopnea) / hours;
+            float oahi = day->calcOAHI();
+            float cahi = day->calcCAHI();
             float cai = day->count(CPAP_ClearAirway) / hours;
             float rei = day->count(CPAP_RERA) / hours;
             float vsi = day->count(CPAP_VSnore) / hours;
@@ -282,6 +286,13 @@ void Report::PrintReport(gGraphView *gv, QString name, QDate date)
 
             stats = QObject::tr("AI=%1 HI=%2 CAI=%3 ").arg(oai, 0, 'f', 2).arg(hi, 0, 'f', 2).arg(cai, 0, 'f',
                     2);
+
+            // Only devices that score hypopneas by mechanism report these, so keep them
+            // off the line entirely for everything else rather than printing 0.00.
+            if (day->channelHasData(CPAP_ObstructiveHypopnea) || day->channelHasData(CPAP_CentralHypopnea)) {
+                stats += QObject::tr("OHI=%1 CHI=%2 ").arg(ohi, 0, 'f', 2).arg(chi, 0, 'f', 2);
+            }
+            stats += QObject::tr("OAHI=%1 CAHI=%2 ").arg(oahi, 0, 'f', 2).arg(cahi, 0, 'f', 2);
 
             if (cpap->loaderName() == STR_MACH_PRS1) {
 

@@ -951,15 +951,15 @@ BmcDateSession BmcG3xData::ReadDateSession(QDate aDate)
                     // Periodic breathing episode start marker (confirmed 2026-03-30).
                     // Unlike other respiratory events, timestamp marks the START of the episode.
                     // Duration is a uint32 at offset 0x1C: low 16 bits (value2) | high 16 bits at 0x1E.
-                    // Reading as uint16 only gives ~28s/23s; uint32 gives correct ~159s/154s
-                    // matching PAP-Link (confirmed 2026-03-30 via Lijunjun data).
                     ++rawRespType09Count;
                     const quint32 durationMs = static_cast<quint32>(value2) |
                                                (static_cast<quint32>(ReadUInt16LEPtr(rec, 0x1E)) << 16);
                     BmcRespiratoryEvent pbEvt;
                     pbEvt.EventType       = BmcRespiratoryEventType::PB;
                     pbEvt.StartTime       = evtTime;
-                    pbEvt.DurationSeconds = static_cast<int>(durationMs / 1000);
+                    // Round to the nearest second (matching the respiratory event path in
+                    // Phase 2); OSCAR stores event durations as whole seconds.
+                    pbEvt.DurationSeconds = static_cast<int>(durationMs / 1000.0 + 0.5);
                     pbEvt.EndTime         = pbEvt.StartTime.addSecs(pbEvt.DurationSeconds);
                     rawPbEvents.append(pbEvt);
                     break;
@@ -1112,6 +1112,8 @@ BmcDateSession BmcG3xData::ReadDateSession(QDate aDate)
         int mappedOsaCount  = 0;
         int mappedCsaCount  = 0;
         int mappedHypCount  = 0;
+        int mappedOhCount   = 0;
+        int mappedChCount   = 0;
         int mappedUaCount   = 0;
         int mappedReraCount = 0;
         int ignoredCount    = 0;
@@ -1125,8 +1127,10 @@ BmcDateSession BmcG3xData::ReadDateSession(QDate aDate)
             case kG3xEvtTypeUA:  mappedType = BmcRespiratoryEventType::UA;   break;
             case kG3xEvtTypeOSA: mappedType = BmcRespiratoryEventType::OSA;  break;
             case kG3xEvtTypeCSA: mappedType = BmcRespiratoryEventType::CSA;  break;
-            case kG3xEvtTypeOH:
-            case kG3xEvtTypeCH:  mappedType = BmcRespiratoryEventType::HYP;  break;
+            // The G3X scores hypopneas by mechanism as well as reporting an
+            // unclassified kind (0x01), so all three hypopnea channels can appear.
+            case kG3xEvtTypeOH:  mappedType = BmcRespiratoryEventType::OH;   break;
+            case kG3xEvtTypeCH:  mappedType = BmcRespiratoryEventType::CH;   break;
             case kG3xEvtTypeRERA: mappedType = BmcRespiratoryEventType::RERA; break;
             default: hasMappedType = false; break;
             }
@@ -1150,6 +1154,8 @@ BmcDateSession BmcG3xData::ReadDateSession(QDate aDate)
             case BmcRespiratoryEventType::OSA:  ++mappedOsaCount;  break;
             case BmcRespiratoryEventType::CSA:  ++mappedCsaCount;  break;
             case BmcRespiratoryEventType::HYP:  ++mappedHypCount;  break;
+            case BmcRespiratoryEventType::OH:   ++mappedOhCount;   break;
+            case BmcRespiratoryEventType::CH:   ++mappedChCount;   break;
             case BmcRespiratoryEventType::UA:   ++mappedUaCount;   break;
             case BmcRespiratoryEventType::RERA: ++mappedReraCount; break;
             default: break;
@@ -1170,6 +1176,8 @@ BmcDateSession BmcG3xData::ReadDateSession(QDate aDate)
                  << "mappedOSA"   << mappedOsaCount
                  << "mappedCSA"   << mappedCsaCount
                  << "mappedHYP"   << mappedHypCount
+                 << "mappedOH"    << mappedOhCount
+                 << "mappedCH"    << mappedChCount
                  << "mappedRERA"  << mappedReraCount
                  << "ignored"     << ignoredCount;
 

@@ -7,6 +7,8 @@
  * License. See the file COPYING in the main directory of the source code
  * for more details. */
 
+#include <utility>
+
 #include <QFile>
 #include <QDebug>
 #include <QDomDocument>
@@ -70,6 +72,8 @@ void setOrders() {
     schema::channel[CPAP_Obstructive].setOrder(order++);
     schema::channel[CPAP_Apnea].setOrder(order++);
     schema::channel[CPAP_Hypopnea].setOrder(order++);
+    schema::channel[CPAP_ObstructiveHypopnea].setOrder(order++);
+    schema::channel[CPAP_CentralHypopnea].setOrder(order++);
     schema::channel[CPAP_FlowLimit].setOrder(order++);
 
     schema::channel[CPAP_RERA].setOrder(order++);
@@ -171,6 +175,13 @@ void init()
             QObject::tr("Obstructive Apnea (OA)"), QObject::tr("An apnea caused by airway obstruction"), QObject::tr("OA"), STR_UNIT_EventsPerHour,    DEFAULT,    QColor(64, 192, 255)));
     schema::channel.add(GRP_CPAP, new Channel(CPAP_Hypopnea      = 0x1003, FLAG,        MT_CPAP, SESSION, "Hypopnea",
             QObject::tr("Hypopnea (H)"), QObject::tr("A partially obstructed airway"), QObject::tr("H"),        STR_UNIT_EventsPerHour,    DEFAULT,    QColor("blue")));
+    // Devices that score hypopneas by mechanism report these two instead of plain H.
+    // A device reporting them may still report H as well, for the hypopneas it could
+    // not classify (BMC Luna G3X does exactly that), so all three can coexist.
+    schema::channel.add(GRP_CPAP, new Channel(CPAP_ObstructiveHypopnea = 0x1011, FLAG,  MT_CPAP, SESSION, "ObstructiveHypopnea",
+            QObject::tr("Obstructive Hypopnea (OH)"), QObject::tr("A hypopnea caused by airway obstruction"), QObject::tr("OH"), STR_UNIT_EventsPerHour,    DEFAULT,    QColor(0x30, 0x90, 0xd0)));
+    schema::channel.add(GRP_CPAP, new Channel(CPAP_CentralHypopnea     = 0x1012, FLAG,  MT_CPAP, SESSION, "CentralHypopnea",
+            QObject::tr("Central Hypopnea (CH)"), QObject::tr("A hypopnea where respiratory effort is reduced rather than obstructed"), QObject::tr("CH"), STR_UNIT_EventsPerHour,    DEFAULT,    QColor(0xd0, 0x60, 0xd0)));
     schema::channel.add(GRP_CPAP, new Channel(CPAP_Apnea         = 0x1004, FLAG,        MT_CPAP, SESSION, "Apnea",
             QObject::tr("Unclassified Apnea (UA)"), QObject::tr("An apnea that couldn't be determined as Central or Obstructive."),QObject::tr("UA"),       STR_UNIT_EventsPerHour,    DEFAULT,    QColor("dark green")));
     schema::channel.add(GRP_CPAP, new Channel(CPAP_AllApnea      = 0x1010, FLAG,        MT_CPAP, SESSION, "AllApnea",
@@ -417,14 +428,39 @@ void init()
     // Identify the channels that contribute to AHI calculation
     // When adding more AHI-contributing channels,
     // 1) update this list
-    // 2) Update setOrders() above
-    // 3) Search source for CPAP_Obstructive to look for possible other places to add new channel
-    // 4) Search for AllAhiChannels to find all uses of the AHI-contributing channel list
+    // 2) decide which bucket it belongs to: append it to cahiChannels below if the
+    //    event is centrally scored, otherwise it falls into OAHI automatically
+    // 3) Update setOrders() above
+    // 4) Search source for CPAP_Obstructive to look for possible other places to add new channel
+    // 5) Search for AllAhiChannels to find all uses of the AHI-contributing channel list
+    ahiChannels.clear();
+    cahiChannels.clear();
     ahiChannels.append(CPAP_ClearAirway);
     ahiChannels.append(CPAP_AllApnea);
     ahiChannels.append(CPAP_Obstructive);
     ahiChannels.append(CPAP_Hypopnea);
+    ahiChannels.append(CPAP_ObstructiveHypopnea);
+    ahiChannels.append(CPAP_CentralHypopnea);
     ahiChannels.append(CPAP_Apnea);
+
+    // The centrally scored share of the above. OAHI is everything else, which puts
+    // the unclassified channels (UA, A and plain H) on the obstructive side — the
+    // usual clinical assumption, and what makes OAHI + CAHI == AHI hold exactly.
+    cahiChannels.append(CPAP_ClearAirway);
+    cahiChannels.append(CPAP_CentralHypopnea);
+
+    oahiChannels.clear();
+    for (ChannelID id : std::as_const(ahiChannels)) {
+        if (!cahiChannels.contains(id)) { oahiChannels.append(id); }
+    }
+
+    // The two buckets partition ahiChannels, which is what makes OAHI + CAHI == AHI.
+    // The only way to break it is to list a channel in cahiChannels that is not in
+    // ahiChannels, which would silently drop it from OAHI as well.
+    if (oahiChannels.size() + cahiChannels.size() != ahiChannels.size()) {
+        qWarning() << "schema::init(): cahiChannels contains a channel missing from"
+                   << "ahiChannels — OAHI + CAHI will not equal AHI";
+    }
 }
 
 
@@ -442,6 +478,8 @@ void done()
     // this fix just clears the variable that stores ahi data.
     // probelm #59  https://gitlab.com/pholy/OSCAR-code/-/issues/59
     ahiChannels.clear();
+    oahiChannels.clear();
+    cahiChannels.clear();
 
     schema_initialized = false;
 }

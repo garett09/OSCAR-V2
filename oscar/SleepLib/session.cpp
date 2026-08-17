@@ -1781,9 +1781,9 @@ EventDataType Session::rangeCount(ChannelID id, qint64 first, qint64 last)
 {
     int total = 0, cnt;
 
-    if (id == AllAhiChannels) {
-        for (int i = 0; i < ahiChannels.size(); i++)
-            total += rangeCount(ahiChannels.at(i), first, last);
+    if (const QVector<ChannelID> * group = ahiChannelGroup(id)) {
+        for (int i = 0; i < group->size(); i++)
+            total += rangeCount(group->at(i), first, last);
         return (EventDataType)total;
     }
 
@@ -2062,9 +2062,9 @@ EventDataType Session::count(ChannelID id)
 {
     int sum = 0;
 
-    if (id == AllAhiChannels) {
-        for (int i = 0; i < ahiChannels.size(); i++)
-            sum += count(ahiChannels.at(i));
+    if (const QVector<ChannelID> * group = ahiChannelGroup(id)) {
+        for (int i = 0; i < group->size(); i++)
+            sum += count(group->at(i));
         return sum;
     }
 
@@ -3268,50 +3268,30 @@ bool Session::LoadFromDatabase()
         qDebug() << "Session::LoadFromDatabase(): Found summary only session, SummaryData.id" << summaryData.id;
 #endif
 
-        // Restore event counts from summary data
-        // Use cph * hours to calculate count (since cph is preserved correctly as REAL,
-        // while count was truncated to INTEGER in session_channels)
-        if (summaryData.obstructiveCount > 0 || (sessionHours > 0 && m_cph.contains(CPAP_Obstructive))) {
-            // Calculate count from cph * hours (more accurate than stored integer)
-            if (m_cph.contains(CPAP_Obstructive) && sessionHours > 0) {
-                m_cnt[CPAP_Obstructive] = qRound(static_cast<double>(m_cph[CPAP_Obstructive] * sessionHours));
-            } else if (summaryData.obstructiveCount > 0) {
-                m_cnt[CPAP_Obstructive] = qRound(static_cast<double>(summaryData.obstructiveCount));
+        // Restore event counts from summary data.
+        // Prefer cph * hours over the stored count: cph is preserved as REAL, while
+        // the count was truncated to INTEGER in session_channels.
+        auto restoreCount = [&](ChannelID id, int storedCount) {
+            if (storedCount <= 0 && !(sessionHours > 0 && m_cph.contains(id))) { return; }
+
+            if (m_cph.contains(id) && sessionHours > 0) {
+                m_cnt[id] = qRound(static_cast<double>(m_cph[id] * sessionHours));
+            } else if (storedCount > 0) {
+                m_cnt[id] = qRound(static_cast<double>(storedCount));
             }
-            if (!m_availableChannels.contains(CPAP_Obstructive)) {
-                m_availableChannels.push_back(CPAP_Obstructive);
+            if (!m_availableChannels.contains(id)) {
+                m_availableChannels.push_back(id);
             }
-        }
-        if (summaryData.clearAirwayCount > 0 || (sessionHours > 0 && m_cph.contains(CPAP_ClearAirway))) {
-            if (m_cph.contains(CPAP_ClearAirway) && sessionHours > 0) {
-                m_cnt[CPAP_ClearAirway] = qRound(static_cast<double>(m_cph[CPAP_ClearAirway] * sessionHours));
-            } else if (summaryData.clearAirwayCount > 0) {
-                m_cnt[CPAP_ClearAirway] = qRound(static_cast<double>(summaryData.clearAirwayCount));
-            }
-            if (!m_availableChannels.contains(CPAP_ClearAirway)) {
-                m_availableChannels.push_back(CPAP_ClearAirway);
-            }
-        }
-        if (summaryData.hypopneaCount > 0 || (sessionHours > 0 && m_cph.contains(CPAP_Hypopnea))) {
-            if (m_cph.contains(CPAP_Hypopnea) && sessionHours > 0) {
-                m_cnt[CPAP_Hypopnea] = qRound(static_cast<double>(m_cph[CPAP_Hypopnea] * sessionHours));
-            } else if (summaryData.hypopneaCount > 0) {
-                m_cnt[CPAP_Hypopnea] = qRound(static_cast<double>(summaryData.hypopneaCount));
-            }
-            if (!m_availableChannels.contains(CPAP_Hypopnea)) {
-                m_availableChannels.push_back(CPAP_Hypopnea);
-            }
-        }
-        if (summaryData.reraCount > 0 || (sessionHours > 0 && m_cph.contains(CPAP_RERA))) {
-            if (m_cph.contains(CPAP_RERA) && sessionHours > 0) {
-                m_cnt[CPAP_RERA] = qRound(static_cast<double>(m_cph[CPAP_RERA] * sessionHours));
-            } else if (summaryData.reraCount > 0) {
-                m_cnt[CPAP_RERA] = qRound(static_cast<double>(summaryData.reraCount));
-            }
-            if (!m_availableChannels.contains(CPAP_RERA)) {
-                m_availableChannels.push_back(CPAP_RERA);
-            }
-        }
+        };
+
+        restoreCount(CPAP_Obstructive, summaryData.obstructiveCount);
+        restoreCount(CPAP_ClearAirway, summaryData.clearAirwayCount);
+        restoreCount(CPAP_Hypopnea, summaryData.hypopneaCount);
+        restoreCount(CPAP_ObstructiveHypopnea, summaryData.obstructiveHypopneaCount);
+        restoreCount(CPAP_CentralHypopnea, summaryData.centralHypopneaCount);
+        restoreCount(CPAP_Apnea, summaryData.unclassifiedCount);
+        restoreCount(CPAP_AllApnea, summaryData.allApneaCount);
+        restoreCount(CPAP_RERA, summaryData.reraCount);
     }
 
     // Mark summary as loaded since we have the cached statistics
@@ -3371,22 +3351,27 @@ bool Session::StoreSummaryToDatabase()
     if (m_wavg.contains(CPAP_AHI)) {
         sessionSummaryData.ahi = m_wavg[CPAP_AHI];
     } else {
-        // Calculate AHI from event counts for summary-only sessions
-        double totalEvents = 0;
-        if (m_cnt.contains(CPAP_Obstructive)) totalEvents += m_cnt[CPAP_Obstructive];
-        if (m_cnt.contains(CPAP_ClearAirway)) totalEvents += m_cnt[CPAP_ClearAirway];
-        if (m_cnt.contains(CPAP_Hypopnea)) totalEvents += m_cnt[CPAP_Hypopnea];
-        if (m_cnt.contains(CPAP_RERA)) totalEvents += m_cnt[CPAP_RERA];
-        if (m_cnt.contains(CPAP_Apnea)) totalEvents += m_cnt[CPAP_Apnea];  // Include unknown apneas
-        
+        // Calculate AHI from event counts for summary-only sessions.
+        // count() walks ahiChannels, so this stays correct as channels are added and
+        // cannot drift from Day::calcAHI() the way the previous hand-rolled sum did
+        // (it omitted CPAP_AllApnea and added CPAP_RERA, i.e. it computed RDI).
         if (sessionSummaryData.hoursUsed > 0) {
-            sessionSummaryData.ahi = totalEvents / sessionSummaryData.hoursUsed;
+            sessionSummaryData.ahi = count(AllAhiChannels) / sessionSummaryData.hoursUsed;
         }
     }
     if (m_wavg.contains(CPAP_RDI)) {
         sessionSummaryData.rdi = m_wavg[CPAP_RDI];
     }
-    
+
+    // Obstructive and central shares of the AHI. Always count-derived: no device
+    // reports them, so unlike ahi above there is no cached value to prefer. They sum
+    // to the count-derived AHI exactly; against a device-reported m_wavg[CPAP_AHI]
+    // they may differ slightly, the same way OSCAR's own AHI already can.
+    if (sessionSummaryData.hoursUsed > 0) {
+        sessionSummaryData.oahi = count(AllOahiChannels) / sessionSummaryData.hoursUsed;
+        sessionSummaryData.cahi = count(AllCahiChannels) / sessionSummaryData.hoursUsed;
+    }
+
     // Event counts from cached values
     if (m_cnt.contains(CPAP_Obstructive)) {
         sessionSummaryData.obstructiveCount = m_cnt[CPAP_Obstructive];
@@ -3397,6 +3382,12 @@ bool Session::StoreSummaryToDatabase()
     if (m_cnt.contains(CPAP_Hypopnea)) {
         sessionSummaryData.hypopneaCount = m_cnt[CPAP_Hypopnea];
     }
+    if (m_cnt.contains(CPAP_ObstructiveHypopnea)) {
+        sessionSummaryData.obstructiveHypopneaCount = m_cnt[CPAP_ObstructiveHypopnea];
+    }
+    if (m_cnt.contains(CPAP_CentralHypopnea)) {
+        sessionSummaryData.centralHypopneaCount = m_cnt[CPAP_CentralHypopnea];
+    }
     if (m_cnt.contains(CPAP_RERA)) {
         sessionSummaryData.reraCount = m_cnt[CPAP_RERA];
     }
@@ -3404,7 +3395,13 @@ bool Session::StoreSummaryToDatabase()
     if (m_cnt.contains(CPAP_Apnea)) {
         sessionSummaryData.unclassifiedCount = m_cnt[CPAP_Apnea];
     }
-    
+    // CPAP_AllApnea is the undifferentiated apnea a few devices report. It counts
+    // towards AHI, so leaving it unstored made SQL sums over these columns disagree
+    // with the stored ahi for those devices (schema v18 added the column).
+    if (m_cnt.contains(CPAP_AllApnea)) {
+        sessionSummaryData.allApneaCount = m_cnt[CPAP_AllApnea];
+    }
+
     // Pressure statistics from cached values
     if (m_wavg.contains(CPAP_Pressure)) {
         sessionSummaryData.pressureAvg = m_wavg[CPAP_Pressure];
@@ -3502,6 +3499,8 @@ QList<RespiratoryEventData> Session::extractRespiratoryEvents()
         CPAP_Obstructive,    // OA
         CPAP_Apnea,          // UA (unclassified)
         CPAP_Hypopnea,       // H
+        CPAP_ObstructiveHypopnea, // OH
+        CPAP_CentralHypopnea,     // CH
         CPAP_RERA,           // RERA
         CPAP_ClearAirway,    // CA
         CPAP_AllApnea        // All

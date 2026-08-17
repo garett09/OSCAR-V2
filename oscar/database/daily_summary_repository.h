@@ -32,12 +32,17 @@ struct DailySummaryData {
     // Respiratory events
     double ahi = 0.0;
     double rdi = 0.0;
+    double oahi = 0.0;                  // Obstructive AHI (schema v18); oahi + cahi == ahi
+    double cahi = 0.0;                  // Central AHI (schema v18)
     int obstructiveCount = 0;
     int unclassifiedCount = 0;
     int hypopneaCount = 0;
     int reraCount = 0;
     int clearAirwayCount = 0;
-    
+    int obstructiveHypopneaCount = 0;   // Schema v18
+    int centralHypopneaCount = 0;       // Schema v18
+    int allApneaCount = 0;              // Schema v18; CPAP_AllApnea, an AHI contributor
+
     // Pressure statistics
     double pressureAvg = 0.0;
     double pressureMin = 0.0;

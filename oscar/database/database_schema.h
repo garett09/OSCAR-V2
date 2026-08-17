@@ -39,6 +39,16 @@ public:
      * Increment this when schema changes. Used to determine if
      * database upgrades are needed.
      *
+     * Version 18: Central / Obstructive hypopnea split
+     * - session_summaries and daily_summaries each gained five columns:
+     *   obstructive_hypopnea_count, central_hypopnea_count, all_apnea_count
+     *   (INTEGER) and oahi, cahi (REAL).
+     * - all_apnea_count closes a pre-existing gap: CPAP_AllApnea contributes to
+     *   AHI but was never stored, so SQL could not reproduce the app's AHI for
+     *   devices that report an undifferentiated apnea.
+     * - Purely additive. Pre-v18 rows keep 0 in all five columns until the day is
+     *   recalculated or re-imported; no backfill is performed.
+     *
      * Version 17: Per-device per-night time corrections (all device types)
      * - Added device_time_corrections table
      * - type: timezone | travel | dst | reset | offset | drift
@@ -71,7 +81,7 @@ public:
      * - Added type field to channels
      * - Removed events_file and summary_file from sessions (no longer needed)
      */
-    static const int CURRENT_SCHEMA_VERSION = 18;
+    static const int CURRENT_SCHEMA_VERSION = 19;
 
     /*!
      * \brief Oldest schema version that can be restored into the current database.
@@ -188,8 +198,14 @@ private:
     // Night clock offsets table (schema version 18)
     static bool createNightClockOffsetsTable(QSqlDatabase& db);
 
+    // Central / Obstructive hypopnea summary columns (schema version 18)
+    static bool addHypopneaSummaryColumns(QSqlDatabase& db);
+
     // Migration from v17 to v18
     static bool migrateV17ToV18(QSqlDatabase& db);
+
+    // Migration from v18 to v19
+    static bool migrateV18ToV19(QSqlDatabase& db);
 
     static bool createIndexes(QSqlDatabase& db);
     static bool setSchemaVersion(QSqlDatabase& db, int version);

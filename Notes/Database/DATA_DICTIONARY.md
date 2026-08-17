@@ -184,11 +184,16 @@ Re-import is required to repair pre-fix rows; the discontinuity is accepted.
 | profile_id | INTEGER | FK | NO | → profiles(id) (denormalized, NEW IN v12) |
 | ahi | REAL | | NO | Apnea-Hypopnea Index |
 | rdi | REAL | | NO | Respiratory Disturbance Index |
+| oahi | REAL | | NO | Obstructive AHI (added in v18); oahi + cahi = ahi |
+| cahi | REAL | | NO | Central AHI (added in v18) |
 | obstructive_count | INTEGER | | NO | OA count |
 | unclassified_count | INTEGER | | NO | UA count (renamed from central_count in v10) |
-| hypopnea_count | INTEGER | | NO | H Hypopnea count |
+| hypopnea_count | INTEGER | | NO | H Hypopnea count (unclassified by mechanism) |
 | rera_count | INTEGER | | NO | RERA count |
 | clear_airway_count | INTEGER | | NO | CA count (added in v10) |
+| obstructive_hypopnea_count | INTEGER | | NO | OH count (added in v18) |
+| central_hypopnea_count | INTEGER | | NO | CH count (added in v18) |
+| all_apnea_count | INTEGER | | NO | A count — undifferentiated apnea (added in v18) |
 | pressure_avg | REAL | | YES | Average pressure (cmH₂O) |
 | pressure_min | REAL | | YES | Min pressure |
 | pressure_max | REAL | | YES | Max pressure |
@@ -261,11 +266,16 @@ Re-import is required to repair pre-fix rows; the discontinuity is accepted.
 | mask_on_hours | REAL | | NO | Mask-on hours |
 | ahi | REAL | | NO | Apnea-Hypopnea Index |
 | rdi | REAL | | NO | Respiratory Disturbance Index |
+| oahi | REAL | | NO | Obstructive AHI (added in v18); oahi + cahi = ahi |
+| cahi | REAL | | NO | Central AHI (added in v18) |
 | obstructive_count | INTEGER | | NO | OA count |
 | central_count | INTEGER | | NO | UA count |
-| hypopnea_count | INTEGER | | NO | Hypopnea count |
+| hypopnea_count | INTEGER | | NO | Hypopnea count (unclassified by mechanism) |
 | rera_count | INTEGER | | NO | RERA count |
 | clear_airway_count | INTEGER | | NO | CA Clear airway count |
+| obstructive_hypopnea_count | INTEGER | | NO | OH count (added in v18) |
+| central_hypopnea_count | INTEGER | | NO | CH count (added in v18) |
+| all_apnea_count | INTEGER | | NO | A count — undifferentiated apnea (added in v18) |
 | pressure_avg | REAL | | YES | Average pressure (cmH₂O) |
 | pressure_min | REAL | | YES | Min pressure |
 | pressure_max | REAL | | YES | Max pressure |

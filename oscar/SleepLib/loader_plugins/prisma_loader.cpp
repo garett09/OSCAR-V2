@@ -411,7 +411,10 @@ void PrismaImport::run()
     AddEvents(CPAP_Obstructive, PRISMA_EVENT_OBSTRUCTIVE_APNEA);
     AddEvents(CPAP_ClearAirway, PRISMA_EVENT_CENTRAL_APNEA);
     AddEvents(CPAP_Apnea, { PRISMA_EVENT_APNEA_LEAKAGE, PRISMA_EVENT_APNEA_HIGH_PRESSURE, PRISMA_EVENT_APNEA_MOVEMENT});
-    AddEvents(CPAP_Hypopnea, { PRISMA_EVENT_OBSTRUCTIVE_HYPOPNEA, PRISMA_EVENT_CENTRAL_HYPOPNEA});
+    // The device scores hypopneas by mechanism, so they go to the dedicated channels
+    // rather than being folded into CPAP_Hypopnea. Both still contribute to AHI.
+    AddEvents(CPAP_ObstructiveHypopnea, PRISMA_EVENT_OBSTRUCTIVE_HYPOPNEA);
+    AddEvents(CPAP_CentralHypopnea, PRISMA_EVENT_CENTRAL_HYPOPNEA);
     AddEvents(CPAP_RERA, PRISMA_EVENT_RERA);
     AddEvents(CPAP_VSnore, PRISMA_EVENT_SNORE);
     AddEvents(CPAP_CSR, PRISMA_EVENT_CS_RESPIRATION);

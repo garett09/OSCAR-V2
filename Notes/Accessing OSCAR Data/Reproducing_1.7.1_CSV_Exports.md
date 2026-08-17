@@ -160,6 +160,11 @@ All facts confirmed against the 2.0 source (`event_data_repository.cpp`,
   ClearAirway(0x1001), AllApnea(0x1010), Obstructive(0x1002), Hypopnea(0x1003),
   Apnea(0x1004); then the explicit flags and the pressure family. IDs taken from
   `schema.cpp` and `prs1_loader.cpp` (`PressurePulse` = 0x1009).
+- **2.0 divergence:** 2.0's `ahiChannels` also carries
+  ObstructiveHypopnea(0x1011) and CentralHypopnea(0x1012), so 2.0's own CSV
+  export has two more count columns than 1.7.1's. The script keeps the 1.7.1 set
+  on purpose; a database imported from a SEFAM, BMC Luna G3X or Loewenstein
+  prisma device under 2.0 will hold hypopnea events it does not emit.
 - `Event` column uses the compiled-in schema code
   (`schema::channel[key].code()`), used directly rather than the per-profile
   `channels` table so it cannot diverge.
