@@ -916,6 +916,7 @@ void Machine::queTask(ImportTask * task)
 
     // Not multithreading, run it right now...
     task->run();
+    delete task;  // the threadpool path auto-deletes, this one doesn't
     return;
 }
 

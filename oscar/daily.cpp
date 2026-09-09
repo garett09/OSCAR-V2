@@ -42,12 +42,15 @@
 
 #include "common_gui.h"
 #include "SleepLib/profiles.h"
+#include "SleepLib/journal.h"
 #include "SleepLib/session.h"
 #include "SleepLib/performance_timer.h"
+#include "SleepLib/loader_plugins/applehealth_loader.h"
 #include "database/session_repository.h"
 
 #include "Graphs/gLineOverlay.h"
 #include "Graphs/gFlagsLine.h"
+#include "Graphs/gSleepStageChart.h"
 #include "Graphs/gSessionBarLayer.h"
 #include "Graphs/gFooBar.h"
 #include "Graphs/gXAxis.h"
@@ -103,6 +106,7 @@ const QList<QString> standardGraphOrder = {
     STR_GRAPH_PTB, STR_GRAPH_RespEvent, STR_GRAPH_Ti, STR_GRAPH_Te, STR_GRAPH_IE,
     STR_GRAPH_SleepStage, STR_GRAPH_Inclination, STR_GRAPH_Orientation, STR_GRAPH_Motion, STR_GRAPH_TestChan1,
     STR_GRAPH_Oxi_Pulse, STR_GRAPH_Oxi_SPO2, STR_GRAPH_Oxi_Perf, STR_GRAPH_Oxi_Plethy,
+    "AWRespRate", "AWHRV",   // Apple Watch (match channel codes)
     STR_GRAPH_AHI, STR_GRAPH_TAP, STR_GRAPH_ObstructLevel, STR_GRAPH_PressureMeasured, STR_GRAPH_rRMV, STR_GRAPH_rMVFluctuation,
     STR_GRAPH_FlowFull
     #if defined(STEADY_BREATHING)
@@ -118,6 +122,7 @@ const QList<QString> advancedGraphOrder = {
     STR_GRAPH_IE_Ratio, STR_GRAPH_RespRate, STR_GRAPH_PTB, STR_GRAPH_RespEvent,
     STR_GRAPH_SleepStage, STR_GRAPH_Inclination, STR_GRAPH_Orientation, STR_GRAPH_Motion, STR_GRAPH_TestChan1,
     STR_GRAPH_Oxi_Pulse, STR_GRAPH_Oxi_SPO2, STR_GRAPH_Oxi_Perf, STR_GRAPH_Oxi_Plethy,
+    "AWRespRate", "AWHRV",   // Apple Watch (match channel codes)
     STR_GRAPH_AHI, STR_GRAPH_TAP, STR_GRAPH_ObstructLevel, STR_GRAPH_PressureMeasured, STR_GRAPH_rRMV, STR_GRAPH_rMVFluctuation,
     STR_GRAPH_FlowFull
     #if defined(STEADY_BREATHING)
@@ -304,7 +309,7 @@ Daily::Daily(QWidget *parent,gGraphView * shared)
     const ChannelID cpapcodes[] = {
         CPAP_FlowRate, CPAP_Pressure, CPAP_Leak, CPAP_FLG, CPAP_Snore, CPAP_TidalVolume,
         CPAP_MaskPressure, CPAP_RespRate, CPAP_MinuteVent, CPAP_PTB, PRS1_PeakFlow, CPAP_RespEvent, CPAP_Ti, CPAP_Te,
-        CPAP_IE, ZEO_SleepStage, POS_Inclination, POS_Orientation, POS_Movement, CPAP_Test1,
+        CPAP_IE, SLEEP_Stage, POS_Inclination, POS_Orientation, POS_Movement, CPAP_Test1,
         Prisma_ObstructLevel, Prisma_rRMV, Prisma_rMVFluctuation, Prisma_PressureMeasured, Prisma_FlowFull
         ,  BMC_PressureWave, BMC_FlowAbnormality, BMC_IE_Ratio
         ,  RMVENT_AlvMinVent, RMVENT_SpontCyc, RMVENT_SpontTrig
@@ -333,7 +338,7 @@ Daily::Daily(QWidget *parent,gGraphView * shared)
     }
 
     const ChannelID oximetercodes[] = {
-        OXI_Pulse, OXI_SPO2, OXI_Perf, OXI_Plethy
+        OXI_Pulse, OXI_SPO2, OXI_Perf, OXI_Plethy, AW_RespRate, AW_HRV
     };
 
     // Add graphs from the Oximeter code list
@@ -405,6 +410,7 @@ Daily::Daily(QWidget *parent,gGraphView * shared)
     skipgraph.push_back(STR_GRAPH_EventBreakdown);
     skipgraph.push_back(STR_GRAPH_SleepFlags);
     skipgraph.push_back(STR_GRAPH_TAP);
+    skipgraph.push_back(STR_GRAPH_SleepStage);
 
     QHash<QString, gGraph *>::iterator it;
 
@@ -524,10 +530,11 @@ Daily::Daily(QWidget *parent,gGraphView * shared)
     if (auto *g = graphlist.value(schema::channel[RMVENT_SpontCyc].code())) g->AddLayer(new gLineChart(RMVENT_SpontCyc, square));
     if (auto *g = graphlist.value(schema::channel[RMVENT_SpontTrig].code())) g->AddLayer(new gLineChart(RMVENT_SpontTrig, square));
 
-    if (auto *g = graphlist.value(schema::channel[ZEO_SleepStage].code())) {
-        g->AddLayer(new gLineChart(ZEO_SleepStage, true));
-        g->setForceMinY(-5);
-        g->setForceMaxY(0);
+    if (auto *g = graphlist.value(schema::channel[SLEEP_Stage].code())) {
+        gSleepStageChart *ss = new gSleepStageChart(SLEEP_Stage);
+        g->AddLayer(ss);
+        g->AddLayer(new gLabelArea(ss), LayerLeft, gYAxis::Margin);
+        g->AddLayer(new gXAxis(), LayerBottom, 0, gXAxis::Margin);
     }
 
 //    gLineOverlaySummary *los1=new gLineOverlaySummary(STR_UNIT_EventsPerHour,5,-4);
@@ -547,6 +554,8 @@ Daily::Daily(QWidget *parent,gGraphView * shared)
     }
     if (auto *g = graphlist.value(schema::channel[OXI_Perf].code())) g->AddLayer(new gLineChart(OXI_Perf, false));
     if (auto *g = graphlist.value(schema::channel[OXI_Plethy].code())) g->AddLayer(new gLineChart(OXI_Plethy, false));
+    if (auto *g = graphlist.value(schema::channel[AW_RespRate].code())) g->AddLayer(new gLineChart(AW_RespRate, square));
+    if (auto *g = graphlist.value(schema::channel[AW_HRV].code())) g->AddLayer(new gLineChart(AW_HRV, square));
 
 
     // Fix me
@@ -565,11 +574,7 @@ Daily::Daily(QWidget *parent,gGraphView * shared)
     for (it = graphlist.begin(); it != graphlist.end(); ++it) {
         if (skipgraph.contains(it.key())) continue;
 
-        if (it.key() == schema::channel[ZEO_SleepStage].code()) {
-            it.value()->AddLayer(new gYAxisSleepStage(),LayerLeft,gYAxis::Margin);
-        } else {
-            it.value()->AddLayer(new gYAxis(),LayerLeft,gYAxis::Margin);
-        }
+        it.value()->AddLayer(new gYAxis(),LayerLeft,gYAxis::Margin);
         it.value()->AddLayer(new gXAxis(),LayerBottom,0,gXAxis::Margin);
     }
 
@@ -1394,7 +1399,7 @@ QString Daily::getMachineSettings(Day * day) {
         } else {
             html+="<tr><td colspan=5>&nbsp;</td></tr>";
         }
-        QString fmt = QString("<tr><td colspan=3><p title='%2'>%1</p></td><td colspan=2>%3</td></tr>");
+        QString fmt = QString("<tr><td colspan=3 width='60%'><p title='%2'>%1</p></td><td colspan=2 width='40%'>%3</td></tr>");
 
         QMap<QString, QString> other;
         Session * sess = day->firstSession(MT_CPAP);
@@ -1504,15 +1509,29 @@ QString Daily::getOximeterInformation(Day * day)
 //        html+="<tr><td colspan=5 align=center>&nbsp;</td></tr>";
         html+="<tr><td colspan=5 align=center>"+oxi->brand()+" "+oxi->model()+"</td></tr>\n";
 //        html+="<tr><td colspan=5 align=center>&nbsp;</td></tr>";
-        // Include SpO2 and PC drops per hour of Oximetry data in case CPAP data is missing
-        html+=QString("<tr><td colspan=5 align=center>%1: %2 (%3%) %4/h</td></tr>").arg(tr("SpO2 Desaturations")).arg(day->count(OXI_SPO2Drop)).arg((100.0/day->hours(MT_OXIMETER)) * (day->sum(OXI_SPO2Drop)/3600.0),0,'f',2).arg((day->count(OXI_SPO2Drop)/day->hours(MT_OXIMETER)),0,'f',2);
-        html+=QString("<tr><td colspan=5 align=center>%1: %2 (%3%) %4/h</td></tr>").arg(tr("Pulse Change events")).arg(day->count(OXI_PulseChange)).arg((100.0/day->hours(MT_OXIMETER)) * (day->sum(OXI_PulseChange)/3600.0),0,'f',2).arg((day->count(OXI_PulseChange)/day->hours(MT_OXIMETER)),0,'f',2);
-        html+=QString("<tr><td colspan=5 align=center>%1: %2%</td></tr>").arg(tr("SpO2 Baseline Used")).arg(day->settings_wavg(OXI_SPO2Drop),0,'f',2); // CHECKME: Should this value be wavg OXI_SPO2 isntead?
+        if (oxi->loaderName() == applehealth_class_name) {
+            // Per-machine, since day->count() would fold in a CPAP's SpO2/pulse from the same day
+            EventDataType spo2Count = 0, pulseCount = 0;
+            for (auto & sess : day->sessions) {
+                if (!sess->enabled() || sess->machine() != oxi) continue;
+                spo2Count += sess->count(OXI_SPO2);
+                pulseCount += sess->count(OXI_Pulse);
+            }
+            html+=QString("<tr><td colspan=3 width='60%'>%1</td><td colspan=2 width='40%'>%2</td></tr>").arg(tr("SpO2 spot checks")).arg(int(spo2Count));
+            html+=QString("<tr><td colspan=3 width='60%'>%1</td><td colspan=2 width='40%'>%2</td></tr>").arg(tr("Pulse readings")).arg(int(pulseCount));
+            html+=QString("<tr><td colspan=5><i>%1</i></td></tr>").arg(tr("Spot-check data; desaturation detection is not applicable"));
+        } else {
+            // Include SpO2 and PC drops per hour of Oximetry data in case CPAP data is missing
+            html+=QString("<tr><td colspan=5 align=center>%1: %2 (%3%) %4/h</td></tr>").arg(tr("SpO2 Desaturations")).arg(day->count(OXI_SPO2Drop)).arg((100.0/day->hours(MT_OXIMETER)) * (day->sum(OXI_SPO2Drop)/3600.0),0,'f',2).arg((day->count(OXI_SPO2Drop)/day->hours(MT_OXIMETER)),0,'f',2);
+            html+=QString("<tr><td colspan=5 align=center>%1: %2 (%3%) %4/h</td></tr>").arg(tr("Pulse Change events")).arg(day->count(OXI_PulseChange)).arg((100.0/day->hours(MT_OXIMETER)) * (day->sum(OXI_PulseChange)/3600.0),0,'f',2).arg((day->count(OXI_PulseChange)/day->hours(MT_OXIMETER)),0,'f',2);
+            html+=QString("<tr><td colspan=5 align=center>%1: %2%</td></tr>").arg(tr("SpO2 Baseline Used")).arg(day->settings_wavg(OXI_SPO2Drop),0,'f',2); // CHECKME: Should this value be wavg OXI_SPO2 isntead?
+        }
         html+="</table>\n";
         html+="<hr/>\n";
     }
     return html;
 }
+
 QString Daily::getCPAPInformation(Day * day)
 {
     QString html;
@@ -1869,6 +1888,117 @@ QString Daily::getIndices(Day * day, QHash<ChannelID, EventDataType>& values ) {
                 .arg(chan.fullname())
                 .arg(data)
                 .arg(code)
+                .arg(tooltip);
+    }
+
+    if (day->settingExists(AW_BreathingDisturbances)) {
+        schema::Channel & chan = schema::channel[AW_BreathingDisturbances];
+        QString tooltip=chan.description();
+        tooltip.replace("'", "&apos;");
+        QColor altcolor = (brightness(chan.defaultColor()) < 0.3) ? Qt::white : Qt::black;
+        html+=QString("<tr><td align='left' bgcolor='%1' title='<p>%5</p>'><b><font color='%2'>%3</font></b></td><td width=20% bgcolor='%1'><b><font color='%2'>%4</font></b></td></tr>")
+                .arg(chan.defaultColor().name())
+                .arg(altcolor.name())
+                .arg(tr("Breathing Disturbances (Apple)"))
+                .arg(day->settings_wavg(AW_BreathingDisturbances),0,'f',2)
+                .arg(tooltip);
+    }
+    if (day->settingExists(AW_WristTemp)) {
+        schema::Channel & chan = schema::channel[AW_WristTemp];
+        QString tooltip=chan.description();
+        tooltip.replace("'", "&apos;");
+        QColor altcolor = (brightness(chan.defaultColor()) < 0.3) ? Qt::white : Qt::black;
+        html+=QString("<tr><td align='left' bgcolor='%1' title='<p>%5</p>'><b><font color='%2'>%3</font></b></td><td width=20% bgcolor='%1'><b><font color='%2'>%4</font></b></td></tr>")
+                .arg(chan.defaultColor().name())
+                .arg(altcolor.name())
+                .arg(tr("Wrist Temperature"))
+                .arg(QString("%1 %2").arg(day->settings_wavg(AW_WristTemp),0,'f',1).arg(chan.units()))
+                .arg(tooltip);
+    }
+
+    struct Interval {
+        qint64 start;
+        qint64 end;
+    };
+    QVector<Interval> watchIntervals;
+    QVector<Interval> maskIntervals;
+    qint64 totalWatchSleep = 0;
+    bool hasWatchSleep = false;
+    bool hasCpap = false;
+    // Sessions from different machines carry different clock corrections; compare in display time.
+    for (Session *s : day->sessions) {
+        if (!s->enabled()) {
+            continue;
+        }
+        if (s->type() == MT_SLEEPSTAGE) {
+            // Other stage loaders (Zeo, Dreem) share the machine type but aren't the watch.
+            if (s->machine()->loaderName() != applehealth_class_name) {
+                continue;
+            }
+            hasWatchSleep = true;
+            const qint64 correction = s->correctionMs();
+            for (const SessionSlice &slice : s->m_slices) {
+                if (slice.end > slice.start) {
+                    watchIntervals.append({slice.start + correction, slice.end + correction});
+                    totalWatchSleep += slice.end - slice.start;
+                }
+            }
+        } else if (s->type() == MT_CPAP) {
+            hasCpap = true;
+            const qint64 correction = s->correctionMs();
+            if (s->m_slices.isEmpty()) {
+                // No slices means the whole session was mask-on, as Session::hours() assumes.
+                if (s->realLast() > s->realFirst()) {
+                    maskIntervals.append({s->realFirst() + correction, s->realLast() + correction});
+                }
+            } else {
+                for (const SessionSlice &slice : s->m_slices) {
+                    if (slice.status == MaskOn && slice.end > slice.start) {
+                        maskIntervals.append({slice.start + correction, slice.end + correction});
+                    }
+                }
+            }
+        }
+    }
+
+    if (hasWatchSleep && hasCpap && totalWatchSleep > 0) {
+        std::sort(maskIntervals.begin(), maskIntervals.end(), [](const Interval &a, const Interval &b) {
+            return a.start < b.start || (a.start == b.start && a.end < b.end);
+        });
+        QVector<Interval> mergedMaskIntervals;
+        for (const Interval &interval : maskIntervals) {
+            if (mergedMaskIntervals.isEmpty() || interval.start > mergedMaskIntervals.last().end) {
+                mergedMaskIntervals.append(interval);
+            } else {
+                mergedMaskIntervals.last().end = std::max(mergedMaskIntervals.last().end, interval.end);
+            }
+        }
+
+        qint64 maskedWatchSleep = 0;
+        for (const Interval &watch : watchIntervals) {
+            for (const Interval &mask : mergedMaskIntervals) {
+                if (mask.end <= watch.start) continue;
+                if (mask.start >= watch.end) break;
+                maskedWatchSleep += std::min(watch.end, mask.end) - std::max(watch.start, mask.start);
+            }
+        }
+
+        const qint64 unmaskedSleep = totalWatchSleep - maskedWatchSleep;
+        const qint64 totalMinutes = unmaskedSleep / 60000;
+        const int percentage = static_cast<int>(std::lround(100.0 * unmaskedSleep / totalWatchSleep));
+        const QString data = QString("%1:%2 (%3%)")
+                .arg(totalMinutes / 60)
+                .arg(totalMinutes % 60, 2, 10, QChar('0'))
+                .arg(percentage);
+        const QColor color("darkred");
+        const QColor altcolor = (brightness(color) < 0.3) ? Qt::white : Qt::black;
+        QString tooltip = tr("Time within the watch's sleep session spent without the CPAP mask on, and its share of that session");
+        tooltip.replace("'", "&apos;");
+        html+=QString("<tr><td align='left' bgcolor='%1' title='<p>%5</p>'><b><font color='%2'>%3</font></b></td><td width=20% bgcolor='%1'><b><font color='%2'>%4</font></b></td></tr>")
+                .arg(color.name())
+                .arg(altcolor.name())
+                .arg(tr("Unmasked Sleep"))
+                .arg(data)
                 .arg(tooltip);
     }
 
@@ -2357,6 +2487,7 @@ void Daily::set_JournalZombie(QDate& date, int value) {
     if (!journal) {
         journal=CreateJournalSession(date);
     }
+    if (!journal) { return; }
     if (value==0) {
         // should delete zombie entry here. if null.
         auto jit = journal->settings.find(Journal_ZombieMeter);
@@ -2375,6 +2506,7 @@ void Daily::set_JournalWeightValue(QDate& date, double kg) {
     if (!journal) {
         journal=CreateJournalSession(date);
     }
+    if (!journal) { return; }
 
     if (journal->settings.contains(Journal_Weight)) {
         QVariant old = journal->settings[Journal_Weight];
@@ -2437,6 +2569,7 @@ void Daily::set_JournalNotesHtml(QDate& date, QString html) {
         if (!journal) {
             journal = CreateJournalSession(date);
         }
+        if (!journal) { return; }
     }
     journal->settings[Journal_Notes] = html;
     journal->SetChanged(true);
@@ -2600,41 +2733,7 @@ void Daily::on_JournalNotesColour_clicked()
 }
 Session * Daily::CreateJournalSession(QDate date)
 {
-    Machine *m = p_profile->GetMachine(MT_JOURNAL);
-    if (!m) {
-        m=new Machine(p_profile, 0);
-        MachineInfo info;
-        info.loadername = "Journal";
-        info.serial = m->hexid();
-        info.brand = "Journal";
-        info.type = MT_JOURNAL;
-        m->setInfo(info);
-        m->setType(MT_JOURNAL);
-        p_profile->AddMachine(m);
-        
-        // CRITICAL: Save the journal machine to database so sessions can be stored
-        if (!m->SaveToDatabase()) {
-            qWarning() << "Daily::CreateJournalSession(): Failed to save journal machine to database!";
-        }
-    }
-
-    Session *sess=new Session(m,0);
-    qint64 st,et;
-
-    Day *cday=p_profile->GetDay(date);
-    if (cday && cday->first() > 0) {
-        st=cday->first();
-        et=cday->last();
-    } else {
-        QDateTime dt(date,QTime(20,0));
-        st=qint64(dt.toSecsSinceEpoch())*1000L;
-        et=st+3600000L;
-    }
-    sess->SetSessionID(st / 1000L);
-    sess->set_first(st);
-    sess->set_last(et);
-    m->AddSession(sess, true);
-    return sess;
+    return GetOrCreateJournalSession(date);
 }
 
 Session * Daily::GetJournalSession(QDate date , bool create) // Get the first journal session
@@ -3025,6 +3124,7 @@ void Daily::update_Bookmarks()
     if (!journal) {
         journal=CreateJournalSession(previous_date);
     }
+    if (!journal) { return; }
 
     journal->settings[Bookmark_Start]=start;
     journal->settings[Bookmark_End]=end;

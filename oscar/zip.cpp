@@ -432,6 +432,27 @@ static size_t unzip_qfile_write(void* pOpaque, mz_uint64 /*file_ofs*/, const voi
     return written < 0 ? 0 : static_cast<size_t>(written);
 }
 
+struct UnzipProgressSink
+{
+    QFile* file;
+    qint64 total;
+    const std::function<void(qint64, qint64)>* progress;
+};
+
+// Same as unzip_qfile_write, but file_ofs is monotonic so file_ofs+written is the running total.
+static size_t unzip_qfile_write_progress(void* pOpaque, mz_uint64 file_ofs, const void* pBuf, size_t n)
+{
+    UnzipProgressSink* sink = static_cast<UnzipProgressSink*>(pOpaque);
+    const qint64 written = sink->file->write(static_cast<const char*>(pBuf), static_cast<qint64>(n));
+    if (written < 0) {
+        return 0;
+    }
+    if (*sink->progress) {
+        (*sink->progress)(static_cast<qint64>(file_ofs) + written, sink->total);
+    }
+    return static_cast<size_t>(written);
+}
+
 /*!
  * \brief Construct an UnzipFile and allocate the internal miniz context.
  */
@@ -490,9 +511,8 @@ bool UnzipFile::Open(const QString& filepath)
 /*!
  * \brief Extract all entries in the archive to \a destDir.
  *
- * Directory entries are recreated; file entries are extracted to memory
- * and then written via QFile so that Unicode destination paths are handled
- * correctly on all platforms.
+ * Directory entries are recreated; file entries are streamed via QFile so
+ * that Unicode destination paths are handled correctly on all platforms.
  *
  * \param destDir  Root directory for extraction (created if absent).
  * \return true on success; false on any I/O or decompression error.
@@ -571,6 +591,84 @@ bool UnzipFile::ExtractAll(const QString& destDir)
     }
 
     return true;
+}
+
+/*!
+ * \brief Extract the single entry \a entryName to \a destPath.
+ */
+bool UnzipFile::ExtractEntry(const QString& entryName, const QString& destPath,
+                             const std::function<void(qint64, qint64)>& progress)
+{
+    if (!m_open) {
+        qWarning() << "UnzipFile::ExtractEntry: archive not open";
+        return false;
+    }
+
+    mz_zip_archive* pZip = static_cast<mz_zip_archive*>(m_ctx);
+    const QByteArray archiveName = entryName.toUtf8();
+    const int index = mz_zip_reader_locate_file(
+        pZip, archiveName.constData(), nullptr, MZ_ZIP_FLAG_CASE_SENSITIVE);
+    if (index < 0) {
+        qWarning() << "UnzipFile::ExtractEntry: entry not found:" << entryName;
+        return false;
+    }
+
+    if (!QDir().mkpath(QFileInfo(destPath).absolutePath())) {
+        qWarning() << "UnzipFile::ExtractEntry: cannot create destination directory for" << destPath;
+        return false;
+    }
+
+    mz_zip_archive_file_stat stat;
+    if (!mz_zip_reader_file_stat(pZip, static_cast<mz_uint>(index), &stat)) {
+        qWarning() << "UnzipFile::ExtractEntry: file_stat failed for" << entryName;
+        return false;
+    }
+
+    QFile outFile(destPath);
+    if (!outFile.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        qWarning() << "UnzipFile::ExtractEntry: cannot write" << destPath;
+        return false;
+    }
+    UnzipProgressSink sink { &outFile, static_cast<qint64>(stat.m_uncomp_size), &progress };
+    const bool ok = mz_zip_reader_extract_to_callback(
+        pZip, static_cast<mz_uint>(index), unzip_qfile_write_progress, &sink, 0);
+    outFile.close();
+    if (!ok) {
+        QFile::remove(destPath);
+        qWarning() << "UnzipFile::ExtractEntry: decompression failed for" << entryName;
+        return false;
+    }
+
+    return true;
+}
+
+/*!
+ * \brief List the file entries in the archive.
+ */
+QVector<UnzipEntry> UnzipFile::ListEntries()
+{
+    QVector<UnzipEntry> entries;
+    if (!m_open) {
+        qWarning() << "UnzipFile::ListEntries: archive not open";
+        return entries;
+    }
+
+    mz_zip_archive* pZip = static_cast<mz_zip_archive*>(m_ctx);
+    const int count = static_cast<int>(mz_zip_reader_get_num_files(pZip));
+    entries.reserve(count);
+    for (int i = 0; i < count; ++i) {
+        if (mz_zip_reader_is_file_a_directory(pZip, static_cast<mz_uint>(i))) {
+            continue;
+        }
+        mz_zip_archive_file_stat stat;
+        if (!mz_zip_reader_file_stat(pZip, static_cast<mz_uint>(i), &stat)) {
+            qWarning() << "UnzipFile::ListEntries: file_stat failed for index" << i;
+            continue;
+        }
+        entries.append(UnzipEntry{QString::fromUtf8(stat.m_filename),
+                                  static_cast<qint64>(stat.m_uncomp_size)});
+    }
+    return entries;
 }
 
 /*!

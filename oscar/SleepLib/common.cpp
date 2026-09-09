@@ -174,13 +174,33 @@ QString getOpenGLVersionString()
             f.initializeOpenGLFunctions();
             glversion = QString(QLatin1String(reinterpret_cast<const char*>(f.glGetString(GL_VERSION))));
         #else
+            // Every step here can fail on a machine with no usable desktop OpenGL, for
+            // example a Windows-on-ARM system running the x64 build under emulation.
+            // Asking a context that was never created for its functions() and calling
+            // through them crashes instead of reporting the problem, so each step is
+            // checked and an unusable driver reports itself as CSTR_GFX_None.
+            QString version;
             QOffscreenSurface surf;
             surf.create();
-            QOpenGLContext ctx;
-            ctx.create();
-            ctx.makeCurrent(&surf);
-            glversion = (const char*)ctx.functions()->glGetString(GL_VERSION);
-            surf.destroy();
+            if (!surf.isValid()) {
+                qWarning() << "Unable to create an offscreen surface; OpenGL is unavailable";
+            } else {
+                QOpenGLContext ctx;
+                if (!ctx.create()) {
+                    qWarning() << "Unable to create an OpenGL context; OpenGL is unavailable";
+                } else if (!ctx.makeCurrent(&surf)) {
+                    qWarning() << "Unable to make an OpenGL context current; OpenGL is unavailable";
+                } else {
+                    const GLubyte * reported = ctx.functions()->glGetString(GL_VERSION);
+                    if (reported)
+                        version = QString::fromLatin1(reinterpret_cast<const char *>(reported));
+                    else
+                        qWarning() << "OpenGL did not report a version string";
+                    ctx.doneCurrent();
+                }
+                surf.destroy();
+            }
+            glversion = version.isEmpty() ? CSTR_GFX_None : version;
         #endif
     #endif
     }
@@ -209,6 +229,27 @@ float getOpenGLVersion()
     return v;
 #endif
 }
+
+#ifdef Q_OS_WIN
+// The sentinel marks the window between the first use of OpenGL and the moment OSCAR
+// has drawn its window. A crash anywhere in that window leaves the flag set, because
+// nothing clears it and sync() has already written it to the registry; main() then
+// falls back to the software engine on the next launch. Every normal exit clears it,
+// so a leftover flag always means "the last run died while drawing".
+void armGraphicsCrashSentinel()
+{
+    QSettings settings;
+    settings.setValue(GFXCrashSentinelSetting, true);
+    settings.sync();
+}
+
+void disarmGraphicsCrashSentinel()
+{
+    QSettings settings;
+    settings.remove(GFXCrashSentinelSetting);
+    settings.sync();
+}
+#endif
 
 // Obtains graphic engine as a string
 // This works on Windows.  Don't know about other platforms.

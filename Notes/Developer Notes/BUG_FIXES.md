@@ -4,6 +4,232 @@ Notable bugs found and fixed during development/investigation.
 
 ---
 
+## 2026-09-09 - macOS 27: clicking the menu-bar icon aborts OSCAR (#279)
+
+**File:** `oscar/mainwindow.cpp`
+
+A crash report from a macOS 27 tester showed `abort()` on the main thread with an
+uncaught Objective-C exception. The stack is a menu-bar click: `-[NSStatusItem
+popUpStatusItemMenu:]` starts a menu tracking session, which posts
+`NSMenuDidBeginTrackingNotification`, whose observer inside `libqcocoa` sends
+`clickCount` to an `NSEvent` and trips an `NSAssertionHandler` failure.
+
+The defect is Qt's, not OSCAR's. `QCocoaSystemTrayIcon::emitActivated()` reads
+`NSApp.currentEvent` and asks it for its `clickCount`, because the status item button's
+action callback carries no event of its own. As of macOS 27 AppKit drives `NSControl`s
+through gesture recognizers, which defer that callback past the event that triggered it,
+so the current event is no longer a mouse event - and `-[NSEvent clickCount]` raises
+`NSInternalInconsistencyException` on anything but a mouse event. Nothing catches it, so
+the process aborts.
+
+Upstream fixed it in qtbase commit `65020b43cdd2`, "macOS: Don't assume the current event
+is a mouse event in the tray icon" (2026-08-04, picked to 6.12, 6.11 and 6.8), which
+reports the activation as `Unknown` in that case. The tag `v6.11.2` does not contain it,
+so no Qt release OSCAR currently builds against is safe.
+
+Removing only the context menu would not have helped. Qt reaches `emitActivated()` by two
+routes: the tracking notification, registered only when the status item has a menu, and
+`statusItemClicked`, wired to the button's action for left, right and other mouse-down.
+The second fires whether or not a menu exists.
+
+OSCAR therefore skips the tray icon altogether on macOS 27 and later. It is used only so
+that `Notify()` can call `showMessage()` - nothing connects to `QSystemTrayIcon::activated`
+- and with `systray` null `Notify()` falls through to `createNotifyMessageBox()`, the same
+path a user gets by ticking the notify-by-message-box preference. The guard is written
+against `QOperatingSystemVersion(MacOS, 27)` rather than the named `MacOSGoldenGate`
+constant, which only exists from Qt 6.11. Remove the guard once the macOS builds use a Qt
+that carries the upstream fix.
+
+---
+## 2026-08-26 — SEFAM: therapy mode hard-coded, sessions discarded on a dropped record, wrong ramp time, and a non-settings record read as settings
+
+**Files:** `oscar/SleepLib/loader_plugins/sefamDataParsing.{h,cpp}`,
+`oscar/SleepLib/loader_plugins/sefam_loader.{h,cpp}`
+
+All three found by importing the first **Néa Auto** card. That device is the Rêve's
+platform under another logo — same format tag, same headers, same log records — but its
+settings were edited far more often and its card is less clean, which exposed readings
+that were only ever right by coincidence on the cards held before it. The third defect
+turned out to affect a real user's S.Box card as well.
+
+### 1. The ramp time reported was the clinician's ceiling, not the patient's setting
+
+The settings record carries the ramp duration twice. The second field was taken as the
+duration and the first as an echo of it, because on a Rêve both read 45 and on the S.Box's
+settings table they are either equal or the first is zero.
+
+They are two different settings: **the first is the patient's own ramp time, the second is
+the practitioner's ceiling on it** — the pair the vendor's Parameters panel presents, and
+the pair its API exposes as `GetRampTime` and `GetMaxRampTime`. The Néa's ceiling stayed at
+30 minutes for a year while the patient's moved 30, 10, 0, 20, 10. The reverse assignment
+is impossible: the vendor software will not let the patient exceed the ceiling, so a
+ceiling of 0 against a patient setting of 30 cannot occur.
+
+The S.Box's own session archive said the same thing and had never been checked for it:
+across all 467 blocks of one card the patient's value never exceeds the ceiling and falls
+strictly below it in five distinct T.Ramp states.
+
+`SefamParsing::rampMinutesFor()` now reports the patient's value, except under I.Ramp —
+ramp-mode bit 2 — where the patient chooses only on or off and has no duration of their
+own. Both the log path (`parseSettings()`) and the S.Box memory-image path
+(`readMemoryImage()`) use it.
+
+**No card with a manufacturer report changes.** The rule reproduces every ramp figure
+printed on both reports held, on their I.Ramp and T.Ramp sessions alike, and the Rêve card
+is byte-for-byte identical before and after. On the Néa it corrects 27 of 146 sessions,
+including nights the patient had the ramp switched off entirely and OSCAR showed 30
+minutes.
+
+### 2. Log code 13 was read as a settings snapshot; it is the device's pressure limits
+
+Code 13 was used as a fallback wherever a session carried no code 2 record. Its three
+pressure bytes read **40, 100, 200** in every such record on both cards — including Néa
+records written months after that device's prescription had been narrowed to 6.0–7.5.
+They are the model's settable range and its default (4.0, 10.0, 20.0), not a setting. The
+record also carries a six-digit ASCII number that is constant per device.
+
+The reading survived because the Rêve's own prescription *is* 4.0–20.0, so the fallback
+happened to produce the right answer there. On the Néa two sessions carry code 13 and no
+code 2: both reported the full pressure range instead of the real one, and left it behind
+as the carried-forward settings for every session after them.
+
+The fallback is removed and the enumerator renamed `kLogDeviceLimits`. A session with no
+settings record of its own now keeps the previous session's, which is what the device's
+write-on-change behaviour implies.
+
+### 3. A single dropped record threw away the rest of the session
+
+Each 10-second record ends with a checksum and a 1-based sequence number, and
+`readChannel()` truncated the channel wherever either failed — written for a card
+unplugged mid-write, which leaves a torn final record.
+
+The device also **drops a record and keeps counting**. The sequence runs
+`… 17, 18, 20, 21 …` and then continues cleanly to the end of the file, with every
+checksum passing on both sides of the hole and the file still an exact whole number
+of records. That is not corruption, and the data after it was being discarded:
+
+| card | sessions | records lost |
+|---|---|---|
+| Néa Auto | 3 of 146 | 811, 128, 335 (~3.5 h) |
+| S.Box `1200R` | 3 of 22 | 771, 718, 733 (~6.2 h) |
+| Rêve Auto | none | — |
+
+The S.Box case was the damaging one. Those three files begin at sequence **2**, so
+every channel truncated to zero records and `readSession()` then rejected the whole
+session with "no populated channels" — three of a real user's 22 nights vanished
+without anything in the log pointing at why.
+
+`readChannel()` now fills each missing record with `kInvalidSample` and carries on.
+The caller already builds a per-sample validity mask, so the hole renders as an
+ordinary drop-out, and every later sample keeps its true offset from the session
+start — dropping the gap silently instead would slide the rest of the night ten
+seconds early per missing record and shorten the session. `records` counts the
+filled slots, so it still equals the last sequence number accepted and the session
+end time stays right.
+
+A checksum failure still truncates. So does a sequence that goes backwards, or one
+that jumps further ahead than the file has records left — both fall out of the same
+bound, since the subtraction is done in a `quint16` and a backwards step wraps to a
+huge gap.
+
+**The Rêve card is unaffected**, having no gaps at all.
+
+### 4. Every fixed-pressure session was reported as an auto band
+
+`MODE_APAP` was hard-coded, on the grounds that A-PAP was the only mode ever seen
+on a SEFAM card. It is not: **145 of the 146 sessions on the Néa card ran fixed
+CPAP at 7.0 cmH₂O**, and so did 11 of the 467 archived sessions on the S.Box card.
+All of them were shown with a minimum and maximum the device never titrated
+across — on the Néa, 4.0–20.0 for eight months, then 6.0–7.5.
+
+The mode is **settings-record byte 17** — 60 for A-PAP, 0 for CPAP — and **byte 9**
+is the pressure prescribed for it, with 80 meaning none. Byte 17 had been written
+down as "constant 60" and byte 9 as "per-device, unassigned", because on the two
+devices examined first neither ever moves.
+
+Three independent confirmations:
+
+- *Sefam Analyze* has a per-day settings table with **Mode** and **Prescribed
+  pressure** columns, and a CSV export carrying both. It reports CPAP at 7.0 on
+  exactly the days the Néa's byte 17 reads 0 and its byte 9 reads 70, and A-PAP
+  with a dash for prescribed pressure on every Rêve day and on the Néa's factory
+  row, where the bytes read 60 and 80.
+- The S.Box settles it from measurement alone. That model stores a mean pressure
+  for every minute of every session, and splitting its 467 blocks on byte 17
+  gives a p10–p90 spread of **0.10 cmH₂O** for the CPAP group — flat — sitting on
+  byte 9 in five cases out of five, against 3.17 cmH₂O for the A-PAP group,
+  landing on it in four out of 225.
+- It explains the Néa's dead-flat delivered pressure, which is what drew
+  attention to byte 9 in the first place: p05 6.5, p50 7.0, p99 7.3 across
+  185 000 samples in a single night, while the band read 4.0–20.0.
+
+`setPressureMode()` in `sefam_loader.cpp` now publishes either `CPAP_Pressure`
+with `MODE_CPAP`, or the band with `MODE_APAP` — never both, following
+`apex_loader.cpp:229`. `Day::getPressure()` (`day.cpp:1648`) renders each from its
+own fields, so publishing the unused pair would put a band on a fixed-pressure
+session. An unrecognised mode byte is reported as A-PAP with a warning, which is
+the old behaviour; a bi-level SEFAM almost certainly uses a third value, and none
+has been seen.
+
+**The Rêve card is unchanged** — all 47 of its sessions are A-PAP either way.
+
+### Also in this change: the Néa Auto is recognised
+
+`Created By=NEA_AUTO`, model code `1265R`. It displays as "Néa Auto" with brand "Sefam"
+and the Néa device image, which had been registered since 2026-08-10 and unreachable until
+now. It takes the Rêve's import path unchanged — all 146 sessions of the sample parse with
+nothing altered.
+
+It is deliberately **not** added to `sefamModelIsValidated()`, so importing one still
+raises the untested-device notice: no manufacturer report exists for a Néa, and the therapy
+mode is unresolved. That card ran a flat 7.0 cmH₂O for eight months while its minimum and
+maximum fields read 4.0 and 20.0, and no field in the settings record marks the change; the
+loader's hard-coded `MODE_APAP` is wrong for that period and cannot yet be fixed from the
+card. Recorded in `Notes/loaders/SEFAM_REVE_CARD_ANALYSIS.md`, "The Néa Auto".
+
+## 2026-08-26 — BMC G3X/E5 showed two Reslex settings the device does not have
+
+**Files:** `oscar/SleepLib/loader_plugins/bmc_loader.{h,cpp}`,
+`oscar/SleepLib/loader_plugins/bmcg3x_loader.h`, `oscar/SleepLib/day.cpp`
+
+GitLab #274, from a forum report comparing OSCAR's Device Settings against PAP-Link.
+"Reslex Availability" and "Reslex Mode" appeared for G3X and E5 machines; PAP-Link shows
+neither, and both are legacy-BMC concepts.
+
+Neither value was ever read from a G3X card:
+
+- **Reslex Availability** (`BMC_RESLEX_PATIENT`) has a source only in the legacy IDX
+  parser, at byte `0x151` bit 7. The G3X parser never assigns `ReslexPatient`, so the
+  struct default `false` was published and displayed as "Clinician" on every session.
+- **Reslex Mode** (`BMC_RESLEX_MODE`) was hard-coded to `0` for *every* BMC device, and
+  the channel registers exactly one option, "Full Time". No parser has ever read it. The
+  same construct is present in 1.7.1, which has no G3X loader — so it was written for
+  legacy BMC and the G3X path inherited it by reusing `setSessionMachineSettings()`.
+
+Both are now gated on a new `BmcLoader::ExportReslexDetails()` virtual, defaulting to
+true and overridden to false in `BmcG3xLoader`. This follows the existing
+`ExportTimingChannels()` / `ExportPeriodicBreathing()` idiom, and leaves legacy BMC
+behaviour untouched. Reslex itself (TS `0x86`) is confirmed for the G3X and still
+published.
+
+**Secondary effect that had to be handled.** `BMC_RESLEX_MODE` does double duty: it is
+also the channel `BmcLoader::PresReliefMode()` returns, and `Day::getPressureRelief()`
+emits nothing unless that setting exists — it falls through to "None". Simply suppressing
+it would have made the Daily summary, the Statistics page and printed reports all read
+"Relief: None" for G3X/E5 users with Reslex active. `getPressureRelief()` therefore gained
+a branch that renders label and level alone when a device reports a relief level but no
+mode. The branch is reached only where the function previously returned "None", so no
+loader that currently produces a relief string can be affected.
+
+**Audit for siblings.** Every other setting the shared `setSessionMachineSettings()`
+publishes unconditionally is assigned by the G3X parser (ramp, Reslex level, auto on/off,
+humidifier, mask type, leak alert); air tube type was already gated by
+`AirTubeTypeKnown`. `ReslexPatient` was the only remaining gap of this kind.
+
+**Existing imports are not corrected.** Session settings are persisted in the
+`session_settings` table, so days already imported keep both rows until the machine is
+purged and re-imported. The fix applies to new imports.
+
 ## 2026-08-16 — Screenshot shrunk into the corner of a large black area on high-DPI displays
 
 **File:** `oscar/mainwindow.cpp` (`MainWindow::DelayedScreenshot()`)
@@ -5684,3 +5910,204 @@ back at the skipped-directory lines above it) and when `SelectProfile()` returns
 `qDebug` for the two non-error exits, the profile already being open and the user
 cancelling at the lockfile prompt. The two pre-existing `qCritical` exits were already
 covered.
+
+## 2026-09-07 - Windows: unrecoverable crash loop at startup when OpenGL is unusable (#277)
+
+**Reported on Windows 11 on ARM64**, running the x64 build under emulation: OSCAR
+crashed immediately after the first-run dialogs, on every launch, and the built-in
+graphics fallback never engaged. The Windows event log showed `0xc0000005` with
+"faulting module unknown, offset 0x0" (all that says is that the fault was in emulated
+code, which belongs to no loaded module) followed by `0xc000041d`,
+`STATUS_FATAL_USER_CALLBACK_EXCEPTION` - a crash inside a Win32 window procedure. The
+reporter eventually got in only by chance, after which OSCAR reverted to the software
+engine by itself and worked. Three defects, all in the same startup path:
+
+**1. The crash sentinel was armed too late to cover the crash.** The recovery mechanism
+is a registry flag: `MainWindow::TestWindowsOpenGL()` set `OpenGLCompatibilityCheck`,
+created a `QOpenGLWidget`, and cleared the flag if it survived; `main()` saw a leftover
+flag on the next launch and forced `GFX_Software`. But that test runs from
+`MainWindow::Startup()`, a 50 ms `singleShot` queued at the end of `SetupGUI()`, and two
+OpenGL uses come before it: the version probe reached through `makeBuildInfo()`, and
+`prepOpenGL()` at the top of `SetupGUI()`, which constructs a `QOpenGLWidget` and marks
+the main window `WA_NativeWindow`. A crash at either point left the flag unset, so the
+next launch did exactly the same thing - with no UI ever reachable, and no message.
+
+The flag is now owned by `main()` through `GraphicsCrashSentinelGuard`, a scope guard
+declared just before `MainWindow` is created. `armGraphicsCrashSentinel()` writes the
+flag and calls `QSettings::sync()` immediately; the destructor clears it. Because a crash
+never runs destructors, a leftover flag now means precisely "the last run died before it
+finished drawing", while every normal exit - including the early `return 0` paths taken
+when the user cancels a startup dialog - clears it. `Startup()` disarms it explicitly
+immediately after `TestWindowsOpenGL()`, preceded by a `processEvents()` so anything
+still queued is drawn while the sentinel can still catch it. That keeps the covered
+window to the graphics path alone - the version probe, `prepOpenGL()`, the window's own
+first paint and the `TestWindowsOpenGL()` render - so a later crash in profile loading or
+import is not misattributed to the graphics engine and does not needlessly drop the user
+into the software engine. `TestWindowsOpenGL()` no longer touches the flag itself; it
+just provokes the crash. Windows-only, matching the existing recovery machinery.
+
+**2. `getOpenGLVersionString()` crashed instead of reporting no OpenGL.** It ignored the
+result of `surf.create()`, `ctx.create()` and `ctx.makeCurrent()`, then called
+`ctx.functions()->glGetString(GL_VERSION)`. When context creation fails, that dispatches
+through a context that was never initialised. It is the first OpenGL call OSCAR makes,
+so on a machine with no usable driver it is a prime candidate for the reported fault.
+Each step is now checked and an unusable driver reports itself as `CSTR_GFX_None`, which
+`getOpenGLVersion()` already parses as 0.
+
+**3. The detected OpenGL version was computed and thrown away.** `main()` called
+`getOpenGLVersion()` and discarded the result, then went on to build `QOpenGLWidget`s
+regardless. OSCAR's graphs need OpenGL 2.0; a stub 1.1 driver cannot back a
+`QOpenGLWidget` and crashes rather than failing cleanly. On Windows, a version below 2.0
+while OpenGL is the selected engine now switches the setting to `GFX_Software`, tells the
+user, and restarts OSCAR - the engine is chosen through an application attribute that can
+only be set before `QApplication` is constructed, so an in-flight switch is not possible.
+The check is skipped when the software engine is already selected, so it can restart at
+most once. Other platforms only log a warning: the offscreen probe can fail on Linux
+where an on-screen widget would work, and this failure mode is Windows-specific.
+
+**Not verified on the reporting hardware** - no ARM64 machine is available here. The
+existing escape hatches (hold Shift at launch to toggle the engine, or `--legacy`) work
+today and remain the advice for anyone already stuck.
+
+---
+
+## 2026-09-07 - Czech (and Danish) translations showed Greek text (#278)
+
+**Files:** `Translations/Czech.cz.ts`, `Translations/Dansk.da.ts`,
+`Translations/Afrikaans.af.ts`, `Translations/Filipino.fil.ts`, `Translations/Hebrew.he.ts`
+
+A user running 2.0.1 in Czech reported that several interface strings appeared in Greek:
+the main tabs, the Welcome screen, and parts of Daily and Statistics. The same words
+were affected everywhere they occurred - `Statistics`, `Events`, `Notes`, `Bookmarks`,
+`Color`, `Duration`, `Weight`, `Journal` - nine distinct source strings across 27
+`<message>` entries in seven contexts, the ninth being `Graphs`.
+
+**Not caused by the automatic-translation tooling.** `Translations/Czech.cz.ts` was added
+to the repository on 2023-03-24 and already contained the same Greek in the same contexts
+at that first commit, years before any of the `Tools/*.py` translation scripts existed.
+Twenty-six of the twenty-seven translations are byte-identical to the translation carried
+by `Greek.el.ts` for the same source string; the twenty-seventh, `Graphs`, is an older
+spelling of the current Greek one. The Czech catalogue was evidently seeded from a copy of
+the Greek catalogue and only partly translated over. Reverting to a pre-auto-translation
+revision would therefore have reinstated the identical defect.
+
+Re-running `Tools/translate_ts_properly.py` would not have repaired it either: that script
+treats any non-empty `<translation>` body as already translated and skips it, so text that
+is present but in the wrong language is invisible to it.
+
+**Why it reached users.** All 27 entries are `type="unfinished"`, and `lrelease` includes
+unfinished translations unless `-nounfinished` is given, which `oscar.pro` does not pass.
+The Greek strings were therefore compiled into the shipped `Czech.cz.qm`. Suppressing
+unfinished translations is *not* an available workaround here - every one of the 2981
+active Czech messages is marked unfinished, so that flag would blank the whole catalogue.
+
+A scan of all 31 catalogues for translations written in a script other than the target
+language's turned up the same leak in Danish: `Notes` translated as `Σημειώσεις` (marked
+finished, so it shipped) and two obsolete `Zombie` entries.
+
+All 30 entries were corrected in place, leaving each `<translation>` element's attributes
+and the surrounding XML formatting untouched.
+
+### A second, unrelated defect found by the same scan: stray characters mid-word
+
+Seven auto-translated strings in four catalogues contained one to three characters from a
+completely unrelated script wedged into the middle of an otherwise correct word. These
+were introduced by the batch translation in `Tools/translate_ts_properly.py`, not
+inherited: the model emitted a homoglyph-like substitution partway through a token.
+
+| Catalogue | Was | Now |
+| --- | --- | --- |
+| Afrikaans (x2) | `herst`+Cyrillic `ел`+`opsies` | `herstelopsies` |
+| Afrikaans | `Kopieer Versl`+Cyrillic `аг`+`variëteit` | `Kopieer Verslagvariëteit` |
+| Danish | `sessionska`+Cyrillic `нал`+`data` | `sessionskanaldata` |
+| Filipino | `ka`+Hangul `안`+`kaanang` | sentence rewritten (see below) |
+| Hebrew | `עד ש` + ARABIC TATWEEL + ` OSCAR` | `עד ש-OSCAR` |
+| Hebrew | `—` + Hangul `덧` + `כתוב` | `— שכתוב` |
+
+The Afrikaans and Danish repairs are exact: the stray characters stand in for specific
+Latin letters, and the intended spelling is confirmed by other entries in the same file
+(`herstelopsies` and `Herstelopsies` appear correctly elsewhere in Afrikaans, as does
+`Nuwe Verslagvariëteit`; Danish uses `kanal`/`hændelseskanaler` throughout).
+
+The Hebrew tatweel is an Arabic letter-elongation mark with no meaning in Hebrew. It was
+dropped and the prefix joined with a hyphen, matching how the rest of the Hebrew catalogue
+attaches a Hebrew prefix to a Latin-script word (`מ-OSCAR`, `ייבוא מ-OSCAR...`).
+
+Two repairs are reconstructions rather than mechanical substitutions, because the stray
+character destroyed the word it landed in, and **a native speaker should confirm them**:
+
+- Hebrew `החלף — שכתוב על הפרופיל הקיים (מסוכן)` for "Replace - overwrite the existing
+  profile (DANGEROUS)". The Korean syllable that had to be removed, `덧`, is the prefix
+  "over-" in Korean `덧쓰기` (overwrite), so the model was evidently reaching for
+  over + `כתוב` (write); `שכתוב` is the Hebrew for overwrite.
+- Filipino "Sa kasamaang-palad, ang iyong %1 CPAP Device (Model %2) ay hindi isang
+  modelong kayang mag-datos." The damaged word could not be recovered, so the sentence was
+  restructured to put "unfortunately" at the front, which is the natural position for it.
+
+All seven strings are `type="unfinished"`, so a translator working in Linguist will see
+them flagged for review.
+
+### `Tools/ts_check_scripts.py`
+
+Neither defect is visible by eye across 62 catalogues, and neither is caught by lupdate,
+lrelease or Qt Linguist - a Greek string in the Czech catalogue is perfectly well-formed
+as far as the tooling is concerned. Both were found by an ad-hoc scan, which has been
+kept as `Tools/ts_check_scripts.py`.
+
+It flags any translation containing a character from a script the target language does not
+use, and separates the two cases: a string where most letters are foreign is reported as
+*wrong-language* (naming the script, not each letter), and one with only a few is reported
+as *corrupted*, listing every offending character with its position and Unicode name.
+Latin is allowed everywhere, because product names and abbreviations (OSCAR, CPAP, ResMed)
+legitimately stay in Latin in every language; only the reverse is reported.
+
+    python Tools/ts_check_scripts.py [translations_dir]
+
+Exit status is 0 when clean and 1 when anything is reported, so it can gate a release.
+Run it after `lupdate` and after any automatic-translation pass.
+
+Two things it deliberately does not do. It does not guess at an unlisted language: a
+language code missing from its `EXTRA_SCRIPTS` table is reported as skipped rather than
+assumed to be Latin, since a new non-Latin language would otherwise be flagged from top to
+bottom. And it treats script-neutral symbols as belonging to no language - without that,
+Spanish `n.º 1` and the Japanese prolonged sound mark in `データ` produce roughly 1,100
+false positives between them.
+
+Checked against the pre-fix catalogues it reports exactly the 30 wrong-language and 7
+corrupted strings described above; against the fixed tree, all 62 catalogues are clean.
+
+### `Tools/translate_ts_properly.py` destroyed the DOCTYPE and every XML comment
+
+Found while running `lupdate` over all 31 catalogues afterwards. The script read a `.ts`
+file with ElementTree, edited the tree and wrote it back with `ElementTree.write()`. That
+round trip cannot reproduce a Qt `.ts` file: it silently discards the `<!DOCTYPE TS>`
+declaration and every XML comment, and re-indents the whole document in its own style
+(two-space, `'` in the XML declaration, `line="35" />`).
+
+The visible consequences were that 30 of the 31 catalogues had lost their DOCTYPE, and
+that any change to a single string produced a whole-file diff - the reason the `lupdate`
+run showed roughly 300,000 changed lines for what was a 113-string update. The one it had
+not yet caused, but would have on its next run, was the loss of the translator attribution
+comment at the top of `Ukrainska.uk.ts`; that is the only catalogue carrying a comment, and
+`lupdate` itself strips it too, so it has to be restored after every `lupdate` run.
+
+Both scripts now parse with ElementTree only to decide *what* to change, and splice the
+result into the raw file text, replacing just the body of each `<translation>` element (or
+of its first `<lengthvariant>`). Everything else - DOCTYPE, comments, attributes,
+indentation, line endings - is left byte for byte as `lupdate` wrote it. `indent_xml()` and
+`write_xml()` are gone. Before writing, the number of `<message>` blocks found in the text
+is checked against the number in the parsed tree, and a mismatch raises rather than writing
+to a guessed offset.
+
+The splice lives in `Tools/ts_splice.py` so that the two callers share one copy - the
+offset ordering, the count guard and the Qt-style escaping are all easy to get subtly
+wrong, and `fix_translation_spacing.py` must not have to import the Anthropic SDK to reach
+them. `translate_ts_properly.py` decodes the model's two-character `\n` before handing the
+text over; `fix_translation_spacing.py` does not, because it is repairing text that is
+already in the file.
+
+`fix_translation_spacing.py` picked up one further guard while it was open: it now skips a
+`<translation>` that has child elements. Its own text in that case is only the whitespace
+around the `<lengthvariant>` children, and the old code would have rewritten that
+whitespace had it ever met a translation marked both `type="unfinished"` and
+`variants="yes"`. No catalogue currently contains one.

@@ -135,6 +135,13 @@ public:
     /// (confirmed 2026-03-30 via Lijunjun data).
     virtual bool ExportPeriodicBreathing() const override { return true; }
 
+    /// The G3X/E5 TS block has no offset for either Reslex Availability or Reslex
+    /// Mode, and the G3X parser sets neither — so both fell through to the struct
+    /// default and the hard-coded zero, displaying "Clinician" and "Full Time" on
+    /// every session regardless of the device.  PAP-Link shows neither setting for
+    /// these machines.  Reslex itself (TS 0x86) is confirmed and still published.
+    virtual bool ExportReslexDetails() const override { return false; }
+
     /// Detects the mask-off point by finding the last waveform packet with
     /// meaningful respiratory flow, followed by a sustained period of near-zero
     /// flow at the end of the session.

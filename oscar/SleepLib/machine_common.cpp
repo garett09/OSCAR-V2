@@ -63,12 +63,10 @@ ChannelID Journal_Notes, Journal_Weight, Journal_BMI, Journal_ZombieMeter, LastU
         Bookmark_Start, Bookmark_End, Bookmark_Notes;
 
 
-ChannelID ZEO_SleepStage, ZEO_ZQ, ZEO_TotalZ, ZEO_TimeToZ, ZEO_TimeInWake, ZEO_TimeInREM,
-          ZEO_TimeInLight, ZEO_TimeInDeep, ZEO_Awakenings,
-          ZEO_AlarmReason, ZEO_SnoozeTime, ZEO_WakeTone, ZEO_WakeWindow, ZEO_AlarmType, ZEO_MorningFeel,
-          ZEO_FirmwareVersion,
-          ZEO_FirstAlarmRing, ZEO_LastAlarmRing, ZEO_FirstSnoozeTime, ZEO_LastSnoozeTime, ZEO_SetAlarmTime,
-          ZEO_RiseTime;
+ChannelID SLEEP_Stage, ZEO_ZQ, SLEEP_TimeToSleep, SLEEP_TimeInWake, SLEEP_TimeInREM,
+          SLEEP_TimeInLight, SLEEP_TimeInDeep, SLEEP_Awakenings, SLEEP_MorningFeel;
+
+ChannelID AW_RespRate, AW_HRV, AW_BreathingDisturbances, AW_WristTemp;
 
 ChannelID POS_Orientation, POS_Inclination, POS_Movement;
 

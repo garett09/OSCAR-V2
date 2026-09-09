@@ -13,6 +13,7 @@
 #include "SleepLib/machine_loader.h"
 
 #if defined(UNITTEST_MODE) || defined(UNITTEST_MODE_PRS1)
+#include <sstream>  // include first so the #define below can't leak into libstdc++
 #define private public
 #define protected public
 #endif

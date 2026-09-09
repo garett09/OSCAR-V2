@@ -369,6 +369,11 @@ int MachineLoader::Open(const QStringList & paths)
         if (res < 0) {
             break;
         }
+        // A file that imported nothing before the abort (e.g. a dismissed
+        // chooser) doesn't count as opened.
+        if (res == 0 && isAborted()) {
+            break;
+        }
         emit setProgressValue(i+1);
         QCoreApplication::processEvents();
     }

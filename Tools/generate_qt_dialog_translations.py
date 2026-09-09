@@ -38,6 +38,7 @@ QT_CODE_MAP = {
     "ru": ["ru"],
     "sv": ["sv"],
     "tr": ["tr"],
+    "uk": ["uk"],
     "zh_CN": ["zh_CN"],
     "zh_TW": ["zh_TW"],
 }

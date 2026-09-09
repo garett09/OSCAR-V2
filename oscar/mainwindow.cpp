@@ -12,6 +12,7 @@
 
 #include <QHostInfo>
 #include <QFileDialog>
+#include <QInputDialog>
 #include <QMessageBox>
 #include <QResource>
 #include <QProgressBar>
@@ -51,6 +52,7 @@
 #include <QSqlQuery>
 #include <QSqlError>
 #include <QStorageInfo>
+#include <QOperatingSystemVersion>
 #include <cmath>
 #if QT_VERSION >= QT_VERSION_CHECK(5, 10, 0)
   #include <QRandomGenerator>
@@ -72,6 +74,7 @@
 // Custom loaders that don't autoscan..
 #include <SleepLib/loader_plugins/zeo_loader.h>
 #include <SleepLib/loader_plugins/dreem_loader.h>
+#include <SleepLib/loader_plugins/applehealth_loader.h>
 #include <SleepLib/loader_plugins/somnopose_loader.h>
 #include <SleepLib/loader_plugins/viatom_loader.h>
 
@@ -175,7 +178,27 @@ MainWindow::MainWindow(QWidget *parent) :
     settings.endGroup();
 
     // Nifty Notification popups in System Tray (uses Growl on Mac)
-    if (QSystemTrayIcon::isSystemTrayAvailable() && QSystemTrayIcon::supportsMessages()) {
+    bool useSystemTray = QSystemTrayIcon::isSystemTrayAvailable() && QSystemTrayIcon::supportsMessages();
+
+#ifdef Q_OS_MAC
+    // Clicking the status-bar item aborts the application on macOS 27 and later.
+    // Qt's QCocoaSystemTrayIcon::emitActivated() asks NSApp.currentEvent for its
+    // clickCount, but AppKit now drives NSControls through gesture recognizers and
+    // defers the action callback past the event that triggered it, so the current
+    // event is no longer a mouse event and -[NSEvent clickCount] raises an uncaught
+    // Objective-C exception (SIGABRT).  Fixed upstream in qtbase commit 65020b43cdd2,
+    // "macOS: Don't assume the current event is a mouse event in the tray icon", which
+    // is in neither Qt 6.11.1 nor 6.11.2.  Until the macOS builds use a Qt carrying
+    // that fix, do without the tray icon: Notify() then shows its message box, exactly
+    // as it does for a user who has asked for message boxes.  See GitLab issue #279.
+    if (useSystemTray && QOperatingSystemVersion::current() >=
+            QOperatingSystemVersion(QOperatingSystemVersion::MacOS, 27)) {
+        qDebug() << "Not using System Tray: Qt aborts on a status-item click on macOS 27+";
+        useSystemTray = false;
+    }
+#endif
+
+    if (useSystemTray) {
         qDebug() << "Using System Tray for Menu";
         systray = new QSystemTrayIcon(QIcon(":/icons/logo-sm.png"), this);
         systray->show();
@@ -897,11 +920,9 @@ void MainWindow::CloseProfile()
 void MainWindow::TestWindowsOpenGL()
 {
 #if (QT_VERSION >= QT_VERSION_CHECK(5,4,0)) && !defined(BROKEN_OPENGL_BUILD)
-    // 1. Set OpenGLCompatibilityCheck=1 in registry.
-    QSettings settings;
-    settings.setValue("OpenGLCompatibilityCheck", true);
-
-    // 2. See if OpenGL crashes the application:
+    // The crash sentinel is already armed by main() and stays armed until Startup()
+    // has drawn the window, so this only has to provoke the crash: put a real
+    // QOpenGLWidget on screen and let it render.
     QOpenGLWidget* gl;
     gl = new QOpenGLWidget(ui->tabWidget);
     ui->tabWidget->insertTab(2, gl, "");
@@ -911,9 +932,6 @@ void MainWindow::TestWindowsOpenGL()
     // If we get here, OpenGL won't crash the application.
     ui->tabWidget->removeTab(2);
     delete gl;
-
-    // 3. Remove OpenGLCompatibilityCheck from the registry upon success.
-    settings.remove("OpenGLCompatibilityCheck");
 #endif
 }
 #endif
@@ -925,6 +943,14 @@ void MainWindow::Startup()
     QSettings settings;
     if (getFingerprint() != settings.value("Fingerprint"))
         TestWindowsOpenGL();
+
+    // The window is up, and on a new machine or after a driver change a QOpenGLWidget
+    // has just rendered on it, so the selected graphics engine works here: clear the
+    // sentinel main() armed. processEvents() first, to be sure anything still queued
+    // has been drawn while the sentinel can still catch it. Everything past this point
+    // is data rather than graphics and must not be blamed on the graphics engine.
+    QApplication::processEvents();
+    disarmGraphicsCrashSentinel();
 #endif
 
     for (auto & loader : GetLoaders()) {
@@ -2965,6 +2991,108 @@ void MainWindow::on_actionImport_Dreem_Data_triggered()
     importNonCPAP(dreem, STR_PREF_LastDreemPath);
 }
 
+void MainWindow::on_actionImport_AppleHealth_Data_triggered()
+{
+    AppleHealthLoader applehealth;
+
+    if (p_profile != nullptr && p_profile->FirstDay(MT_CPAP).isValid()) {
+        QMessageBox historyChoice(QMessageBox::Question,
+            tr("Apple Health Import"),
+            tr("How much of your Apple Health history should be imported?"),
+            QMessageBox::NoButton, this);
+        QPushButton *overlappingHistoryButton = historyChoice.addButton(
+            tr("Overlapping CPAP history (recommended)"), QMessageBox::AcceptRole);
+        QPushButton *fullHistoryButton = historyChoice.addButton(
+            tr("Full history"), QMessageBox::AcceptRole);
+        QPushButton *cancelButton = historyChoice.addButton(QMessageBox::Cancel);
+        historyChoice.setDefaultButton(overlappingHistoryButton);
+        historyChoice.setEscapeButton(cancelButton);
+        historyChoice.exec();
+
+        if (historyChoice.clickedButton() == overlappingHistoryButton) {
+            applehealth.setImportFullHistory(false);
+        } else if (historyChoice.clickedButton() == fullHistoryButton) {
+            applehealth.setImportFullHistory(true);
+        } else {
+            return;
+        }
+    }
+
+    applehealth.setSleepSourceChooser(
+        [this](const QHash<QString, int> &sourceCounts) -> QString {
+            QStringList sourceNames = sourceCounts.keys();
+            sourceNames.sort(Qt::CaseInsensitive);
+
+            QStringList choices;
+            for (const QString &sourceName : sourceNames) {
+                choices.append(tr("%1 (%2 records)")
+                                   .arg(sourceName).arg(sourceCounts.value(sourceName)));
+            }
+            int defaultIndex = sourceNames.indexOf(autoMatchedSleepSource(sourceCounts));
+            if (defaultIndex < 0) {
+                defaultIndex = 0;
+            }
+
+            bool accepted = false;
+            const QString selected = QInputDialog::getItem(
+                this, tr("Apple Health Sleep Source"), tr("Choose the source for sleep stages:"),
+                choices, defaultIndex, false, &accepted);
+            if (!accepted) {
+                return QString();
+            }
+            const int selectedIndex = choices.indexOf(selected);
+            return selectedIndex >= 0 ? sourceNames.at(selectedIndex) : QString();
+        });
+
+    ProgressDialog progress(this);
+    progress.setMessage(tr("Reading Apple Health export..."));
+    progress.setProgressMax(100);
+    progress.setProgressValue(0);
+    bool parserProgressActive = false;
+    connect(&applehealth, &MachineLoader::setProgressValue, &progress,
+            [&progress, &parserProgressActive](int value) {
+                if (value == 0) {
+                    parserProgressActive = true;
+                    if (!progress.isVisible()) {
+                        progress.open();
+                    }
+                }
+                if (!parserProgressActive) {
+                    return;
+                }
+                progress.setProgressValue(value);
+                QCoreApplication::processEvents();
+                if (value >= 100) {
+                    parserProgressActive = false;
+                }
+            });
+
+    const bool committed = importNonCPAP(applehealth, STR_PREF_LastAppleHealthPath);
+
+    progress.allowClose();
+    progress.close();
+    QCoreApplication::processEvents();
+
+    const AppleHealthImportSummary &summary = applehealth.lastImportSummary();
+    if (committed && summary.validFile) {
+        const QString sleepSource = summary.chosenSleepSource.isEmpty()
+                                        ? tr("No matching Apple Watch source")
+                                        : summary.chosenSleepSource;
+        QString message = tr("Imported %1 sleep session(s) and %2 vitals session(s).\n"
+                             "Skipped %3 already-imported night(s).\n"
+                             "Sleep source: %4")
+                              .arg(summary.sleepSessions)
+                              .arg(summary.oxiSessions)
+                              .arg(summary.skippedExisting)
+                              .arg(sleepSource);
+        if (summary.weightDays > 0) {
+            message += QStringLiteral("\n") + tr("Imported weight for %1 day(s).").arg(summary.weightDays);
+        }
+        Notify(message,
+               tr("Apple Health Import Summary"));
+    }
+}
+
 void MainWindow::on_actionImport_RemStar_MSeries_Data_triggered()
 {
 #ifdef REMSTAR_M_SUPPORT
@@ -3199,8 +3327,13 @@ void MainWindow::refreshProfileSelector()
     }
 }
 
-void MainWindow::importNonCPAP(MachineLoader &loader, const QString &folderPrefKey)
+bool MainWindow::importNonCPAP(MachineLoader &loader, const QString &folderPrefKey)
 {
+    if (p_profile == nullptr) {
+        QMessageBox::warning(this, tr("Import"), tr("Please open or create a profile before importing data."));
+        return false;
+    }
+
     // get save location from profile.
     QDir folder = QDir(profilePath(folderPrefKey));
 
@@ -3251,6 +3384,7 @@ void MainWindow::importNonCPAP(MachineLoader &loader, const QString &folderPrefK
             if (size > 1) {
                 disconnect(&loader, SIGNAL(setProgressValue(int)), &progress, SLOT(setProgressValue(int)));
                 disconnect(&progress, SIGNAL(abortClicked()), &loader, SLOT(abortImport()));
+                progress.allowClose();
                 progress.close();
             }
             loader.SetContext(nullptr);
@@ -3259,7 +3393,7 @@ void MainWindow::importNonCPAP(MachineLoader &loader, const QString &folderPrefK
                 tr("Cannot import data: the OSCAR database is locked by another application.\n\n"
                    "If you have the database open in a SQLite viewer or editor, "
                    "please close it and try again.\n\nError: %1").arg(errText));
-            return;
+            return false;
         }
 
         int res = loader.Open(files);
@@ -3297,6 +3431,7 @@ void MainWindow::importNonCPAP(MachineLoader &loader, const QString &folderPrefK
         if (size > 1) {
             disconnect(&loader, SIGNAL(setProgressValue(int)), &progress, SLOT(setProgressValue(int)));
             disconnect(&progress, SIGNAL(abortClicked()), &loader, SLOT(abortImport()));
+            progress.allowClose();
             progress.close();
             QCoreApplication::processEvents();
         }
@@ -3307,21 +3442,26 @@ void MainWindow::importNonCPAP(MachineLoader &loader, const QString &folderPrefK
                    "If you have the OSCAR database open in another application "
                    "(e.g., a SQLite viewer or editor), please close it and try again.\n\nError: %1")
                 .arg(commitError));
-            return;
+            return false;
         }
 
-        if (res < 0) {
-            // res is used as an index to an array and will cause a crash if not handled.
-            // Negative numbers indicate a problem with the file format or the file does not exist.
+        const bool aborted = loader.isAborted();
+        if (aborted) {
+            if (res > 0) {
+                Notify(tr("Import aborted: %1 file(s) already imported were kept").arg(res),
+                       tr("%1 Import Partial Success").arg(name));
+            }
+        } else if (res < 0) {
+            // Negative res means a bad file format or a missing file.
             //QString fileName = QFileInfo(files[0]).fileName();
             QString msg = QString(tr("There was a problem parsing %1 \nData File: %2")
                 .arg(name, QFileInfo( files[0]).fileName() ) );
             //QString msg = QString(tr("There was a problem parsing %1 \nData File: %2") .arg(name, fileName) );
             Notify(msg,"",20*1000 /* convert sec to ms */);
-        } else
-        if (res == 0) {
+            return false;
+        } else if (res == 0) {
             Notify(tr("There was a problem opening %1 Data File: %2").arg(name, files[0]));
-            return;
+            return false;
         } else if (res < size){
             Notify(tr("%1 Data Import of %2 file(s) complete").arg(name).arg(res) + "\n\n" +
                    tr("There was a problem opening %1 Data File: %2").arg(name, files[res]),
@@ -3337,8 +3477,11 @@ void MainWindow::importNonCPAP(MachineLoader &loader, const QString &folderPrefK
         PopulatePurgeMenu();
         if (overview) overview->ReloadGraphs();
         if (welcome) welcome->refreshPage();
+        GenerateStatistics();
         daily->LoadDate(daily->getDate(), true);
+        return !aborted || res > 0;
     }
+    return false;
 }
 
 void MainWindow::on_actionImport_Somnopose_Data_triggered()

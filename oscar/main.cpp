@@ -34,6 +34,7 @@
 #include <QStyleHints>
 #include <QStyleFactory>
 #include <QLockFile>
+#include <QProcess>
 
 #include "version.h"
 #include "logger.h"
@@ -50,6 +51,7 @@
 #include <chrono>
 
 // Gah! I must add the real darn plugin system one day.
+#include "SleepLib/loader_plugins/applehealth_loader.h"
 #include "SleepLib/loader_plugins/prs1_loader.h"
 #include "SleepLib/loader_plugins/cms50_loader.h"
 #include "SleepLib/loader_plugins/cms50f37_loader.h"
@@ -543,6 +545,24 @@ void optionExit(int exitCode, QString error) {
     exit (exitCode);
 }
 
+#ifdef Q_OS_WIN
+/*! \class GraphicsCrashSentinelGuard
+    \brief Scope guard around the part of startup that uses OpenGL.
+
+    Arming on construction and disarming on destruction means every normal exit from
+    main() clears the sentinel, including the early returns taken when the user cancels
+    a startup dialog, while a crash - which never runs destructors - leaves it set for
+    the next launch to find. MainWindow::Startup() disarms it explicitly as soon as the
+    window has been drawn, so a crash later in the session is not blamed on graphics.
+    */
+class GraphicsCrashSentinelGuard
+{
+  public:
+    GraphicsCrashSentinelGuard() { armGraphicsCrashSentinel(); }
+    ~GraphicsCrashSentinelGuard() { disarmGraphicsCrashSentinel(); }
+};
+#endif
+
 ////////////////////////////////////////////////////////////////////////////////////////////
 // Main()
 ////////////////////////////////////////////////////////////////////////////////////////////
@@ -590,14 +610,17 @@ int main(int argc, char *argv[]) {
         }
     }
 #ifdef Q_OS_WIN
+    // A sentinel left over from the previous run means OSCAR died while it was setting
+    // up or drawing its window, which on Windows is nearly always the graphics engine.
     bool oscarCrashed = false;
-    if (settings.value("OpenGLCompatibilityCheck").toBool()) {
+    if (settings.value(GFXCrashSentinelSetting).toBool()) {
         oscarCrashed = true;
     }
     if (oscarCrashed) {
         settings.setValue(GFXEngineSetting, (unsigned int)GFX_Software);
         forcedEngine = "Software Engine forced by previous crash";
-        settings.remove("OpenGLCompatibilityCheck");
+        settings.remove(GFXCrashSentinelSetting);
+        settings.sync();
     }
 #endif
 
@@ -718,6 +741,16 @@ int main(int argc, char *argv[]) {
 
     initializeStrings(); // This must be called AFTER translator is installed, but before mainwindow is setup
 
+#ifdef Q_OS_WIN
+    // Arm the sentinel before the first use of OpenGL. Everything from here until the
+    // window has been drawn touches it: the version probe below, prepOpenGL() in
+    // MainWindow::SetupGUI(), and TestWindowsOpenGL() at the top of Startup(), which
+    // disarms it again. If any of that kills the process, the next launch finds the flag
+    // and reverts to the software engine; without this the crash simply repeats on every
+    // launch, leaving the user no way in (GitLab #277).
+    GraphicsCrashSentinelGuard graphicsCrashSentinel;
+#endif
+
     mainwin = new MainWindow;
 
 // Moved buildInfo calls to after translation is available as makeBuildInfo includes tr() calls
@@ -730,8 +763,45 @@ int main(int argc, char *argv[]) {
     ////////////////////////////////////////////////////////////////////////////////////////////
     // OpenGL Detection
     ////////////////////////////////////////////////////////////////////////////////////////////
-    getOpenGLVersion();
-    getOpenGLVersionString();
+    float glVersion = getOpenGLVersion();
+    qDebug().noquote() << "OpenGL version:" << getOpenGLVersionString();
+
+#ifdef BROKEN_OPENGL_BUILD
+    // This build draws its graphs with plain QWidgets, so the OpenGL version is moot.
+    Q_UNUSED(glVersion)
+#elif defined(Q_OS_WIN)
+    // OSCAR's graphs need OpenGL 2.0. A stub 1.1 driver, or no usable driver at all,
+    // cannot back a QOpenGLWidget: creating one crashes rather than failing cleanly, so
+    // switch engines before any widget is built. The engine is chosen by an application
+    // attribute that can only be set before QApplication is constructed, hence the
+    // restart. Only done while OpenGL is the selected engine, so it can happen once.
+    if ((glVersion < 2.0f) && (currentGFXEngine() == GFX_OpenGL)) {
+        qWarning().noquote() << "Insufficient OpenGL support (" + getOpenGLVersionString()
+                                + "); switching to the software graphics engine";
+        setCurrentGFXEngine(GFX_Software);
+        QMessageBox::warning(nullptr, STR_MessageBox_Warning,
+                             QObject::tr("Your graphics hardware does not support the version of OpenGL that OSCAR needs.") + "\n\n" +
+                             QObject::tr("OSCAR will restart using a slower but more compatible method of drawing."),
+                             QMessageBox::Ok);
+        // Carry the original command line over so --datadir and --profile survive the
+        // restart, but drop --OpenGL: it would put the engine back and restart us again.
+        QStringList restartArgs;
+        restartArgs << "-p";        // gives this process time to exit first
+        for (int i = 1; i < args.size(); i++) {
+            if ((args[i] != "-p") && (args[i].compare("--OpenGL", Qt::CaseInsensitive) != 0))
+                restartArgs << args[i];
+        }
+        if (!QProcess::startDetached(QApplication::applicationFilePath(), restartArgs)) {
+            QMessageBox::warning(nullptr, STR_MessageBox_Warning,
+                                 QObject::tr("OSCAR was unable to restart itself. Please start OSCAR again."),
+                                 QMessageBox::Ok);
+        }
+        return 0;
+    }
+#else
+    if (glVersion < 2.0f)
+        qWarning().noquote() << "Insufficient OpenGL support (" + getOpenGLVersionString() + ")";
+#endif
 
     ////////////////////////////////////////////////////////////////////////////////////////////
     // Datafolder location Selection
@@ -1021,6 +1091,7 @@ int main(int argc, char *argv[]) {
     YuwellLoader::Register();
     SefamLoader::Register();
     ApexLoader::Register();
+    AppleHealthLoader::Register();
 
     ///////////////////////////////////////////////////////////////////////////////////////////
     // Migrate from OSCAR 1.x if needed

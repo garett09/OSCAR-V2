@@ -33,6 +33,7 @@ for %%L in (
     Svenska.sv
     Thai.th
     Turkish.tr
+    Ukrainska.uk
 ) do (
     echo === %%L ===
     python "%SCRIPT%" %%L

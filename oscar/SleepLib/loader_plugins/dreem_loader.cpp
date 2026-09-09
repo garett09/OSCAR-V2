@@ -121,7 +121,13 @@ void DreemLoader::closeCSV()
 
 
 
-const QStringList s_sleepStageLabels = { "NA", "WAKE", "REM", "Light", "Deep" };
+static const QHash<QString, SleepStageValue> s_sleepStages = {
+    { "NA", Stage_None },
+    { "WAKE", Stage_Awake },
+    { "REM", Stage_REM },
+    { "Light", Stage_Light },
+    { "Deep", Stage_Deep },
+};
 
 Session* DreemLoader::readNextSession()
 {
@@ -129,13 +135,6 @@ Session* DreemLoader::readNextSession()
         qWarning() << "no CSV open!";
         return nullptr;
     }
-    static QHash<const QString,int> s_sleepStages;
-    for (int i = 0; i < s_sleepStageLabels.size(); i++) {
-        const QString & label = s_sleepStageLabels[i];
-        s_sleepStages[label] = i;  // match ZEO sleep stages for now
-        // TODO: generalize sleep stage integers between Dreem and Zeo
-    }
-
     Session* sess = nullptr;
 
     QDateTime start_time, stop_time;
@@ -192,14 +191,13 @@ Session* DreemLoader::readNextSession()
         const quint64 step = 30 * 1000;
         m_session = sess;
 
-        // TODO: rename Zeo channels to be generic
-        sess->settings[ZEO_Awakenings] = awakenings;
-        sess->settings[ZEO_TimeToZ] = sleep_onset / 60;  // TODO: convert durations to seconds and update Zeo loader accordingly, also below
-        sess->settings[ZEO_ZQ] = int(sleep_efficiency * 100.0);  // TODO: ZQ may be better expressed as a percent?
-        sess->settings[ZEO_TimeInWake] = awakened_duration / 60;
-        sess->settings[ZEO_TimeInREM] = rem_duration / 60;
-        sess->settings[ZEO_TimeInLight] = light_sleep_duration / 60;
-        sess->settings[ZEO_TimeInDeep] = deep_sleep_duration / 60;
+        sess->settings[SLEEP_Awakenings] = awakenings;
+        sess->settings[SLEEP_TimeToSleep] = sleep_onset / 60;  // TODO: convert durations to seconds and update Zeo loader accordingly, also below
+        sess->settings[ZEO_ZQ] = int(sleep_efficiency * 100.0);  // TODO: ZEO_ZQ is still Zeo-branded but holds Dreem sleep efficiency; also, ZQ may be better expressed as a percent?
+        sess->settings[SLEEP_TimeInWake] = awakened_duration / 60;
+        sess->settings[SLEEP_TimeInREM] = rem_duration / 60;
+        sess->settings[SLEEP_TimeInLight] = light_sleep_duration / 60;
+        sess->settings[SLEEP_TimeInDeep] = deep_sleep_duration / 60;
         //sess->settings[OXI_Pulse] = average_hr;
         //sess->settings[CPAP_RespRate] = average_rr;
         // Dreem also provides:
@@ -220,7 +218,7 @@ Session* DreemLoader::readNextSession()
         for (int i = 0; i < hypnogram.size(); i++) {
             auto & label = hypnogram.at(i);
             if (s_sleepStages.contains(label)) {
-                int stage = s_sleepStages[label];
+                SleepStageValue stage = s_sleepStages[label];
 
                 // It appears that the last sample occurs at the stop time.
                 if (tt > last) {
@@ -230,10 +228,10 @@ Session* DreemLoader::readNextSession()
                     tt = last;
                 }
 
-                if (stage == 0) {
-                    EndEventList(ZEO_SleepStage, tt);
+                if (stage == Stage_None) {
+                    EndEventList(SLEEP_Stage, tt);
                 } else {
-                    AddEvent(ZEO_SleepStage, tt, -stage);  // use negative values so that the chart is oriented the right way
+                    AddEvent(SLEEP_Stage, tt, -stage);  // use negative values so that the chart is oriented the right way
                 }
             } else {
                 qWarning() << sess->session() << start_time << "@" << i << "unknown sleep stage" << label;
@@ -245,7 +243,7 @@ Session* DreemLoader::readNextSession()
                 tt += step;
             }
         }
-        EndEventList(ZEO_SleepStage, last);
+        EndEventList(SLEEP_Stage, last);
         sess->really_set_last(last);
     }
 
@@ -308,4 +306,3 @@ void DreemLoader::Register()
     RegisterLoader(new DreemLoader());
     dreem_initialized = true;
 }
-

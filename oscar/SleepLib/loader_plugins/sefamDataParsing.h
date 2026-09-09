@@ -148,7 +148,22 @@ enum LogCode {
     kLogCentralHypopnea  = 6,       //!< arg is zero in ~97% of records.
     kLogSnore            = 7,
     kLogFlowLimitation   = 8,
-    kLogSettingsSnapshot = 13       //!< Also carries settings; fallback for code 2.
+
+    /*! \brief Device identity and pressure limits. NOT therapy settings.
+
+        This was read as a settings snapshot and used as a fallback for code 2,
+        because on the first card examined two of its three pressure bytes --
+        4.0 and 20.0 -- happened to be that device's actual minimum and maximum.
+        A second card settled it: the same three values appear in every code 13
+        record it wrote, including records written months after the prescription
+        had been narrowed to 6.0-7.5. They are the model's settable range and its
+        default, not what the device was set to. The record also carries a
+        six-digit ASCII number that is constant per device.
+
+        Nothing reads it now. Treating it as settings made a session that carried
+        only this record report the full pressure range, and left that behind as
+        the carried-forward settings for every session after it. */
+    kLogDeviceLimits     = 13
 };
 
 /*! \struct Settings
@@ -158,10 +173,15 @@ enum LogCode {
     controlled single-setting change, are represented — an unverified byte
     displayed as a therapy setting is worse than showing nothing.
 
-    The heated tube setting is deliberately absent: it was located, but it lives
-    in the file the vendor software writes to push settings onto a card, not in
-    anything the device itself records, so it cannot be recovered from an
-    ordinary card.
+    The heated tube setting is deliberately absent. It is confirmed only in the
+    file the vendor software writes to push settings onto a card, which is not
+    something an ordinary card carries. Record byte 23 is a good candidate for it
+    on the Rêve and Néa — it sits immediately after the confirmed humidifier byte,
+    exactly as the vendor's file places the tube byte after its humidifier byte,
+    it moves independently of the humidifier from night to night on both models,
+    and every value seen is inside the vendor's 0–6 range. That is circumstantial,
+    and no controlled change can reach it: the model whose settings the vendor
+    software can write does not record this byte at all.
 
     See Notes/loaders/SEFAM_REVE_CARD_ANALYSIS.md, sections "Humidifier level —
     byte 22", "Theoretical mask leak — byte 10" and "Comfort Control Plus —
@@ -169,10 +189,12 @@ enum LogCode {
 struct Settings
 {
     bool  valid           = false;
-    float minPressure     = 0.0f;   //!< cmH2O
-    float maxPressure     = 0.0f;   //!< cmH2O
+    bool  fixedPressure   = false;  //!< Device is in CPAP, not A-PAP. See byte 17.
+    float prescribedPressure = 0.0f;//!< cmH2O; meaningful only when fixedPressure.
+    float minPressure     = 0.0f;   //!< cmH2O. The A-PAP band; ignored in CPAP.
+    float maxPressure     = 0.0f;   //!< cmH2O. The A-PAP band; ignored in CPAP.
     float rampPressure    = 0.0f;   //!< cmH2O
-    int   rampMinutes     = 0;
+    int   rampMinutes     = 0;      //!< The patient's own ramp; see rampMinutesFor().
     int   humidifierLevel = -1;     //!< 0 = off; -1 when the record omits it.
     int   maskLeak        = -1;     //!< lpm; -1 when the record omits it.
     int   comfortLevel    = -1;     //!< CC+ level; 0 = off, -1 when the record omits it.
@@ -234,10 +256,12 @@ struct SessionSummary
     int flowLimitations = 0;
 
     bool  settingsValid  = false;
-    float minPressure    = 0.0f;        //!< cmH2O
-    float maxPressure    = 0.0f;        //!< cmH2O
+    bool  fixedPressure  = false;       //!< Device is in CPAP, not A-PAP.
+    float prescribedPressure = 0.0f;    //!< cmH2O; meaningful only when fixedPressure.
+    float minPressure    = 0.0f;        //!< cmH2O. The A-PAP band; ignored in CPAP.
+    float maxPressure    = 0.0f;        //!< cmH2O. The A-PAP band; ignored in CPAP.
     float rampPressure   = 0.0f;        //!< cmH2O
-    int   rampMinutes    = 0;           //!< 0 when the ramp is disabled.
+    int   rampMinutes    = 0;           //!< 0 when the ramp is off; see rampMinutesFor().
     int   maskLeak       = -1;          //!< lpm; -1 when out of the documented range.
     int   patientCircuit = -1;          //!< Tube diameter in mm, 15 or 22; -1 when absent.
     int   comfortLevel   = -1;          //!< CC+ level; 0 = off, -1 when absent.
@@ -293,9 +317,15 @@ bool parseIni(const QString &path, QHash<QString, ChannelSpec> &specs, QDateTime
             size is not a whole number of records.
 
     A record is [samples][1-byte 8-bit sum checksum][2-byte big-endian sequence].
-    On a checksum or sequence mismatch the channel is truncated at the last good
-    record and true is returned — a card unplugged mid-write leaves a torn final
-    record and everything before it is valid. */
+    On a checksum failure the channel is truncated at the last good record and
+    true is returned — a card unplugged mid-write leaves a torn final record and
+    everything before it is valid.
+
+    A **skipped sequence number** is different: the device dropped a record and
+    carried on, and everything after the hole is good. Each missing record is
+    filled with kInvalidSample so that later samples keep their true offset from
+    the session start, and \a records counts the filled slots too, so it always
+    equals the last sequence number accepted. */
 bool readChannel(const QString &path, const ChannelSpec &spec,
                  QVector<quint8> &out, int &records, QString &error);
 
@@ -307,15 +337,22 @@ bool readChannel(const QString &path, const ChannelSpec &spec,
 bool readLog(const QString &path, QVector<LogRecord> &out);
 
 /*! \brief Decode therapy settings from a log record.
-    \param rec A record with code kLogSettingsChange or kLogSettingsSnapshot.
+    \param rec A record with code kLogSettingsChange.
     \param out Populated and marked valid on success.
     \return false if the record is not a settings record or the payload is short.
 
-    Payload offsets are relative to record byte 11, which is payload index 0.
-    Code 2:  index 0 = min pressure, 1 = ramp minutes, 4 = max pressure,
-             5 = ramp pressure. Pressures are tenths of a cmH2O.
-    Code 13: index 3 = min pressure, index 5 = max pressure; it carries no ramp
-             fields, so those stay zero. */
+    Payload offsets are relative to record byte 11, which is payload index 0:
+    0 = ramp start pressure, 1 = the patient's ramp minutes, 2 = the
+    practitioner's ceiling on them, 3 = ramp mode and flags, 4 = maximum
+    pressure, 5 = minimum pressure, 6 = therapy mode, 10 = comfort level and
+    patient circuit packed together, 11 = humidifier level. Pressures are tenths
+    of a cmH2O.
+
+    Neither of the record's own two settings bytes is in the payload: byte 9, the
+    high half of the 16-bit argument, is the prescribed pressure, and byte 10,
+    its low half, is the theoretical mask leak.
+
+    Code 13 is not a settings record — see kLogDeviceLimits. */
 bool parseSettings(const LogRecord &rec, Settings &out);
 
 /*! \brief Read one DATA_nnn directory into a SessionData.

@@ -94,6 +94,10 @@ warns.
 
 ---
 
+**Comparing OSCAR against the vendor software?** Read
+`SEFAM_ANALYZE_VS_OSCAR.md` first — it lists the differences that are structural
+rather than defects, calibrated against a card that has a full vendor report.
+
 ## Card layout
 
 ```
@@ -173,10 +177,10 @@ room for:
 | 0x227 | minimum pressure ×10 | 120 | 70 |
 | 0x228 | maximum pressure ×10 | 190 | 130 |
 | 0x229 | ramp start pressure ×10 | 80 | 40 |
-| 0x22A | ramp duration | — | 45 |
-| 0x22B | ramp duration echo | — | 45 |
+| 0x22A | one of the two ramp times | — | 45 |
+| 0x22B | the other ramp time | — | 45 |
 | 0x22C | apnoea response pressure ×10 | 130 | 130 |
-| 0x22D | ramp mode | 8 = T.Ramp | 12 = I.Ramp |
+| 0x22D | ramp mode, bit 2 = I.Ramp, bit 4 = patient access lock | 8 = T.Ramp | 12 = I.Ramp |
 | 0x22E | **patient circuit**, bit 0 = 15 mm | 184 / 185 | 185 |
 | 0x22F | constant 60 | 60 | 60 |
 | 0x230-0x232 | 0, 5, 0 | constant | constant |
@@ -238,22 +242,37 @@ ramp settings off carries word 2 = 0, word 1 = 0 and the mode byte still reading
 for precisely the slots whose table entries are mode 8 with word 2 = 0. There is
 no separate "off" mode value.
 
-**The practitioner and patient ramp times were not captured.** The software's
-Parameters panel offers a *Practitioner* setting — `OFF`, `I.Ramp`, or
-`T.Ramp Maxi` 5 to 45 minutes in steps of 5 — and a separate *Patient* setting
-limited to values at or below it, which reduces to On/Off when the mode is
-I.Ramp. That structure predicts word 2 is the practitioner ceiling and word 1 the
-patient's selection, which would fit every card seen: the I.Ramp slots carry
-word 1 = 0, and the T.Ramp slots carry word 1 = word 2, a patient who left it at
-the maximum. The vendor's API agrees, exporting `GetMaxRampTime` on one class and
-`GetRampTime` on another.
+**Word 1 is the patient's ramp time and word 2 the practitioner's ceiling —
+CONFIRMED 2026-08-26.** The software's Parameters panel offers a *Practitioner*
+setting — `OFF`, `I.Ramp`, or `T.Ramp Maxi` 5 to 45 minutes in steps of 5 — and a
+separate *Patient* setting limited to values at or below it, which reduces to
+On/Off when the mode is I.Ramp. The vendor's API agrees, exporting
+`GetMaxRampTime` on one class and `GetRampTime` on another.
 
-**It is not confirmed.** Attempts to write a practitioner maximum of 45 with a
-patient value of 20 produced files whose ramp bytes stayed at zero, and marking
-the pressure section as changed turned both ramp settings off without them being
-touched. Until a write lands with the two values differing, "word 1 echoes the
-duration in T.Ramp" and "word 1 is the patient's own selection" both fit, and
-`parseSettings()` continues to report word 2.
+This note previously called it unconfirmed, because the rival reading — "word 1
+merely echoes the duration in T.Ramp" — fitted the settings *table* just as well:
+its I.Ramp slots carry word 1 = 0 and its T.Ramp slots carry word 1 = word 2.
+Two things settled it, and one of them was in this card all along.
+
+- **The session archive, which was never checked for this.** Across all 467
+  blocks of card A the patient's value never exceeds the ceiling and falls
+  strictly below it in five distinct T.Ramp states — 0/5, 0/20, 5/10, 5/20 and
+  10/20. An echo cannot produce those.
+- **A Néa card.** Its practitioner value stayed at 30 minutes for a year while
+  the patient's moved 30, 10, 0, 20, 10 across five records. See
+  `SEFAM_REVE_CARD_ANALYSIS.md`, "The Néa Auto".
+
+`rampMinutesFor()` now reports the patient's value, except under I.Ramp — mode
+bit 2 — where the patient has no duration of their own and the practitioner's is
+the only answer. Checked against card A's own report: every ramp figure it prints
+is unchanged, on both its I.Ramp and its T.Ramp sessions. It changes 46 of the
+467 blocks, none of them inside the report's window.
+
+The attempts to write the two values differing through *Sefam Analyze* all failed
+— a practitioner maximum of 45 with a patient value of 20 produced files whose
+ramp bytes stayed at zero, and marking the pressure section as changed turned
+both ramp settings off without them being touched. That experiment is no longer
+needed.
 
 ### The file is a write command, not a snapshot
 
@@ -355,6 +374,26 @@ The `[Create Info]` block gives `Created By`, the full serial, the firmware
 version and a creation timestamp; `[Start Record]` gives the session start as
 separate Y/M/D/h/m/s fields plus a programmed and a real record duration.
 
+### Three sessions imported as nothing, because their sequence starts at 2
+
+*Found 2026-08-26.*
+
+`DATA_94`, `DATA_95` and `DATA_96` on this card — 771, 718 and 733 records, about
+6.2 hours in total — imported as **nothing at all**, and the only trace was a
+`no populated channels` warning that read like an empty directory.
+
+Their channel files are intact: every checksum passes and the file size is an
+exact whole number of records. The record **sequence counter simply starts at 2**
+rather than 1, the device having dropped the first record and carried on counting.
+`readChannel()` treated any sequence mismatch as corruption and truncated at the
+last good record — which here was none of them, so every channel came back empty
+and `readSession()` rejected the session.
+
+Fixed by filling a skipped sequence number with invalid samples and continuing.
+See `SEFAM_REVE_CARD_ANALYSIS.md`, "The sequence counter skips, and a skip is not
+corruption", for the full picture — the same defect cost a Néa card three
+sessions' worth of data too.
+
 ---
 
 ## Why OSCAR shows waveforms but no events and no settings
@@ -451,15 +490,16 @@ implementation.
 | word | meaning | card A | card B |
 |---|---|---|---|
 | 0 | ramp start pressure, ×10 cmH₂O | 40–80 | 40 |
-| 1 | repeats the ramp duration when word 3 is 8, otherwise 0 | 0 or 15 | 0 or 45 |
-| 2 | ramp duration in minutes; 0 = ramp disabled | 0, 15, 45 | 45 |
+| 1 | **the patient's own ramp time**, minutes; 0 = the patient turned it off | 0 or 15 | 0 or 45 |
+| 2 | **the practitioner's ceiling** on it, minutes; 0 = ramp disabled | 0, 15, 45 | 45 |
 | 3 | ramp mode (8 = T.Ramp, 12 = I.Ramp) plus **bit 4 = patient access lock** | 8, 12 | 12, and 28 = I.Ramp + locked in the factory slot |
 | 4 | maximum pressure, ×10 cmH₂O | 40–190 | 130, 200 |
 | 5 | minimum pressure, ×10 cmH₂O | 40–120 | 40, 70 |
-| 6, 7 | 60, 60 | constant | constant |
+| 6 | **therapy mode**: 60 = A-PAP, 0 = CPAP (see below) | 0 or 60 | 60 |
+| 7 | 60 | constant | constant |
 | 8 | 130 = the apnoea response pressure the report prints as 13.0 cmH₂O | constant | constant |
 | 9 | **CC+ level (bits 7–6) and patient circuit (bit 0)**, packed (see below) | 184 → Level 3, 22 mm | 185 → Level 3, 15 mm |
-| 10 | **differs per device** — unassigned, and nothing the reports print is left to assign to it | 50 | 80 |
+| 10 | **prescribed pressure**, ×10 cmH₂O; 80 = not set. Used only when word 6 says CPAP | 50 | 80 |
 | 11 | theoretical mask leak, lpm in bits 0–6 (see below) | 164 → 36 lpm | 164 → 36, 40 → 40 |
 
 Words 0–8 were the confirmed part. **Word 11 was identified later, on the Rêve**,
@@ -734,6 +774,36 @@ run *after* `UpdateSummaries()`. Avoid needing it.)
 
 ---
 
+## This card settles the therapy mode, from its own data
+
+*Added 2026-08-26.*
+
+The Rêve and the Néa each hold one mode for their whole history, so neither can
+prove which byte carries it — but this card ran both, and it records a **mean
+pressure for every minute of every session**. That makes the question answerable
+without any vendor output at all. Splitting all 467 archive blocks on word 6:
+
+| word 6 | blocks | delivered p10–p90 spread | median pressure == word 10 |
+|---|---|---|---|
+| **0** | 5 | **0.10 cmH₂O** | **5 of 5** |
+| 60 | 225 | 3.17 cmH₂O | 4 of 225 |
+
+*(Counting only blocks with at least 30 minutes of valid pressure; over the full
+archive 11 of 467 read CPAP.)*
+
+A 0.10 cmH₂O spread is a flat line, and it sits on word 10 every time. So **word
+6 = 0 is CPAP and 60 is A-PAP, and word 10 is the pressure prescribed for it** —
+the value the vendor software prints in its "Prescribed pressure" column, and
+leaves blank on every A-PAP row.
+
+Both fields had been written off in this note: word 6 as a constant, word 10 as
+"differs per device, and nothing the reports print is left to assign to it". The
+second was true only because the report's *summary* page has no prescribed-pressure
+row. The CSV export does.
+
+Eleven blocks of this card were imported as an auto band the device never
+titrated across, until the loader learned to read word 6.
+
 ## `Y17` on the S.Box — tested as an event source, rejected
 
 With no `.LOG`, `Y17` is the only per-sample channel that could plausibly carry
@@ -785,20 +855,20 @@ behave as the Rêve note describes and neither resembles an event marker.
    source existed at all, because it searched the memory image for the Rêve's
    49-byte log-record shape; the second said byte 2 could not be decoded, on the
    strength of six blocks rather than all 470.)*
-2. **Word 10 is the only unassigned field**, and no printed setting is left to
-   match it against — it differs per device and is constant within one, which
-   fits a calibration constant. **The humidifier and heated tube levels are not
-   in this record at all**: both were located in `upload.dat`, both sit outside
-   the twelve fields, and neither is recoverable from a card the device wrote.
-   That is a real limit on what a loader can ever report for this model, not a
-   gap waiting to close.
-3. **The practitioner and patient ramp times are not separated.** Words 1 and 2
-   are consistent with a practitioner ceiling and a patient selection — the
-   software presents exactly that pair, and the vendor API has a distinct
-   accessor for each — but no write has yet landed with the two differing, so
-   the older "word 1 echoes the duration in T.Ramp" reading is equally
-   consistent. `parseSettings()` reports word 2. See "The patient access lock,
-   and how the ramp is stored".
+2. ~~**Word 10 is the only unassigned field.**~~ **RESOLVED 2026-08-26: word 10
+   is the prescribed pressure and word 6 is the therapy mode.** Both readings
+   this note previously offered were wrong — word 10 is not a per-device
+   calibration constant, and word 6 is not a constant at all. See below, and
+   `SEFAM_REVE_CARD_ANALYSIS.md`, "The therapy mode is byte 17".
+
+   **The humidifier and heated tube levels are not in this record at all**: both
+   were located in `upload.dat`, both sit outside the twelve fields, and neither
+   is recoverable from a card the device wrote. That is a real limit on what a
+   loader can ever report for this model, not a gap waiting to close.
+3. ~~**The practitioner and patient ramp times are not separated.**~~
+   **RESOLVED 2026-08-26: word 1 is the patient's, word 2 the practitioner's
+   ceiling.** Settled by this card's own session archive and by a Néa card. See
+   "The patient access lock, and how the ramp is stored".
 4. **The settings table's slot ordering** is still not understood. The offset is
    now confirmed on two devices, and "last non-zero slot" gives the right
    current settings on both, but the ring's write order does not.
@@ -811,11 +881,10 @@ behave as the Rêve note describes and neither resembles an event marker.
 
 ## What would still help
 
-- **A ramp-type flip, I.Ramp against T.Ramp**, written through *Sefam Analyze*.
-  It would confirm by controlled change the rule that word 1 echoes the ramp
-  duration only in T.Ramp — currently inferred from vendor snapshots, and the
-  thing that made the field-order bug dangerous. This is the last experiment with
-  a clear payoff; word 10 has no candidate left to test against.
+- **A bi-level card** — an S.Box Duo, Néa Duo or Ventea. Word 6 has been seen
+  holding A-PAP and CPAP, and the vendor DLL exports `IsBilevel*` beside
+  `IsCPAP`, so a third value almost certainly exists. The loader reports anything
+  it does not recognise as A-PAP, and warns.
 - **An analyzer report for card B**, or for any second S.Box, to confirm the
   circuit and mask leak on a second device rather than resting both on card A.
 - **A card whose analyzer report shows a settings change at a known session

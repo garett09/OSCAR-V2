@@ -107,6 +107,15 @@ public:
     /// suspected nonsense in SC.74+ firmware and unverified in SC.72.
     virtual bool ExportPeriodicBreathing() const { return true; }
 
+    /// Returns true if the BMC_RESLEX_PATIENT ("Reslex Availability") and
+    /// BMC_RESLEX_MODE ("Reslex Mode") settings should be published.  Both are
+    /// legacy-BMC concepts: availability is parsed from IDX byte 0x151 bit 7, and
+    /// mode is a constant because legacy Reslex only ever operates full time.
+    /// Override to false on families where neither has a known source, so the
+    /// Daily Device Settings panel does not present a default as though it were a
+    /// reading.  See GitLab #274.
+    virtual bool ExportReslexDetails() const { return true; }
+
     /// Returns the session start timestamp to use for really_set_first().
     /// Base implementation uses the session's StartTimestamp (no adjustment).
     /// Subclasses may override to skip startup noise before therapy stabilizes.

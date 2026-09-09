@@ -4467,6 +4467,54 @@ the firmware platforms below are what the loader actually has to dispatch on.)
 
 ---
 
+## SEFAM Néa Auto — model code `1265R` (loader exists)
+
+**Device:** SEFAM Néa Auto (APAP), model code `1265R`, firmware `VER :A010400`.
+**Loader:** `sefam_loader.cpp` / `sefamDataParsing.cpp`. Recognised since
+2026-08-26.
+
+**Fingerprint:**
+
+```
+<root>/1265R/<serial>/                     model code, then serial
+├── <serial>.RAM                           1,633,228 bytes, encrypted
+├── <serial>.BKP                           same size, previous copy
+└── DATA_000/ … DATA_nnn/                  three-digit, zero-padded
+    └── DATA_nnn.{INI,FLW,PRE,LK,DET,NSD,Y17,LOG,ABD,HRT,PLS,POS,SPO,STS,THO}
+```
+
+`DATA_nnn.INI` is plain text and carries the identity:
+
+```
+[Create Info]
+Created By=NEA_AUTO
+Serial Number=1265R<serial>
+Version=VER :A010400
+```
+
+Channel headers are 71 bytes, XOR 0xBF, opening `#03/`. Twelve channels are
+declared; `FLW` 10 Hz, `PRE` 5 Hz, `LK` 1 Hz are the ones with data.
+
+**This is the Rêve Auto's format, byte for byte** — same tag, same header
+lengths, same 49-byte `.LOG` records, same encrypted memory image at the Rêve's
+exact size. It is *not* the S.Box's, which uses `#02/`, unpadded `DATA_n`
+directories, no `.LOG` at all, and a 2,097,307-byte memory image that is stored
+in the clear. Anything learned from a Rêve card applies here directly; anything
+learned from an S.Box card does not, except where the two share the twelve-word
+settings record.
+
+**What the first card yielded:** 146 sessions over 11 months, every channel
+payload a whole number of records, every session id unique and in order, three
+sessions truncating on a torn final record. Thirty-one settings records, against
+eleven on the Rêve card — which is why this sample settled two questions the Rêve
+never could. See `Notes/loaders/SEFAM_REVE_CARD_ANALYSIS.md`, "The Néa Auto".
+
+`1265R` is deliberately **not** on `sefamModelIsValidated()`'s list, so it still
+raises `deviceIsUntested()`: no manufacturer report exists for a Néa, and the
+therapy mode this device ran for its first eight months is unresolved.
+
+---
+
 ## SEFAM S.Box AUTO — model codes `1263R` and `1200R` (loader exists)
 
 **Sample:** `C:/Users/Guy/Downloads/SEFAM-2 Wagmar Barbosa de Souza` (SD card root —

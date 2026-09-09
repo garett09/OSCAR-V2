@@ -11,8 +11,17 @@
 #include <QString>
 #include <QDir>
 #include <QFile>
+#include <QVector>
+
+#include <functional>
 
 class ProgressDialog;
+
+struct UnzipEntry
+{
+    QString name;
+    qint64 uncompressedSize;
+};
 
 class ZipFile : public QObject
 {
@@ -52,9 +61,8 @@ protected:
  * \class UnzipFile
  * \brief Extracts files from a ZIP archive using miniz.
  *
- * Mirrors the ZipFile interface for reading.  Files are extracted to memory
- * and written via QFile so that Unicode paths are handled correctly on all
- * platforms.
+ * Mirrors the ZipFile interface for reading.  Files are streamed via QFile
+ * so that Unicode paths are handled correctly on all platforms.
  *
  * Typical usage:
  * \code
@@ -90,6 +98,28 @@ public:
      * \return true on success.
      */
     bool ExtractAll(const QString& destDir);
+
+    /*!
+     * \brief Extract one named entry to \a destPath, overwriting it if present.
+     * \param entryName  Exact archive path of the entry, matched case-sensitively.
+     * \param destPath   Destination file (its parent directory is created if absent).
+     * \param progress   Optional; called with (bytes written, uncompressed entry
+     *                   size) as the entry streams out.  The size comes from the
+     *                   archive's central directory and can be 0.
+     * \return true on success; false if the entry is absent or extraction fails.
+     */
+    bool ExtractEntry(const QString& entryName, const QString& destPath,
+                      const std::function<void(qint64 bytesWritten, qint64 bytesTotal)>& progress
+                          = std::function<void(qint64, qint64)>());
+
+    /*!
+     * \brief List the file entries in the archive.
+     *
+     * Directory entries are omitted.
+     *
+     * \return Archive names and uncompressed sizes for each file entry.
+     */
+    QVector<UnzipEntry> ListEntries();
 
     /*!
      * \brief Close the archive and free internal resources.

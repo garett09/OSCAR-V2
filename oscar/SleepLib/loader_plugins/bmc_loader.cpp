@@ -358,7 +358,11 @@ void BmcLoader::setSessionMachineSettings(BmcDateSession* bmcSession, Session* o
         oscarSession->settings[BMC_RAMPTIME] = machineSettings.RampTimeMinutes;
 
     oscarSession->settings[BMC_RESLEX] = machineSettings.Reslex;
-    oscarSession->settings[BMC_RESLEX_PATIENT] = machineSettings.ReslexPatient ? 1 : 0;
+    // Reslex Availability has a source only on legacy BMC (IDX byte 0x151 bit 7).
+    // The G3X/E5 parser never sets it, so publishing it unconditionally reported the
+    // struct default ("Clinician") as though the card had said so.  See GitLab #274.
+    if (ExportReslexDetails())
+        oscarSession->settings[BMC_RESLEX_PATIENT] = machineSettings.ReslexPatient ? 1 : 0;
     oscarSession->settings[BMC_AUTO_ON] = machineSettings.AutoOn;
     oscarSession->settings[BMC_AUTO_OFF] = machineSettings.AutoOff;
     oscarSession->settings[BMC_HUMIDIFIER] = machineSettings.HumidifierLevel;
@@ -377,7 +381,11 @@ void BmcLoader::setSessionMachineSettings(BmcDateSession* bmcSession, Session* o
         }
     }
 
-    oscarSession->settings[BMC_RESLEX_MODE] = 0;
+    // Reslex Mode is a constant, not a reading: legacy BMC Reslex only operates full
+    // time, which is the channel's single registered option.  Suppressed on families
+    // that have no Reslex Mode concept at all.  See GitLab #274.
+    if (ExportReslexDetails())
+        oscarSession->settings[BMC_RESLEX_MODE] = 0;
 
 }
 

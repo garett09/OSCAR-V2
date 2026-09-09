@@ -36,7 +36,16 @@ const QString sefam_class_name = "SefamLoader";
 
     Anything else still warns, which is the point — the loader accepts any card
     matching the directory pattern, so an unrecognised model code means a device
-    nobody has checked. */
+    nobody has checked.
+
+    1265R — the Néa Auto — is recognised by name and image but deliberately left
+    out of this list for now. Its container is the Rêve's, every session on the
+    one card seen parses, and its decoded mode, pressures, ramp, comfort level
+    and mask leak have each been checked day by day against the vendor
+    software's own settings table. What is missing is a manufacturer report of
+    the kind the other two entries rest on, and a comparison that has been run
+    to completion. See Notes/loaders/SEFAM_REVE_CARD_ANALYSIS.md, "The Néa
+    Auto". */
 inline bool sefamModelIsValidated(const QString &modelCode)
 {
     return modelCode == QLatin1String("1279R")
@@ -45,15 +54,15 @@ inline bool sefamModelIsValidated(const QString &modelCode)
 }
 
 /*! \name SEFAM accessory settings
-    The three settings decoded from the card's log settings record. Each was
-    pinned by a controlled single-setting change on a card from the same device;
-    see Notes/loaders/SEFAM_REVE_CARD_ANALYSIS.md. Patient circuit and heated
-    tube are the two the analyzer prints that remain undecoded.
+    The settings decoded from the card's therapy-settings record. Each was pinned
+    by a controlled single-setting change written through the vendor software, or
+    by a manufacturer report; see Notes/loaders/SEFAM_REVE_CARD_ANALYSIS.md. The
+    heated tube level is the one the analyzer prints that is still unconfirmed.
     @{ */
-extern ChannelID SEFAM_HumidLevel;    //!< Humidifier level, 0 = off.
+extern ChannelID SEFAM_HumidLevel;    //!< Humidifier level, 0 = off. Not on the S.Box.
 extern ChannelID SEFAM_MaskLeakSet;   //!< Theoretical mask leak at 12 cmH2O, l/min.
 extern ChannelID SEFAM_ComfortLevel;  //!< Comfort Control Plus level.
-extern ChannelID SEFAM_Circuit;       //!< Patient circuit diameter in mm. S.Box only.
+extern ChannelID SEFAM_Circuit;       //!< Patient circuit diameter in mm.
 /*! @} */
 
 /*! \class SefamLoader

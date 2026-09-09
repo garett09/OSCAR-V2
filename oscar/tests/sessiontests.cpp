@@ -115,14 +115,14 @@ static QString settingChannel(ChannelID i)
         CHANNELNAME(PRS1_EZStart);
         CHANNELNAME(PRS1_RiseTime);
         CHANNELNAME(PRS1_RiseTimeLock);
-        // ZEO-specific channels
-        CHANNELNAME(ZEO_Awakenings);
-        CHANNELNAME(ZEO_MorningFeel);
-        CHANNELNAME(ZEO_TimeInWake);
-        CHANNELNAME(ZEO_TimeInREM);
-        CHANNELNAME(ZEO_TimeInLight);
-        CHANNELNAME(ZEO_TimeInDeep);
-        CHANNELNAME(ZEO_TimeToZ);
+        // Sleep-stage channels
+        CHANNELNAME(SLEEP_Awakenings);
+        CHANNELNAME(SLEEP_MorningFeel);
+        CHANNELNAME(SLEEP_TimeInWake);
+        CHANNELNAME(SLEEP_TimeInREM);
+        CHANNELNAME(SLEEP_TimeInLight);
+        CHANNELNAME(SLEEP_TimeInDeep);
+        CHANNELNAME(SLEEP_TimeToSleep);
         CHANNELNAME(ZEO_ZQ);
         // Resmed-specific channels
         CHANNELNAME(RMS9_EPR);
@@ -190,7 +190,7 @@ static QString eventChannel(ChannelID i)
         CHANNELNAME(CPAP_IPAPSet);
         CHANNELNAME(CPAP_EPAPSet);
         CHANNELNAME(POS_Movement);
-        CHANNELNAME(ZEO_SleepStage);
+        CHANNELNAME(SLEEP_Stage);
         // Resmed-specific channels
         CHANNELNAME(CPAP_Apnea);
         CHANNELNAME(CPAP_MaskPressure);

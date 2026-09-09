@@ -164,6 +164,11 @@ bool readChannel(const QString &path, const ChannelSpec &spec,
     // rejected, but this loader maps no 16-bit channel to OSCAR.
     if (spec.bits != 8) { records = total; return true; }
 
+    // The sequence counter numbers records from 1 and is 16 bits wide, so it
+    // wraps after 65535 of them — a little over seven days at ten seconds each.
+    // Holding it in a quint16 makes the subtraction below wrap with it.
+    quint16 expected = 1;
+
     out.reserve(total * sampleBytes);
     for (int i = 0; i < total; ++i) {
         const char *rec = raw.constData() + hdr.length + i * recLen;
@@ -177,16 +182,50 @@ bool readChannel(const QString &path, const ChannelSpec &spec,
                                    (static_cast<quint8>(rec[sampleBytes + 1]) << 8)
                                  |  static_cast<quint8>(rec[sampleBytes + 2]));
 
-        if (checksum != static_cast<quint8>(sum & 0xFF)
-            || sequence != static_cast<quint16>((i + 1) & 0xFFFF)) {
+        if (checksum != static_cast<quint8>(sum & 0xFF)) {
             qWarning() << "Sefam: truncating" << path << "at record" << i
-                       << "of" << total << "(checksum or sequence mismatch)";
+                       << "of" << total << "(checksum mismatch)";
             break;
         }
+
+        // A skipped sequence number is a dropped record, not a corrupt file, and
+        // the records after it are perfectly good: the device misses one and
+        // keeps counting. This was originally treated as corruption and the
+        // whole rest of the channel discarded, which cost three sessions on one
+        // card almost everything they held and made three sessions on another
+        // import completely empty because their numbering happened to start at 2.
+        //
+        // The gap is filled with invalid samples instead, one record's worth per
+        // missing number. That keeps every later sample at its true offset from
+        // the session start -- dropping the gap silently would slide the rest of
+        // the night ten seconds early per missing record -- and the caller's
+        // validity mask turns the hole into an ordinary drop-out.
+        //
+        // A sequence that goes backwards wraps this subtraction to near 65535
+        // and is caught by the same bound, so it needs no separate test. The
+        // bound itself is a sanity check on a wild value: a gap cannot plausibly
+        // be larger than everything the file has left to say.
+        const int missing = static_cast<quint16>(sequence - expected);
+        if (missing > 0) {
+            if (missing > total - i) {
+                qWarning() << "Sefam: truncating" << path << "at record" << i
+                           << "of" << total << "— sequence" << sequence
+                           << "is not" << expected << "and the gap is implausible";
+                break;
+            }
+            qWarning() << "Sefam:" << path << "is missing" << missing
+                       << "record(s) before record" << i << "— filled with a gap";
+            for (int b = 0; b < missing * sampleBytes; ++b) {
+                out.append(kInvalidSample);
+            }
+            records += missing;
+        }
+
         for (int b = 0; b < sampleBytes; ++b) {
             out.append(static_cast<quint8>(rec[b]));
         }
         ++records;
+        expected = static_cast<quint16>(sequence + 1);
     }
     return true;
 }
@@ -250,6 +289,64 @@ static void decodeComfortAndCircuit(int raw, int &level, int &circuit)
     circuit = (raw & 0x01) ? 15 : 22;
 }
 
+/*! \name Therapy mode
+    Settings-record byte 17, which is table word 6 on the S.Box. This byte was
+    called "constant 60" for a long time, because on the two devices first
+    examined it never moved.
+
+    It is the therapy mode. Confirmed three ways:
+
+    - The vendor software's per-day settings table names the device CPAP wherever
+      a Nea card reads 0, and A-PAP wherever a Reve card, or that Nea's own
+      factory record, reads 60.
+    - Its CSV export carries a "Prescribed pressure" column, which holds a value
+      on exactly the days the byte reads 0 and a dash on the days it reads 60.
+    - The S.Box records a mean pressure for every minute of every session, so the
+      question can be settled from the data alone: over its 230 archived
+      sessions, the five whose byte reads 0 delivered a pressure whose 10th to
+      90th percentile spread is 0.10 cmH2O -- flat -- sitting on the prescribed
+      pressure in five cases out of five. The 225 that read 60 spread 3.17 cmH2O
+      and land on it in four cases out of 225. Fixed against titrating.
+    @{ */
+constexpr int kModeFixedPressure = 0;    //!< CPAP.
+constexpr int kModeAutoPressure  = 60;   //!< A-PAP.
+/*! @} */
+
+//! Value of the prescribed-pressure byte when nothing is prescribed, which is
+//! every A-PAP record on every card held. Reads as 8.0 and means "not set".
+constexpr int kNoPrescribedPressure = 80;
+
+//! Bit 2 of the ramp-mode field: I.Ramp rather than T.Ramp. The S.Box's own
+//! settings table stores 12 where its report prints I.Ramp and 8 where it prints
+//! T.Ramp, and the Reve reads 31 with a report that prints I.Ramp.
+constexpr int kRampModeIntelligent = 0x04;
+
+/*! \brief Choose which of the record's two ramp durations to report.
+
+    The settings record carries the ramp duration twice, and the two are not
+    copies: the vendor software's Parameters panel offers a *Practitioner*
+    setting -- OFF, I.Ramp, or T.Ramp Maxi 5 to 45 minutes -- and a separate
+    *Patient* setting that may go no higher. \p patientMinutes is the patient's
+    own selection and \p practitionerMinutes the ceiling on it.
+
+    That was ambiguous for as long as the only evidence was the S.Box settings
+    table, where the two are equal on every T.Ramp slot and the patient's reads 0
+    on every I.Ramp slot -- equally consistent with the second field merely
+    echoing the first. A Nea card settled it: its practitioner ceiling stayed at
+    30 minutes for a year while the patient's moved 30, 10, 0, 20, 10 across five
+    separate records. The S.Box's session archive says the same thing once it is
+    read rather than its settings table: over all 467 blocks of one card the
+    patient's value never exceeds the ceiling, and falls strictly below it in
+    five distinct T.Ramp states.
+
+    Under I.Ramp the patient chooses only on or off, never a duration, so their
+    field is not a duration to report and the practitioner's is the answer. This
+    rule reproduces every ramp figure printed on both manufacturer reports held. */
+static int rampMinutesFor(int patientMinutes, int practitionerMinutes, int rampMode)
+{
+    return (rampMode & kRampModeIntelligent) ? practitionerMinutes : patientMinutes;
+}
+
 bool parseSettings(const LogRecord &rec, Settings &out)
 {
     const auto byteAt = [&rec](int index) -> int {
@@ -263,15 +360,31 @@ bool parseSettings(const LogRecord &rec, Settings &out)
         // S.Box's settings table, whose six vendor-printed snapshots vary every
         // pressure and ramp field independently; the Reve's own records cannot
         // establish it, because on that device the minimum pressure and the ramp
-        // start pressure are both 4.0 and the ramp duration and its echo are both
-        // 45. Reading the first of each pair therefore looks correct on every
-        // card held and is wrong in general -- and index 1 is the dangerous one,
-        // since the S.Box writes 0 there whenever the ramp mode is I.Ramp, which
-        // would suppress the ramp settings below.
+        // start pressure are both 4.0 and both ramp durations are 45. Reading the
+        // first of each pair therefore looks correct on every Reve card and is
+        // wrong in general.
         out.rampPressure = byteAt(0) / 10.0f;   // record byte 11
-        out.rampMinutes  = byteAt(2);           // record byte 13
+        out.rampMinutes  = rampMinutesFor(byteAt(1), byteAt(2), byteAt(3));
         out.maxPressure  = byteAt(4) / 10.0f;   // record byte 15
         out.minPressure  = byteAt(5) / 10.0f;   // record byte 16
+
+        // Record byte 17 is the therapy mode, and record byte 9 -- the high half
+        // of the 16-bit argument -- is the pressure prescribed when it is CPAP.
+        // An unrecognised mode is reported as A-PAP, which is what this loader
+        // assumed unconditionally before the byte was identified.
+        if (rec.payload.size() > 6) {
+            const int mode = byteAt(6);
+            if (mode == kModeFixedPressure) {
+                const int prescribed = (rec.arg >> 8) & 0xFF;
+                if (prescribed != kNoPrescribedPressure) {
+                    out.fixedPressure      = true;
+                    out.prescribedPressure = prescribed / 10.0f;
+                }
+            } else if (mode != kModeAutoPressure) {
+                qWarning() << "Sefam: unrecognised therapy mode" << mode
+                           << "in a settings record — reporting A-PAP";
+            }
+        }
 
         // Record byte 22. Two cards from the same device, differing only in the
         // humidifier level, differ in this byte and no other settings byte.
@@ -304,13 +417,6 @@ bool parseSettings(const LogRecord &rec, Settings &out)
         const int leak = rec.arg & 0x7F;
         if (leak >= kMaskLeakMinLpm && leak <= kMaskLeakMaxLpm) { out.maskLeak = leak; }
 
-        out.valid = true;
-        return true;
-    }
-    if (rec.code == kLogSettingsSnapshot) {
-        if (rec.payload.size() < 6) { return false; }
-        out.minPressure = byteAt(3) / 10.0f;
-        out.maxPressure = byteAt(5) / 10.0f;
         out.valid = true;
         return true;
     }
@@ -360,7 +466,9 @@ bool readMemoryImage(const QString &path, QVector<SessionSummary> &out)
         // for THIS session, which matters: settings changed three times inside
         // six days on one card examined.
         const int   rampPressure = be16(off + 31 * 2);
-        const int   rampMinutes  = be16(off + 33 * 2);
+        const int   rampMinutes  = rampMinutesFor(be16(off + 32 * 2),
+                                                  be16(off + 33 * 2),
+                                                  be16(off + 34 * 2));
         const int   maxPressure  = be16(off + 35 * 2);
         const int   minPressure  = be16(off + 36 * 2);
         if (minPressure > 0 && maxPressure >= minPressure && maxPressure <= 400) {
@@ -378,6 +486,17 @@ bool readMemoryImage(const QString &path, QVector<SessionSummary> &out)
             const int maskLeak = be16(off + 30 * 2) & 0x7F;
             if (maskLeak >= kMaskLeakMinLpm && maskLeak <= kMaskLeakMaxLpm) {
                 s.maskLeak = maskLeak;
+            }
+
+            // Words 37 and 29 are settings-table words 6 and 10: the therapy
+            // mode, and the pressure prescribed when it is CPAP. This card's own
+            // per-minute pressures confirm the reading — see kModeFixedPressure.
+            if (be16(off + 37 * 2) == kModeFixedPressure) {
+                const int prescribed = be16(off + 29 * 2);
+                if (prescribed != kNoPrescribedPressure && prescribed > 0) {
+                    s.fixedPressure      = true;
+                    s.prescribedPressure = prescribed / 10.0f;
+                }
             }
 
             // Word 40 is settings-table word 9, which packs Comfort Control Plus
@@ -465,15 +584,13 @@ bool readSession(const QString &dirPath, SessionData &out, QString &error)
         qWarning() << "Sefam:" << out.dirName << "log unreadable — events skipped";
     }
 
-    // Prefer a full settings-change record; fall back to a snapshot, which
-    // carries pressures but no ramp fields.
+    // The settings-change record is the only source. A session without one
+    // reports nothing and the caller carries the previous session's settings
+    // forward, which is right: the device writes this record when something
+    // changes, so silence means nothing changed. There is deliberately no
+    // fallback to code 13 — see kLogDeviceLimits for what that record is.
     for (const LogRecord &rec : out.log) {
         if (rec.code == kLogSettingsChange && parseSettings(rec, out.settings)) { break; }
-    }
-    if (!out.settings.valid) {
-        for (const LogRecord &rec : out.log) {
-            if (rec.code == kLogSettingsSnapshot && parseSettings(rec, out.settings)) { break; }
-        }
     }
     return true;
 }

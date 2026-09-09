@@ -1189,6 +1189,7 @@ void Session::destroyEvent(ChannelID code)
     m_cnt.remove(code);
     m_valuesummary.remove(code);
     m_timesummary.remove(code);
+    m_availableChannels.removeAll(code);
     // does not trash settings..
 }
 
@@ -1388,6 +1389,7 @@ void Session::UpdateSummaries()
             wavg(id);
         }
     }
+
     timeAboveThreshold(CPAP_Leak, p_profile->cpap->leakRedline());
 
     s_machine->updateChannels(this);

@@ -489,7 +489,7 @@ int VREMLoader::OscarDataParser(QStringList OdataList,Machine* machine,QVector<v
                             session->settings[vREM_Flex] = 1;
                             session->settings[vREM_FlexLevel] = data.flex_level.toInt();
                             session->settings[CPAP_Mode] = 1;
-                            session->settings[vREM_Mode] = 2;
+                            session->settings[vREM_Mode] = 1;
                         } else if (mode == 3)
                         {
                             session->settings[vREM_Flex] = 0;

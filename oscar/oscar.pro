@@ -366,6 +366,7 @@ SOURCES += \
     Graphs/gPressureChart.cpp \
     Graphs/gSegmentChart.cpp \
     Graphs/gSessionTimesChart.cpp \
+    Graphs/gSleepStageChart.cpp \
     Graphs/gspacer.cpp \
     Graphs/gStatsLine.cpp \
     Graphs/gSummaryChart.cpp \
@@ -383,6 +384,8 @@ SOURCES += \
     SleepLib/event.cpp \
     SleepLib/importcontext.cpp \
     SleepLib/journal.cpp \
+    SleepLib/loader_plugins/applehealthDataParsing.cpp \
+    SleepLib/loader_plugins/applehealth_loader.cpp \
     SleepLib/loader_plugins/apexDataParsing.cpp \
     SleepLib/loader_plugins/apex_loader.cpp \
     SleepLib/loader_plugins/bmcDataParsing.cpp \
@@ -549,6 +552,7 @@ HEADERS  += \
     Graphs/gTTIAChart.h \
     Graphs/gUsageChart.h \
     Graphs/gSessionTimesChart.h \
+    Graphs/gSleepStageChart.h \
     Graphs/gPressureChart.h \
     Graphs/gOverviewGraph.h \
     Graphs/gXAxis.h \
@@ -566,6 +570,8 @@ HEADERS  += \
     SleepLib/profiles.h \
     SleepLib/schema.h \
     SleepLib/session.h \
+    SleepLib/loader_plugins/applehealthDataParsing.h \
+    SleepLib/loader_plugins/applehealth_loader.h \
     SleepLib/loader_plugins/apexDataParsing.h \
     SleepLib/loader_plugins/apex_loader.h \
     SleepLib/loader_plugins/bmcDataParsing.h \
@@ -841,7 +847,8 @@ test {
         tests/eventstabtests.cpp \
         tests/zeotests.cpp \
         tests/clocksynctests.cpp \
-        tests/clockdrifthistorytests.cpp
+        tests/clockdrifthistorytests.cpp \
+        tests/applehealthtests.cpp
 
     HEADERS += \
         tests/AutoTest.h \
@@ -858,7 +865,8 @@ test {
         tests/eventstabtests.h \
         tests/zeotests.h \
         tests/clocksynctests.h \
-        tests/clockdrifthistorytests.h
+        tests/clockdrifthistorytests.h \
+        tests/applehealthtests.h
 }
 
 macx {

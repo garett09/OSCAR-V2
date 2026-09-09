@@ -27,8 +27,12 @@ enum GFXEngine { GFX_OpenGL=0, GFX_Software=2, MaxGFXEngine=GFX_Software};
 const QString GFXEngineSetting = "GFXEngine";
 extern QString GFXEngineNames[MaxGFXEngine+1]; // Set by initializeStrings()
 
+//! \brief Settings key of the graphics crash sentinel. See armGraphicsCrashSentinel().
+const QString GFXCrashSentinelSetting = "OpenGLCompatibilityCheck";
+
 const QString CSTR_GFX_OpenGL = "OpenGL";
 const QString CSTR_GFX_BrokenGL = "LegacyGFX";
+const QString CSTR_GFX_None = "None";
 
 extern QString MedDateFormat;
 extern bool dayFirst;
@@ -46,6 +50,20 @@ QString appResourcePath();
 QString getGraphicsEngine();
 QString getOpenGLVersionString();
 float getOpenGLVersion();
+
+#ifdef Q_OS_WIN
+//! \brief Records that OSCAR has entered the part of startup that uses OpenGL.
+//!
+//! The flag is written to the registry immediately, so a hard crash cannot lose it.
+//! main() sees the leftover flag on the next launch and falls back to the software
+//! graphics engine, which is the only way out of an otherwise endless crash loop on a
+//! machine whose OpenGL cannot back a QOpenGLWidget.
+void armGraphicsCrashSentinel();
+
+//! \brief Clears the graphics crash sentinel once OSCAR has drawn its window,
+//! or on any normal exit from main().
+void disarmGraphicsCrashSentinel();
+#endif
 
 QStringList makeBuildInfo(QString forcedEngine);
 QStringList getBuildInfo();
@@ -193,6 +211,7 @@ const QString STR_PREF_LastCPAPPath = "LastCPAPPath";
 const QString STR_PREF_LastJournalPath = "LastJouralPath";
 const QString STR_PREF_LastOximetryPath = "LastOximetryPath";
 const QString STR_PREF_LastDreemPath = "LastDreemPath";
+const QString STR_PREF_LastAppleHealthPath = "LastAppleHealthPath";
 const QString STR_PREF_LastExportCsvPath = "LastExportCsvPath";
 const QString STR_PREF_LastScreenShotPath = "LastScreenShotPath";  // Added to store the last screenshot path =- Crimson Nape 26/02/05
 

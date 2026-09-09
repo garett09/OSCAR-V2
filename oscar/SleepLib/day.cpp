@@ -1605,6 +1605,24 @@ QString Day::getPressureRelief()
             }
             pr_str += QString(" %1").arg(level);
         }
+    } else if ((pr_level_chan != NoChannel) && settingExists(pr_level_chan)) {
+        // The device records a pressure-relief level but no mode.  BMC G3X/E5 is the case
+        // in point: its TS block has no Reslex Mode field, so the loader no longer invents
+        // one (GitLab #274).  Render label and level alone rather than reporting "None" for
+        // a device that plainly has relief enabled.  This branch is reached only where the
+        // code above would otherwise have fallen through to "None", so no loader that
+        // currently produces a relief string can be affected.
+        pr_str = loader->PresReliefLabel();
+
+        int pr_level = qRound(settings_wavg(pr_level_chan));
+        if (pr_level >= 0) {
+            schema::Channel & chan = schema::channel[pr_level_chan];
+            QString level = chan.option(pr_level);
+            if (level.isEmpty()) {
+                level = QString().number(pr_level) + " " + chan.units();
+            }
+            pr_str += QString(" %1").arg(level);
+        }
     } else pr_str = STR_TR_None;
     return pr_str;
 }

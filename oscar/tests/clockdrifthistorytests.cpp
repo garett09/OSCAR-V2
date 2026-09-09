@@ -145,8 +145,8 @@ void ClockDriftHistoryTests::testSchemaVersion18HasNightClockOffsetsTable()
         QVERIFY(q.next());
         QCOMPARE(q.value(0).toString(), QString("night_clock_offsets"));
 
-        // Confirm schema version is 18
-        QCOMPARE(DatabaseSchema::getSchemaVersion(db), 18);
+        // Confirm schema version is at least 18 (night_clock_offsets introduced at v18)
+        QCOMPARE(DatabaseSchema::getSchemaVersion(db), DatabaseSchema::CURRENT_SCHEMA_VERSION);
     }
 
     db.close();

@@ -117,11 +117,10 @@ SefamLoader::SefamLoader()
     m_pixmap_paths[kSeriesSBox] = SBOX_ICON;
     m_pixmaps[kSeriesSBox]      = QPixmap(SBOX_ICON);
 
-    // No Néa card has ever been seen, so nothing assigns kSeriesNea and this
-    // entry is currently unreachable. It is registered anyway so that teaching
-    // the loader to recognise a Néa is a one-line change in sefamModelOf().
     // Side by side, the Néa and the Rêve are visibly the same hardware under
-    // different logos, which is the basis for expecting the two to import alike.
+    // different logos, and the first Néa card confirmed it: same "#03/" format
+    // tag, same channel headers, same 49-byte log records, same memory-image
+    // size, and all 146 of its sessions parse against the Rêve's code unaltered.
     m_pixmap_paths[kSeriesNea] = NEA_ICON;
     m_pixmaps[kSeriesNea]      = QPixmap(NEA_ICON);
 }
@@ -307,9 +306,9 @@ bool SefamLoader::Detect(const QString &path)
 /*! \brief Normalise an .INI "Created By" value for matching.
     \return e.g. "REVE_AUTO " -> "REVEAUTO"; empty if the input was empty.
 
-    The S.Box writes "S.Box_AUTO" where the Rêve writes "REVE_AUTO ", so case
-    and punctuation are stripped once here rather than every spelling being
-    listed at each call site. */
+    The S.Box writes "S.Box_AUTO" where the Rêve writes "REVE_AUTO " and the Néa
+    "NEA_AUTO ", so case and punctuation are stripped once here rather than every
+    spelling being listed at each call site. */
 static QString sefamModelKey(const QString &createdBy)
 {
     QString key = createdBy.trimmed().toUpper();
@@ -329,6 +328,7 @@ static QString sefamModelName(const QString &createdBy)
 
     if (key == "REVEAUTO") { return QString::fromUtf8("Rêve Auto"); }
     if (key == "SBOXAUTO") { return QStringLiteral("S.Box Auto"); }
+    if (key == "NEAAUTO")  { return QString::fromUtf8("Néa Auto"); }
     return createdBy.trimmed();
 }
 
@@ -337,6 +337,7 @@ namespace {
 enum class SefamModel {
     Reve,       //!< Rêve Auto, sold relabelled as the Sanrai Rêve Auto.
     SBox,       //!< S.Box AUTO.
+    Nea,        //!< Néa Auto. Same platform as the Rêve; imports on the same path.
     Unknown     //!< Anything else — imports best-effort and warns.
 };
 }   // namespace — internal linkage, this type is private to the loader
@@ -351,9 +352,9 @@ enum class SefamModel {
     parse is still identified from its directory name, and a card in an
     unexpected directory is still identified from its .INI.
 
-    A Néa would land in Unknown — no Néa card has ever been seen, so its
-    identifiers are not known. Adding it here is all that is needed to give it
-    its brand and its image, both of which are already in place. */
+    The Néa Auto identifies itself as "NEA_AUTO" from model code 1265R. It is the
+    Rêve's platform under another logo, so it needs no code path of its own — only
+    its own name, brand and image. */
 static SefamModel sefamModelOf(const QString &createdBy, const QString &modelCode)
 {
     const QString key = sefamModelKey(createdBy);
@@ -365,6 +366,9 @@ static SefamModel sefamModelOf(const QString &createdBy, const QString &modelCod
         || modelCode == QLatin1String("1200R")
         || modelCode == QLatin1String("1263R")) {
         return SefamModel::SBox;
+    }
+    if (key == QLatin1String("NEAAUTO") || modelCode == QLatin1String("1265R")) {
+        return SefamModel::Nea;
     }
     return SefamModel::Unknown;
 }
@@ -395,6 +399,7 @@ static QString sefamSeriesName(SefamModel model)
     switch (model) {
     case SefamModel::Reve:    return kSeriesReve;
     case SefamModel::SBox:    return kSeriesSBox;
+    case SefamModel::Nea:     return kSeriesNea;
     case SefamModel::Unknown: break;
     }
     return QStringLiteral("Sefam");
@@ -688,6 +693,34 @@ static int archiveMinutesFor(const QString &dirPath)
     return static_cast<int>(records * SefamParsing::kRecordSeconds / 60) + 1;
 }
 
+/*! \brief Publish a session's therapy mode and the pressures that go with it.
+    \param fixed      True when the card says CPAP rather than A-PAP.
+    \param prescribed The prescribed pressure, meaningful only when \a fixed.
+    \param minP,maxP  The A-PAP band, meaningful only when not \a fixed.
+
+    A SEFAM card carries both the A-PAP band and the prescribed pressure at all
+    times, and only the mode byte says which of them the device was using. The
+    two are published exclusively, following apex_loader.cpp: Day::getPressure()
+    renders MODE_CPAP from CPAP_Pressure alone and MODE_APAP from the band alone,
+    so publishing the unused pair as well would put a band on a fixed-pressure
+    session that the device never titrated across.
+
+    This loader reported MODE_APAP unconditionally until the mode byte was
+    identified, which was wrong wherever a SEFAM device ran fixed — a whole year
+    of one Nea card, and five sessions of one S.Box. */
+static void setPressureMode(Session *session, bool fixed, float prescribed,
+                            float minP, float maxP)
+{
+    if (fixed) {
+        session->settings[CPAP_Mode]     = MODE_CPAP;
+        session->settings[CPAP_Pressure] = prescribed;
+    } else {
+        session->settings[CPAP_Mode]        = MODE_APAP;
+        session->settings[CPAP_PressureMin] = minP;
+        session->settings[CPAP_PressureMax] = maxP;
+    }
+}
+
 int SefamLoader::Open(const QString &path)
 {
     Q_ASSERT(m_ctx);
@@ -838,9 +871,9 @@ int SefamLoader::Open(const QString &path)
             // records the settings that were in force for its own session, so
             // a card whose settings changed mid-history reports each session
             // correctly. The log-based path below cannot do that.
-            session->settings[CPAP_Mode]        = MODE_APAP;
-            session->settings[CPAP_PressureMin] = summary->minPressure;
-            session->settings[CPAP_PressureMax] = summary->maxPressure;
+            setPressureMode(session, summary->fixedPressure,
+                            summary->prescribedPressure,
+                            summary->minPressure, summary->maxPressure);
             if (summary->rampMinutes > 0) {
                 session->settings[CPAP_RampTime]     = summary->rampMinutes;
                 session->settings[CPAP_RampPressure] = summary->rampPressure;
@@ -859,17 +892,15 @@ int SefamLoader::Open(const QString &path)
                 session->settings[SEFAM_ComfortLevel] = summary->comfortLevel;
             }
         } else if (lastKnown.valid) {
-            // A-PAP is the only mode observed on any SEFAM card examined.
-            session->settings[CPAP_Mode]        = MODE_APAP;
-            session->settings[CPAP_PressureMin] = lastKnown.minPressure;
-            session->settings[CPAP_PressureMax] = lastKnown.maxPressure;
+            setPressureMode(session, lastKnown.fixedPressure,
+                            lastKnown.prescribedPressure,
+                            lastKnown.minPressure, lastKnown.maxPressure);
             if (lastKnown.rampMinutes > 0) {
                 session->settings[CPAP_RampTime]     = lastKnown.rampMinutes;
                 session->settings[CPAP_RampPressure] = lastKnown.rampPressure;
             }
-            // Only the settings-change record carries these; a snapshot record
-            // leaves them at -1 and the session then shows no accessory settings
-            // rather than inherited ones.
+            // A record too short to reach these leaves them at -1, and the
+            // session then shows no accessory settings rather than wrong ones.
             if (lastKnown.humidifierLevel >= 0) {
                 session->settings[SEFAM_HumidLevel] = lastKnown.humidifierLevel;
             }

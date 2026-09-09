@@ -32,6 +32,62 @@ const QString OLD_ZOMBIE = QString("zombie");
 const QString ZOMBIE = QString("Feelings");
 const QString WEIGHT = QString("weight");
 
+Session *GetOrCreateJournalSession(QDate date)
+{
+    Day *day = p_profile->GetDay(date, MT_JOURNAL);
+    if (day) {
+        if (Session *session = day->firstSession(MT_JOURNAL)) {
+            return session;
+        }
+    }
+
+    Machine *machine = p_profile->GetMachine(MT_JOURNAL);
+    if (!machine) {
+        machine = new Machine(p_profile, 0);
+        MachineInfo info;
+        info.loadername = "Journal";
+        info.serial = machine->hexid();
+        info.brand = "Journal";
+        info.type = MT_JOURNAL;
+        machine->setInfo(info);
+        machine->setType(MT_JOURNAL);
+        p_profile->AddMachine(machine);
+        if (!machine->SaveToDatabase()) {
+            qWarning() << "GetOrCreateJournalSession: could not save journal machine";
+        }
+    }
+
+    qint64 startMs;
+    qint64 endMs;
+    Day *currentDay = p_profile->GetDay(date);
+    if (currentDay && currentDay->first() > 0) {
+        startMs = currentDay->first();
+        endMs = currentDay->last();
+    } else {
+        startMs = qint64(QDateTime(date, QTime(20, 0)).toSecsSinceEpoch()) * 1000L;
+        // AddSession keeps sessions shorter than the ignore threshold (up to 90 min) out
+        // of the Day, which would hide the journal data. Span the fallback past the threshold.
+        const qint64 minSpanMs =
+            (qint64(p_profile->session->ignoreShortSessions()) + 1) * 60000L;
+        endMs = startMs + qMax<qint64>(3600000L, minSpanMs);
+    }
+    // A same-ID session can sit in the sessionlist without being found through the Day
+    // lookup above (legacy short sessions, day-split edges); reuse it rather than collide.
+    if (Session *existing = machine->SessionExists(startMs / 1000L)) {
+        return existing;
+    }
+
+    Session *session = new Session(machine, 0);
+    session->SetSessionID(startMs / 1000L);
+    session->set_first(startMs);
+    session->set_last(endMs);
+    if (!machine->AddSession(session, true)) {
+        delete session;
+        return nullptr;
+    }
+    return session;
+}
+
 bool Journal::BackupJournal(QString filename)
 {
     QString outBuf;
@@ -207,6 +263,7 @@ bool Journal::RestoreDay (QDomElement& dayElement,QDate& date,QString& filename)
     if (zombie>0) {
         int jvalue =  0 ;
         getJournal(daily,date,journal);
+        if (journal == nullptr) { qWarning() << "RestoreDay: no journal session for" << date; return changed; }
         if (journal->settings.contains(Journal_ZombieMeter)) {
             jvalue = journal->settings[Journal_ZombieMeter].toInt();
         }
@@ -222,6 +279,7 @@ bool Journal::RestoreDay (QDomElement& dayElement,QDate& date,QString& filename)
     double weight =  (dayElement.attribute(WEIGHT)).toDouble(&ok);
     if (weight>zeroD) {
         getJournal(daily,date,journal);
+        if (journal == nullptr) { qWarning() << "RestoreDay: no journal session for" << date; return changed; }
         double jvalue = 0.0 ;
         if (journal->settings.contains(Journal_Weight)) {
             jvalue = journal->settings[Journal_Weight].toDouble();
@@ -238,6 +296,7 @@ bool Journal::RestoreDay (QDomElement& dayElement,QDate& date,QString& filename)
     QDomElement noteText = dayElement.elementsByTagName("note").at(0).toElement().elementsByTagName("text").at(0).toElement();
     if (!noteText.text().isEmpty() ) {
         getJournal(daily,date,journal);
+        if (journal == nullptr) { qWarning() << "RestoreDay: no journal session for" << date; return changed; }
         // there are characters in notes. maybe just spaces. Ignore spaces.
         QString plainTextToAdd = Daily::convertHtmlToPlainText(noteText.text());
 
@@ -268,6 +327,7 @@ bool Journal::RestoreDay (QDomElement& dayElement,QDate& date,QString& filename)
     if (bookmarks.size()>0) {
         DEBUGFC Q(bookmarks.size());
         getJournal(daily,date,journal);
+        if (journal == nullptr) { qWarning() << "RestoreDay: no journal session for" << date; return changed; }
         // get list of bookmarks for journal. These will not be removed.
         QVariantList start;
         QVariantList end;
@@ -341,6 +401,7 @@ bool Journal::RestoreDay (QDomElement& dayElement,QDate& date,QString& filename)
        if (bmChanged) {
             //DEBUGFC Q(bmChanged);
             getJournal(daily,date,journal);
+        if (journal == nullptr) { qWarning() << "RestoreDay: no journal session for" << date; return changed; }
             journal->settings[Bookmark_Start]=start;
             journal->settings[Bookmark_End]=end;
             journal->settings[Bookmark_Notes]=notes;

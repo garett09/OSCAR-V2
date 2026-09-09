@@ -323,6 +323,8 @@ class MainWindow : public QMainWindow
 
     void on_actionImport_Dreem_Data_triggered();
 
+    void on_actionImport_AppleHealth_Data_triggered();
+
     void on_actionImport_RemStar_MSeries_Data_triggered();
 
     void on_actionSleep_Disorder_Terms_Glossary_triggered();
@@ -452,7 +454,8 @@ private:
     void importCPAPDataCards(const QList<ImportPath> & datacards);
     void addMachineToMenu(Machine* mach, QMenu* menu);
     void purgeDay(MachineType type);
-    void importNonCPAP(MachineLoader &loader, const QString &folderPrefKey = STR_PREF_LastOximetryPath);
+    //! \brief Import non-CPAP files. Returns false if the import failed, was aborted or cancelled.
+    bool importNonCPAP(MachineLoader &loader, const QString &folderPrefKey = STR_PREF_LastOximetryPath);
     int importSleepHQO2RingData(const QStringList & files);
     void importSleepHQFolders();
     void importAppleWatchCSVs(const QString & outputDir);

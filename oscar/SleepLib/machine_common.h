@@ -51,7 +51,7 @@ enum SummaryType { ST_CNT, ST_SUM, ST_AVG, ST_WAVG, ST_PERC, ST_90P, ST_MIN, ST_
 
 /*! \enum MachineType
     \brief Generalized type of a device. MT_CPAP is any type of xPAP device, MT_OXIMETER any type of Oximeter
-    \brief MT_SLEEPSTAGE stage of sleep detector (ZEO importer), MT_JOURNAL for optional notes, MT_POSITION for sleep position detector (Somnopose)
+    \brief MT_SLEEPSTAGE stage of sleep detector (shared by the Zeo, Dreem, and Apple Health loaders), MT_JOURNAL for optional notes, MT_POSITION for sleep position detector (Somnopose)
   */
 // TODO: This really needs to be a bitmask, since there are increasing numbers of devices that provide
 // multiple kinds of data, such as oximetry + motion/position, or sleep stage + oximetry, etc.
@@ -69,6 +69,21 @@ enum SummaryType { ST_CNT, ST_SUM, ST_AVG, ST_WAVG, ST_PERC, ST_90P, ST_MIN, ST_
 // each file on disk. We might be partially saved by the fact that MT_CPAP and MT_OXIMETER were originally
 // 1 and 2, which would only break MT_SLEEPSTAGE and higher.
 enum MachineType { MT_UNKNOWN = 0, MT_CPAP, MT_OXIMETER, MT_SLEEPSTAGE, MT_JOURNAL, MT_POSITION, MT_UNCATEGORIZED = 99};
+
+/*! \enum SleepStageValue
+    \brief Device-agnostic sleep-stage values shared by the Zeo, Dreem, and Apple Health
+    loaders. Stored NEGATED in the SLEEP_Stage event list so deeper sleep plots lower.
+    Loaders persist them through differing EventList gains (Zeo 0.25; Dreem and Apple 1),
+    so on-disk raw integers are only comparable after multiplying by the list's gain.
+    Do not renumber: these values are persisted in already-imported sessions.
+  */
+enum SleepStageValue {
+    Stage_None  = 0,   //!< gap marker; never stored — loaders call EndEventList instead
+    Stage_Awake = 1,
+    Stage_REM   = 2,
+    Stage_Light = 3,   //!< Apple Health calls this "Core"
+    Stage_Deep  = 4,
+};
 //void InitMapsWithoutAwesomeInitializerLists();
 
 //! \brief One active row from device_time_corrections, held in memory by Machine
@@ -221,12 +236,18 @@ extern ChannelID OXI_Pulse, OXI_SPO2, OXI_Perf, OXI_PulseChange, OXI_SPO2Drop, O
 extern ChannelID Journal_Notes, Journal_Weight, Journal_BMI, Journal_ZombieMeter, Bookmark_Start,
        Bookmark_End, Bookmark_Notes, LastUpdated;
 
-extern ChannelID ZEO_SleepStage, ZEO_ZQ, ZEO_TotalZ, ZEO_TimeToZ, ZEO_TimeInWake, ZEO_TimeInREM,
-       ZEO_TimeInLight, ZEO_TimeInDeep, ZEO_Awakenings,
-       ZEO_AlarmReason, ZEO_SnoozeTime, ZEO_WakeTone, ZEO_WakeWindow, ZEO_AlarmType, ZEO_MorningFeel,
-       ZEO_FirmwareVersion,
-       ZEO_FirstAlarmRing, ZEO_LastAlarmRing, ZEO_FirstSnoozeTime, ZEO_LastSnoozeTime, ZEO_SetAlarmTime,
-       ZEO_RiseTime;
+extern ChannelID SLEEP_Stage, ZEO_ZQ, SLEEP_TimeToSleep, SLEEP_TimeInWake, SLEEP_TimeInREM,
+       SLEEP_TimeInLight, SLEEP_TimeInDeep, SLEEP_Awakenings, SLEEP_MorningFeel;
+#define ZEO_SleepStage SLEEP_Stage
+#define ZEO_TimeToZ SLEEP_TimeToSleep
+#define ZEO_TimeInWake SLEEP_TimeInWake
+#define ZEO_TimeInREM SLEEP_TimeInREM
+#define ZEO_TimeInLight SLEEP_TimeInLight
+#define ZEO_TimeInDeep SLEEP_TimeInDeep
+#define ZEO_Awakenings SLEEP_Awakenings
+#define ZEO_MorningFeel SLEEP_MorningFeel
+
+extern ChannelID AW_RespRate, AW_HRV, AW_BreathingDisturbances, AW_WristTemp;
 
 extern ChannelID POS_Orientation, POS_Inclination, POS_Movement;
 

@@ -201,14 +201,14 @@ Session* ZEOLoader::readNextSession()
         const int WindowSize = 30 * 1000;
         m_session = sess;
 
-        sess->settings[ZEO_Awakenings] = Awakenings;
-        sess->settings[ZEO_MorningFeel] = MorningFeel;
-        sess->settings[ZEO_TimeToZ] = TimeToZ;
+        sess->settings[SLEEP_Awakenings] = Awakenings;
+        sess->settings[SLEEP_MorningFeel] = MorningFeel;
+        sess->settings[SLEEP_TimeToSleep] = TimeToZ;
         sess->settings[ZEO_ZQ] = ZQ;
-        sess->settings[ZEO_TimeInWake] = TimeInWake;
-        sess->settings[ZEO_TimeInREM] = TimeInREM;
-        sess->settings[ZEO_TimeInLight] = TimeInLight;
-        sess->settings[ZEO_TimeInDeep] = TimeInDeep;
+        sess->settings[SLEEP_TimeInWake] = TimeInWake;
+        sess->settings[SLEEP_TimeInREM] = TimeInREM;
+        sess->settings[SLEEP_TimeInLight] = TimeInLight;
+        sess->settings[SLEEP_TimeInDeep] = TimeInDeep;
 
         st = qint64(start_of_night.toSecsSinceEpoch()) * 1000L;
         sess->really_set_first(st);
@@ -216,23 +216,23 @@ Session* ZEOLoader::readNextSession()
 
         for (int i = 0; i < DSG.size(); i++) {
             bool ok;
+            // SleepStageValue, plus 6 = Deep Sleep (2), drawn slightly less deep
             stage = DSG[i].toInt(&ok);
             if (ok) {
-                // 0 = no data, 1 = Awake, 2 = REM, 3 = Light Sleep, 4 = Deep Sleep, 6 = Deep Sleep (2), drawn slightly less deep
                 int value = -stage / GAIN;  // use negative values so that the chart is oriented the right way
                 switch (stage) {
-                    case 0:
-                        EndEventList(ZEO_SleepStage, tt);
+                    case Stage_None:
+                        EndEventList(SLEEP_Stage, tt);
                         break;
                     case 6:
                         // According to ZeoViewer, 6 is a "Deep (2)" and is drawn somewhere between Light and Deep.
                         value = -3.75 / GAIN;
                         // fall through
-                    case 1:
-                    case 2:
-                    case 3:
-                    case 4:
-                        AddEvent(ZEO_SleepStage, tt, value);
+                    case Stage_Awake:
+                    case Stage_REM:
+                    case Stage_Light:
+                    case Stage_Deep:
+                        AddEvent(SLEEP_Stage, tt, value);
                         break;
                     default:
                         qWarning() << sess->session() << start_of_night << "@" << i << "unknown sleep stage" << stage;
@@ -244,7 +244,7 @@ Session* ZEOLoader::readNextSession()
             tt += WindowSize;
         }
 
-        EndEventList(ZEO_SleepStage, tt);
+        EndEventList(SLEEP_Stage, tt);
         sess->really_set_last(tt);
         //int size = DSG.size();
         //qDebug() << linecomp[0] << start_of_night << end_of_night << rise_time << size << "30 second chunks";
@@ -316,4 +316,3 @@ void ZEOLoader::Register()
     //InitModelMap();
     zeo_initialized = true;
 }
-

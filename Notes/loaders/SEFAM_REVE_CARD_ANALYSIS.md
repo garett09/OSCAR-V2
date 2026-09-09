@@ -8,15 +8,27 @@ the end.
 **Settings decode, as of 2026-08-13.** Four of the five accessory settings the
 analyzer prints are decoded: humidifier level (byte 22), theoretical mask leak
 (byte 10), and Comfort Control Plus level **and patient circuit** sharing byte 21.
-**Only the heated tube is left**, and it is now known to be unrecoverable — it
-exists on the S.Box solely in the file the vendor software writes, not in
-anything the device records.
+**Only the heated tube is left.** It is confirmed only in the file the vendor
+software writes, which is not something an ordinary card carries; byte 23 is a
+good candidate for it here, on circumstantial grounds set out under "The Néa
+Auto".
 
 Three of those came from cards with a single setting deliberately changed. The
 fourth, the circuit, came from driving *Sefam Analyze* against a card with no
 device attached; the same exercise fixed the record's field order, which the
 Rêve's own data can never settle — see "The settings record is the S.Box's
 table".
+
+**A second device on this platform, as of 2026-08-26.** A **Néa Auto** card
+turned up and parses against this format unaltered. It carries a year of data on
+a device whose settings were edited far more than the Rêve's, which closed the
+practitioner/patient ramp question, exposed log code 13 as something other than a
+settings record, and identified the therapy mode and the prescribed pressure —
+the last two unassigned fields of any size in the record. See "The Néa Auto".
+
+**Comparing OSCAR against the vendor software?** Read
+`SEFAM_ANALYZE_VS_OSCAR.md` first. Several differences are structural — the AHI
+definition above all — and it lists which ones will never close.
 
 **Device:** SEFAM Rêve Auto (APAP). `Created By=REVE_AUTO`, model code `1279R`,
 firmware `VER :A010500`. SEFAM is a French sleep-medicine manufacturer.
@@ -55,15 +67,16 @@ Two consequences worth knowing:
   "Sanrai"** — the loader cannot tell them apart. The working hypothesis is that
   this case does not arise, because SEFAM's own equivalent is sold as the
   **Néa**: if `REVE_AUTO` only ever ships relabelled, "Sanrai" is right every
-  time. **This is unverified** — no Néa card has ever been seen, and whether the
-  Néa even shares this platform is itself unconfirmed (see the settings-menu
-  section below, which borrows from a Néa manual on exactly that assumption).
-  Waiting on more users; revisit the rule if a SEFAM-branded Rêve turns up.
+  time. Still unverified for the Rêve half — revisit the rule if a SEFAM-branded
+  Rêve turns up. The other half is now settled: a **Néa Auto card confirmed that
+  the Néa shares this platform** (2026-08-26), so the settings-menu section
+  below, which borrows from a Néa manual on exactly that assumption, is on firm
+  ground. See "The Néa Auto".
 
-  Nothing needs changing to be ready for a Néa card: it would carry neither
-  `REVE_AUTO` nor `1279R`, so `sefamBrandName()` already returns "Sefam" for it,
-  and `sefamModelIsValidated()` already returns false, which raises the
-  untested-device warning and prompts the user for a sample.
+  A Néa card is recognised as of 2026-08-26 — by `NEA_AUTO` or model code
+  `1265R` — and gets the "Sefam" brand and the Néa image. It is deliberately left
+  off `sefamModelIsValidated()`, so importing one still raises the untested-device
+  warning and prompts the user for a sample.
 
   **Evidence for the hypothesis, from the vendor software (2026-08-13).** Its
   manual lists the SEFAM range as S.Box, S.Box C, Néa Info, Néa Auto, Reve Info
@@ -75,11 +88,8 @@ Two consequences worth knowing:
   would expect if the Néa is SEFAM's own-brand line and the Rêve ships relabelled
   for export. Suggestive, not proof.
 
-  **This is also the cheapest route to the one fact the loader is missing.**
-  Creating a card for a Néa model should put that model's code into the identity
-  field of `upload.dat`, the way an S.Box write puts `1200R` and its serial there.
-  A Néa model code is the single thing standing between the loader and
-  recognising the device — see "Device images".
+  A real card arrived before that experiment was needed. The model code is
+  `1265R` and the `Created By` string `NEA_AUTO`.
 - `info.series` is **not** a brand field — it keys the device-image lookup in
   `MachineLoader::getPixmap()`. It stayed `"Sefam"` for one day, then became one
   value per device when the device photos were added (2026-08-10); see "Device
@@ -118,18 +128,17 @@ Unlike brand, **series does propagate to an existing `machines` row** —
 already-imported device picks up its image on the next import even though it
 keeps its old brand.
 
-**The Néa image is deliberately unreachable.** No Néa card has ever been seen,
-so nothing assigns `kSeriesNea`; an unrecognised SEFAM model keeps series
-`"Sefam"`, matches no entry, and falls through to the generic CPAP image. Using
-the Néa photo as the SEFAM default was considered and rejected — it would put a
-photo of an unconfirmed device against whatever turned up. Recognising a Néa is
-a one-line addition to `sefamModelOf()` once we know its `Created By` or model
-code.
+**The Néa image was registered before any Néa card existed** and was unreachable
+until 2026-08-26, when `sefamModelOf()` learned to recognise one. An
+unrecognised SEFAM model still keeps series `"Sefam"`, matches no entry, and
+falls through to the generic CPAP image — using the Néa photo as the SEFAM
+default was considered and rejected, since it would put a photo of a specific
+device against whatever turned up.
 
 Worth recording: **the Néa and Rêve product photos show the same physical
 machine** — same wedge case, same touchscreen layout, same side port, differing
-only in the printed logo. That is supporting evidence for the Néa hypothesis
-above, though marketing photography is not proof of identical internals.
+only in the printed logo. That was taken as supporting evidence at the time; the
+first Néa card then confirmed it at the format level.
 
 **Loader:** `sefam_loader.cpp` / `sefamDataParsing.cpp`, added 2026-08-03 from
 this analysis. Design: `Notes/loaders/SEFAM_LOADER_DESIGN.md`. **Awaiting testing
@@ -261,7 +270,7 @@ After the header, data files are a flat array of fixed records, each holding
 
 - **checksum** = low 8 bits of the sum of the record's data bytes.
   Verified 3075/3075 records on every channel of the longest session.
-- **sequence** = 1-based, strictly incremental.
+- **sequence** = 1-based, strictly incremental — **but it can skip** (see below).
 - Record sizes: 10 Hz → 103 B, 5 Hz → 53 B, 1 Hz → 13 B.
   (`.PLS` is 75 Hz / 16-bit → 1503 B, unexercised in this sample.)
 
@@ -270,6 +279,36 @@ After the header, data files are a flat array of fixed records, each holding
 
 Session duration = `N × 10` seconds. Sample rates come from the `.INI`, so the
 reader can be fully data-driven.
+
+### The sequence counter skips, and a skip is not corruption
+
+*Added 2026-08-26.*
+
+The device sometimes **drops a record and keeps counting**: the sequence runs
+`… 17, 18, 20, 21 …` and continues cleanly to the end of the file. Every checksum
+still passes, before and after the hole, and `file_size == header + N × record_size`
+still holds — the file is intact and one record's worth of samples was never
+written.
+
+Seen on two of the three sample cards, always as a single missing record, always
+at the same position in every channel of the session:
+
+| card | sessions affected | records past the skip |
+|---|---|---|
+| Néa Auto | 3 of 146 | 811, 128, 335 |
+| S.Box `1200R` | 3 of 22 | 771, 718, 733 — those files begin at sequence **2** |
+| Rêve Auto | none | — |
+
+`readChannel()` originally treated a sequence mismatch the same as a checksum
+failure and truncated the channel there. That discarded ~3.5 h on the Néa card,
+and made those three S.Box sessions import as nothing at all — every channel
+truncated to zero records, so `readSession()` rejected the session with "no
+populated channels". Roughly 6.2 h on a real user's card, silently.
+
+The reader now fills each missing record with `kInvalidSample` and carries on,
+so later samples keep their true offset from the session start and the hole
+renders as an ordinary drop-out. A checksum failure still truncates, and so does
+a sequence that goes backwards or jumps further than the file has left to say.
 
 ## The `.INI` — schema only
 
@@ -514,20 +553,22 @@ record's own bytes 9–10 (`80 164`) belonging to it as well — see
 
 | Byte | Value | Meaning |
 |---|---|---|
-| 9 | 80 | unassigned |
+| 9 | 80 | **Prescribed pressure** ×0.1 cmH₂O; 80 = not set — see "The Néa Auto" |
 | 10 | 164 | **Theoretical mask leak, lpm in bits 0–6** — `0x80 \| 36` — confirmed by a controlled change |
 | 11 | 40 | **Ramp start pressure 4.0** (×0.1 cmH₂O) |
-| 12 | 45 | ramp duration echo |
-| 13 | 45 | **Ramp 45 min** |
-| 14 | 31 | flags, includes the ramp mode |
+| 12 | 45 | **the patient's own ramp time**, minutes |
+| 13 | 45 | **the practitioner's ceiling on it**, minutes |
+| 14 | 31 | ramp mode and flags: bit 2 = I.Ramp, bit 4 = patient access lock |
 | 15 | 200 | **Max pressure 20.0** (×0.1 cmH₂O) |
 | 16 | 40 | **Min pressure 4.0** (×0.1 cmH₂O) |
-| 17, 18 | 60, 60 | constant on **both** models — not the mask leak, see below |
+| 17 | 60 | **Therapy mode**: 60 = A-PAP, 0 = CPAP — see "The Néa Auto" |
+| 18 | 60 | constant 60 on all three models |
 | 19 | 130 | **apnoea response pressure 13.0 cmH₂O** (named by the S.Box vendor report) |
 | 20 | 200 | unassigned |
 | 21 | 121 | **CC+ level in bits 7–6**, level = field + 1 — confirmed by a controlled change |
 | 22 | 4 | **Humidifier level** — confirmed by a controlled change, see below |
-| 23–25 | 6, 3, 0 | unassigned |
+| 23 | 6 | heated tube level? — candidate, see "The Néa Auto" |
+| 24, 25 | 3, 0 | unassigned. Byte 24 reads 3 on both models after setup |
 
 > **Bytes 11 and 16 are not in the order this note first gave them.** Both read
 > 40 on every Rêve card, because this device's minimum pressure and ramp start
@@ -535,27 +576,33 @@ record's own bytes 9–10 (`80 164`) belonging to it as well — see
 > table — six vendor-printed snapshots in which the two differ — fixes the order,
 > and it is ramp start first. Same for bytes 12 and 13, both 45 here.
 >
-> **The loader currently reads the first of each pair** (`sefamDataParsing.cpp`
-> `parseSettings`, payload indices 0 and 1). That yields the correct numbers on
-> every card seen so far and is wrong on any Rêve whose ramp start differs from
-> its minimum pressure. Byte 12 is worse than cosmetic: the S.Box writes 0 there
-> whenever the ramp mode is I.Ramp, and the loader suppresses both ramp settings
-> when the value it reads is 0.
+> **Fixed in the loader** (`sefamDataParsing.cpp` `parseSettings`): ramp start is
+> payload index 0 and minimum pressure index 5. Bytes 12 and 13 are not an echo
+> either — see "The Néa Auto" for what separates them and which one the loader
+> reports.
 
 Code 2 occurs 5 times. The report's `setting change` column is non-zero on
 exactly the two sessions carrying multiple code-2 records (counts 1 and 2,
 matching), and **byte 23 is the only byte that differs** between the pair on the
 session reporting two changes — so byte 23 is the field that was edited.
 
-**Byte 23 is therefore ruled out as any of the reported settings.** It changes
-6 → 5 → 6 within one session across 60 seconds, while the analyzer reports the
-comfort, humidifier and heated-tube settings as *identical on every session*.
-Whatever byte 23 holds, the analyzer does not print it.
+Byte 23 changes 6 → 5 → 6 within one session across 60 seconds. This note once
+took that as ruling byte 23 out of being any printed setting, on the grounds that
+the analyzer prints the comfort, humidifier and heated-tube settings as identical
+on every session row. **That argument does not hold**: the analyzer prints the
+*latest* settings on every row regardless — the humidifier level demonstrably
+varies on this card and its report shows one value throughout. Byte 23 is now a
+candidate for the heated tube level; see "The Néa Auto".
+
+> **Code 13 is not a settings record**, and this section originally said it was.
+> The correction and the evidence are under "The Néa Auto". What follows is the
+> original reading, kept because the byte positions are still right.
 
 **Code 13** payload `[0/1] 0 3 40 100 200 0 [5–10] [0/1] 51 55 50 57 55 52`
-repeats min (40 → 4.0) and max (200 → 20.0) pressure and adds a mode-like `3`
-at byte 13 and a varying 5–10 counter at byte 18. Bytes 20–25 are a constant
-six-byte tail.
+carries 40, 100 and 200 at bytes 14, 15 and 16 — read at the time as this
+device's minimum and maximum pressure, which they coincidentally equal — plus a
+mode-like `3` at byte 13 and a varying 5–10 counter at byte 18. Bytes 20–25 are a
+constant six-byte tail.
 
 This **overturns the earlier conclusion that settings were unrecoverable** — they
 are in the `.LOG`, not the encrypted `.RAM`. Enough is confirmed for a loader to
@@ -878,11 +925,11 @@ cleared when it read 34, on the same record as the lock change, and nothing sinc
 has moved it. It is the last unattributed bit in the Rêve's settings record.
 
 
-### What is left, and why the remaining two are hard
+### What is left, and why the last one is hard
 
 *(Written against the first card, when all five accessory settings were open.
-Three of the five have since been pinned by controlled changes — humidifier,
-mask leak, CC+ — and the argument below now applies only to the last two.)*
+Four have since been pinned. The argument below now applies only to the heated
+tube.)*
 
 The analyzer's full device-settings panel for the first card reads:
 
@@ -891,12 +938,14 @@ The analyzer's full device-settings panel for the first card reads:
 | Comfort Control Plus | Level 2 | **byte 21 bits 7–6**, confirmed |
 | Theoretical mask leak | 36 lpm | **byte 10 bits 0–6**, confirmed |
 | Humidifier | Level 4 | **byte 22**, confirmed |
-| Patient Circuit | 15 mm | open — solved on the S.Box, does not transfer here |
-| Heated tube | Present | open — exists only in `upload.dat` on the S.Box |
+| Patient Circuit | 15 mm | **byte 21 bit 0**, confirmed on the S.Box and agreeing here |
+| Heated tube | Present | open — **byte 23** is a candidate, see "The Néa Auto" |
 
-**Both survivors are two-state settings that have never varied**, so there is
-still nothing to correlate them against, and both would be a single bit. The
-unassigned candidates are bytes 9, 20, 23, 24 and the four low bits of byte 14.
+**The survivor is reported here as a two-state setting that has never varied**,
+so there is nothing on this card to correlate it against. The vendor software
+stores it as a level rather than a flag, which is what makes byte 23 plausible.
+The unassigned candidates are bytes 20, 23, 24 and byte 14's bits 0 and 1;
+byte 9 has since been shown to be a settable pressure, not a spare.
 
 1. **The one discriminating session is unusable.** The analyzer reports
    `Heated tube = Missing` on exactly one session of 31 — and that session's
@@ -998,6 +1047,197 @@ What this does and does not settle:
    pressure. A clinician enable plus a patient-selectable strength remains the
    right model; only the enable is still missing.
 
+## The Néa Auto — a second device on this platform
+
+*Added 2026-08-26, from the first Néa card seen.*
+
+**Identity:** `Created By=NEA_AUTO`, model code `1265R`, firmware `VER :A010400`.
+Card layout `<root>/1265R/<serial>/DATA_nnn/`, three-digit directory numbers.
+
+**It is the Rêve's format, not merely a similar one.** Same `#03/` tag, same
+71-byte channel headers with the same 12 declared channels at the same rates,
+same 49-byte log records, same XOR 0xBF on headers only, and a `.RAM` of exactly
+the Rêve's size (1 633 228 bytes) that is likewise encrypted — the archive marker
+the S.Box uses does not appear at its offset. All 146 sessions of a card spanning
+2025-09-18 to 2026-08-24 parse against the existing code with nothing changed:
+every channel payload is a whole number of records, no header fails, no session
+is a stub, and every session id is unique and in order. Three sessions truncate
+on a checksum or sequence mismatch, which the loader already handles.
+
+The Néa is worth far more than a second confirmation, because this device was
+**edited constantly** where the Rêve's barely moved: 31 settings records against
+the Rêve's 11, a clinician setup visible in the middle of them, and a patient who
+changed comfort settings most nights.
+
+### The practitioner and patient ramp times — RESOLVED
+
+**Byte 12 is the patient's own ramp time. Byte 13 is the practitioner's ceiling
+on it.** They are not an echo of one another.
+
+This was the last open question about the settings record, and it was
+unanswerable from the two earlier cards: the Rêve holds 45 in both, and the
+S.Box's settings table holds them equal on every T.Ramp slot and the patient's at
+0 on every I.Ramp slot — exactly what an echo would look like.
+
+The Néa separates them. Its practitioner value sat at 30 minutes for the whole
+year while the patient's moved across five separate records:
+
+| date | byte 12 (patient) | byte 13 (ceiling) | byte 14 |
+|---|---|---|---|
+| factory | 45 | 45 | 29 — I.Ramp, locked |
+| after clinician setup | 30 | 30 | 25 — T.Ramp, locked |
+| next day | 10 | 30 | 25 |
+| five days later | **0** | 30 | 25 |
+| next day | 20 | 30 | 25 |
+| three days later | 10 | 30 | 25 |
+
+The reverse assignment is impossible: the vendor software will not let the
+patient's value exceed the practitioner's, so a ceiling of 0 with a patient
+setting of 30 cannot occur.
+
+**The S.Box archive says the same thing, and always did.** The earlier argument
+was made against that device's settings *table*; its session archive was never
+checked for this. Over all 467 blocks of one S.Box card the patient's value never
+exceeds the ceiling, and falls strictly below it in five distinct T.Ramp states
+(0/5, 0/20, 5/10, 5/20, 10/20). An echo cannot do that.
+
+**Ramp mode bit 2 = I.Ramp.** The S.Box's table stores 12 where its report prints
+I.Ramp and 8 where it prints T.Ramp; the Rêve reads 31 with a report that prints
+I.Ramp; the Néa reads 29 (I.Ramp) in its factory record and 25, 11 and 9 (T.Ramp)
+afterwards. Bit 3 is set on every value ever seen, and bits 0 and 1 are still
+unattributed — bit 1 in particular flips back and forth night to night on both
+the Rêve and the Néa without the ramp times moving.
+
+**What the loader reports:** the patient's value, except under I.Ramp, where the
+patient chooses only on or off and has no duration of their own — there the
+practitioner's is the only answer. That rule reproduces every ramp figure printed
+on both manufacturer reports held, so it changes nothing on a Rêve or an S.Box
+card; on the Néa it corrects 27 of 146 sessions. It is
+`SefamParsing::rampMinutesFor()`.
+
+### Log code 13 is not a settings record — CORRECTED
+
+Code 13 was read as a settings snapshot and used as a fallback wherever a session
+carried no code 2. It is not one. Its three pressure bytes read **40, 100, 200**
+in every code 13 record on both cards — including Néa records written months
+after that device's prescription had been narrowed to 6.0–7.5:
+
+| | code 13 bytes 14/15/16 | actual prescription then |
+|---|---|---|
+| Rêve, all 13 records | 40, 100, 200 | min 4.0, max 20.0 |
+| Néa, records to 2025-09 | 40, 100, 200 | min 4.0, max 20.0 |
+| Néa, records from 2026-05 | 40, 100, 200 | **min 6.0, max 7.5** |
+
+They are the model's settable range and its default — 4.0, 10.0, 20.0 — not what
+the device was set to. The record also carries a six-digit ASCII number that is
+constant per device and differs between the two.
+
+The reading survived this long because the Rêve's own prescription *is* 4.0–20.0,
+so the fallback happened to produce the right answer there. On the Néa two
+sessions carry a code 13 record and no code 2, and reported the full pressure
+range instead of the real one — and left that behind as the carried-forward
+settings for every session after them. The fallback is gone; a session with no
+settings record of its own now keeps the previous session's, which is what the
+device's write-on-change behaviour implies.
+
+### The therapy mode is byte 17, and byte 9 is the prescribed pressure — CONFIRMED
+
+*Settled 2026-08-26 against the vendor software's per-day settings table.*
+
+These were the last two unassigned fields of any size in the settings record, and
+they belong together.
+
+| byte | meaning | A-PAP | CPAP |
+|---|---|---|---|
+| 17 | **therapy mode** | 60 | 0 |
+| 9 | **prescribed pressure**, ×0.1 cmH₂O | 80 = not set | the pressure |
+
+Both were dismissed for a long time on the strength of the two devices first
+examined, where neither ever moves: byte 17 was written down as "constant 60" and
+byte 9 as "per-device, unassigned".
+
+**What settles it.** *Sefam Analyze* has a per-day settings table with a **Mode**
+column and a **Prescribed pressure** column — the latter also appears in its CSV
+export, between Mode and Min. pressure. Across the three cards held:
+
+| | byte 17 | byte 9 | SA Mode | SA Prescribed pressure |
+|---|---|---|---|---|
+| Rêve, every record | 60 | 80 | A-PAP | `-` |
+| Néa factory record | 60 | 80 | A-PAP | *(blank)* |
+| Néa, every record after setup | **0** | **70** | **CPAP** | **7.0** |
+
+**And the S.Box proves it from measurement alone**, without reference to any
+vendor output. That model records a mean pressure for every minute of every
+session, so the two groups can simply be compared:
+
+| byte 17 | blocks | delivered p10–p90 spread | median == byte 9 |
+|---|---|---|---|
+| **0** | 5 | **0.10 cmH₂O** | **5 of 5** |
+| 60 | 225 | 3.17 cmH₂O | 4 of 225 |
+
+Flat and sitting exactly on the prescribed pressure, against titrating across
+three cmH₂O. Over the whole archive 11 of 467 blocks read CPAP.
+
+This also explains the observation that first drew attention to byte 9: the Néa's
+delivered pressure sat dead flat at 7.0 for eight months — p05 6.5, p50 7.0,
+p99 7.3 across 185 000 samples in one night — while its minimum and maximum read
+4.0 and 20.0. It was not an auto device pinned at one pressure. It was a CPAP,
+and the band it was not using was still stored beside the pressure it was.
+
+**The loader consequence.** `MODE_APAP` was hard-coded, so every SEFAM session
+that ran fixed was reported as an auto band the device never titrated across:
+**145 of the 146 sessions on the Néa card**, and 11 blocks on the S.Box. Both
+paths now read the mode and publish either `CPAP_Pressure` or the band, never
+both — see `setPressureMode()` in `sefam_loader.cpp`.
+
+> **Superseded, recorded so it is not retried.** This section previously argued
+> that the mode was *not* in the settings record, on the grounds that no field
+> moved at the boundary where the Néa's prescription changed. That reasoning was
+> sound but the boundary was the wrong one to look at: the mode changed at the
+> **clinician setup** in September, not at the pressure change the following May,
+> and byte 17 moved exactly there. It also proposed writing a mode change through
+> *Sefam Analyze* to identify the byte. That experiment is no longer needed.
+
+### Two bytes that were called constant
+
+*(Byte 17, the third, turned out to be the therapy mode — see above. Byte 18 is
+still 60 on every record of every card.)*
+
+- **Byte 23** — see below.
+- **Byte 24.** Reads 3 on the Rêve and on the Néa after setup, 7 in the Néa's
+  factory record. Settable, unassigned.
+
+### Byte 23 — the heated tube level, probably
+
+Not confirmed, and no controlled change can reach it: the only model whose
+settings the vendor software can write is the S.Box, and the S.Box's settings
+record has no such byte. The case for it is circumstantial but consistent:
+
+- **Position.** In the file *Sefam Analyze* writes, the heated tube byte sits
+  immediately after the humidifier byte. Byte 23 sits immediately after byte 22,
+  which is the confirmed humidifier level.
+- **Range.** The vendor's heated tube setting is off, levels 1–5, or Auto — 0 to
+  6. Every value ever seen in byte 23 is inside it: 5 and 6 on the Rêve, 2 to 6
+  on the Néa.
+- **Behaviour.** It moves independently of the humidifier, night to night, on
+  both devices — which is what a patient-adjustable comfort setting does. Both
+  devices have a heated tube; the Rêve's report prints "Heated tube: Present".
+
+Not imported. An unverified byte shown as a therapy setting is worse than showing
+nothing. What would confirm it is a manufacturer report for a Rêve or Néa card
+that prints a heated tube *level* rather than its presence.
+
+### What the loader does with a Néa card
+
+Recognised by `NEA_AUTO` or model code `1265R`, displayed as "Néa Auto", brand
+"Sefam", with the Néa device image that was already registered. It takes the
+Rêve's import path unchanged.
+
+It is **deliberately not** on `sefamModelIsValidated()`'s list, so importing one
+still raises the untested-device notice. No manufacturer report exists for a Néa,
+and the therapy mode question above is unresolved.
+
+
 ## `.RAM` / `.BKP` — encrypted, not readable **on this model**
 
 The S.Box writes the same two files **unencrypted**, and its therapy settings
@@ -1073,8 +1313,7 @@ nights while flow amplitude and leak stayed put. See its section.
    independent signal of unknown purpose. Nothing depends on it.
 3. **Log code 10** (260 records, 1.64/h) is unidentified and matches no report
    column.
-4. **Comfort and accessory setting bytes** in code 2. Byte 23 is ruled out
-   entirely. Status of the five:
+4. **Comfort and accessory setting bytes** in code 2. Status of the five:
    - ~~Humidifier level~~ **RESOLVED: byte 22**, confirmed by a controlled
      single-setting change.
    - ~~Theoretical mask leak~~ **RESOLVED: byte 10, bits 0–6, in plain lpm**,
@@ -1083,15 +1322,28 @@ nights while flow amplitude and leak stayed put. See its section.
    - ~~Comfort Control Plus level~~ **RESOLVED: byte 21, bits 7–6**, level =
      field + 1, confirmed by a controlled 2 → 3 change and visible in the
      pressure trace as 0.26 cmH₂O of extra expiratory relief.
-   - **Patient circuit and heated tube** remain unassigned. Both are two-state,
-     neither has ever varied, and no byte holds 15, 22 or 1.
-
-   A controlled single-setting change settles each of these; see "What is left,
-   and why the remaining two are hard".
+   - ~~Patient circuit~~ **RESOLVED: byte 21 bit 0**, set = 15 mm, from a pair of
+     controlled writes on the S.Box. It shares its byte with CC+, which is why no
+     byte ever held 15 or 22.
+   - **Heated tube** is unassigned but no longer unrecoverable: **byte 23** is a
+     candidate on circumstantial grounds. See "The Néa Auto".
 9. **Byte 10 bit 7** cleared on the same record as the mask-leak and CC+ changes
-   and belongs to neither setting's value. It is the last unattributed bit in the
-   record. *(Byte 14 bit 4, once paired with it here, is the patient access
-   lock — see its section.)*
+   and belongs to neither setting's value. It is set on both the Rêve and the Néa
+   and has never moved otherwise. *(Byte 14 bit 4, once paired with it here, is
+   the patient access lock — see its section.)*
+10. ~~**Practitioner versus patient ramp time**~~ **RESOLVED: byte 12 is the
+    patient's, byte 13 the practitioner's ceiling.** Settled by the Néa card and
+    corroborated across all 467 blocks of an S.Box archive. See "The Néa Auto".
+11. ~~**The therapy mode is not in the settings record.**~~ **RESOLVED
+    2026-08-26: it is byte 17**, 60 = A-PAP and 0 = CPAP, with byte 9 the
+    prescribed pressure and 80 meaning none. Confirmed against the vendor
+    software's per-day Mode and Prescribed pressure columns on two devices, and
+    independently from the S.Box's own per-minute pressures. The loader no longer
+    hard-codes `MODE_APAP`. See "The Néa Auto".
+12. **Byte 14 bits 0 and 1.** Bit 2 is I.Ramp and bit 4 the patient access lock;
+    bit 3 is set on every value ever seen. Bit 1 flips night to night on both the
+    Rêve and the Néa with no other field moving, which looks like a patient
+    toggle, but nothing observed pins it.
 5. ~~**Report "Average leaks"**~~ **RESOLVED.** The analyzer reports
    *unintentional* leak in **L/s**: its 0.06 / 0.05 / 0.03 for three sample
    sessions are 3.6 / 3.0 / 1.8 L/min, against OSCAR's derived `CPAP_Leak` of
@@ -1111,13 +1363,13 @@ nights while flow amplitude and leak stayed put. See its section.
   actually appear afterwards — four nights on the second card carry none at all —
   so the card should be pulled a night or two after the change, not the same
   morning.
-- **Circuit select switched between 15 mm and 22 mm**, and **the heated tube
-  disconnected for one night**, are the two probes left. Both are two-state, so
-  neither can be found by value matching, and both need a controlled change to
-  locate at all. The candidate bits are byte 14's four low bits, and bytes 9, 20,
-  23 and 24. Change one, not both.
-- **A card in fixed-CPAP mode** — would confirm the mode encoding (only `A-PAP`
-  has ever been seen) and show which log codes change.
+- **A bi-level card** — an S.Box Duo, Néa Duo or Ventea. Byte 17 has been seen
+  holding two values, A-PAP and CPAP, and the vendor DLL exports `IsBilevel*`
+  alongside `IsCPAP`, so a third value almost certainly exists. The loader treats
+  anything it does not recognise as A-PAP and warns.
+- **A manufacturer report for a Rêve or a Néa** that prints a heated tube
+  *level*. That would confirm or kill byte 23, which no controlled change can
+  reach.
 - A card whose report shows **non-zero "No breath"** events, to identify code 10.
 
 ## Loader viability

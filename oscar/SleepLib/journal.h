@@ -18,6 +18,9 @@ class Session;
 #include "daily.h"
 
 #include "SleepLib/profiles.h"
+
+Session *GetOrCreateJournalSession(QDate date);
+
 class Journal {
 public:
     enum { JRNL_Zombie = 1 , JRNL_Weight = 2 , JRNL_Notes = 4 , JRNL_Bookmarks = 8 };

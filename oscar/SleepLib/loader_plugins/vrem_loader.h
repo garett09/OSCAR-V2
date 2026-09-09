@@ -4,6 +4,7 @@
 #include "SleepLib/machine_loader.h"
 
 #ifdef UNITTEST_MODE
+#include <sstream>  // include first so the #define below can't leak into libstdc++
 #define private public
 #define protected public
 #endif // VREMLOADER_H
