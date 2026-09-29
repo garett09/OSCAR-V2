@@ -12,11 +12,32 @@ is that card's own analyzer output.
 
 ---
 
-## 1. AHI — OSCAR includes central hypopneas, SEFAM's headline does not
+## 1. AHI — OSCAR always counts central hypopnoeas; the analyzer is configurable
 
-**This is the largest single difference and it is a definition, not a defect.**
+**This is the largest single difference, and it is a setting on the analyzer's side,
+not a defect on ours.**
 
-The analyzer prints *two* AHI lines:
+Sefam Analyze can be told to leave whole classes of event out of its AHI. The
+switches are in **Analysis parameters → Compliance**, in a group headed
+**"Respiratory events (reports only)"**:
+
+- Excluding ramp
+- Exclude time above limit leak (CPAP/Auto-CPAP only)
+- **Exclude central hypopnoeas**
+- Exclude central apnoeas
+
+All four were unchecked when the calibration card's report was produced, and the
+report echoes that state on its second line:
+
+```
+Including : CNT Apnoeas, CNT Hypopnoeas, Ramp, > Limit leak
+```
+
+**With nothing excluded, the analyzer counts central hypopnoeas.** Its per-session
+window reports AHI as a count and an index, and both include CH — one session of the
+calibration card shows AHI 25 events / 3.3 evts/h, which is `OBS AH 6` (5 OA + 1 OH)
+plus `CNT AH 19` (12 CA + **7 CH**). The period summary, however, prints *two* AHI
+lines whatever the setting:
 
 ```
 AHI : OA, OH, CA         : 3.2
@@ -31,16 +52,37 @@ From the card's own event counts over its own recorded span:
 | OA + OH + CA + **CH** | **4.70** | 4.7 |
 
 `schema::init()` puts `CPAP_CentralHypopnea` into `ahiChannels`
-(`oscar/SleepLib/schema.cpp`), so **OSCAR always reports the second figure.**
+(`oscar/SleepLib/schema.cpp`), so **OSCAR always reports the second figure**, and it
+applies no exclusions of its own.
 
-> **Compare OSCAR against the analyzer's "AHI : OA, OH, CA, CH" line.** On this
-> card the headline figure is 47 % lower for the same events, and a Néa logs
-> central hypopneas freely.
+> **Compare OSCAR against the analyzer's "AHI : OA, OH, CA, CH" line**, with all four
+> exclusions off. Against the first line OSCAR reads 47 % high on this card for exactly
+> the same events, and a Néa logs central hypopnoeas freely.
 
-The analyzer also has an **"Including:"** setting — central apnoeas, central
-hypopnoeas, ramp, over-limit leak — printed at the top of its report. Those
-toggles move the AHI far more than any denominator question below. Check what the
-report was generated with before comparing anything.
+### The setting leaves no trace OSCAR can read
+
+It is a preference of the PC application — the group is labelled "reports only" — and
+it is not on the card:
+
+- the settings record carries therapy settings only (mode, pressures, ramp, humidifier,
+  mask leak, Comfort Control Plus, circuit diameter — see `SefamParsing::Settings`);
+- the only text file on a card, `DATA_00x.INI`, is a channel manifest (`[Create Info]`,
+  `[Start Record]`, `[Chan0]`…`[Chan11]`);
+- scanning a whole Néa card for `hypop` / `exclu` / `AHI` / `IAH` turns up nothing but
+  two byte coincidences inside the binary memory image.
+
+So OSCAR cannot detect how a given report was generated, cannot mirror the setting, and
+should not try to. A user whose analyzer has "Exclude central hypopnoeas" ticked will
+always see OSCAR read higher, and the only record of that is the `Including :` line in
+their own report.
+
+### For support
+
+Ask for the `Including :` line, and say which AHI line to compare against. If the user
+is working from the per-session window instead, the arithmetic there is checkable:
+`AHI` (count) should equal `OBS AH + CNT AH`, where `OBS AH = OBS Apnoeas + OBS
+Hypopnoeas` and `CNT AH = CNT Apnoeas + CNT Hypopnoeas`. If it does not, an exclusion
+is active.
 
 ## 2. The denominator is not worth chasing
 
@@ -140,8 +182,11 @@ wherever a card has data. See `SEFAM_REVE_CARD_ANALYSIS.md`. What is left:
 
 ## Checklist before reporting a difference as a defect
 
-1. Which AHI line is the analyzer showing — with or without central hypopnoeas?
-2. What does the report's "Including:" line say?
+1. What does the report's `Including :` line say? Any of the four exclusions in
+   Analysis parameters → Compliance changes the analyzer's AHI and is invisible to
+   OSCAR (§1).
+2. Which AHI line is being read — `AHI : OA, OH, CA` or `AHI : OA, OH, CA, CH`?
+   OSCAR's figure is the second.
 3. Does the card have data for that day at all? Check the session directories,
    not the analyzer.
 4. Is the session shorter than the `IgnoreShorterSessions` preference?
