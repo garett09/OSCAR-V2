@@ -1610,10 +1610,6 @@ void gGraphView::paintGL()
         // wtf is this even getting CALLED??
         return;
     }
-#ifdef DEBUG_EFFICIENCY
-    QElapsedTimer time;
-    time.start();
-#endif
 
     if (redrawtimer->isActive()) {
         redrawtimer->stop();
@@ -1627,6 +1623,52 @@ void gGraphView::paintGL()
 
 // Create QPainter object, note this is only valid from paintGL events!
     QPainter painter(this);
+    bool graphs_drawn = paintView(painter);
+    painter.end();
+
+//        qDebug() << "Break 4";
+//        sleep(3);
+
+#ifndef BROKEN_OPENGL_BUILD
+#if QT_VERSION < QT_VERSION_CHECK(5,4,0)
+    swapBuffers();
+#endif
+#endif
+    if (this->isVisible() && !graphs_drawn && render_cube) { // keep the cube spinning
+        redrawtimer->setInterval(1000.0 / 50); // 50 FPS
+        redrawtimer->setSingleShot(true);
+        redrawtimer->start();
+    }
+
+//        qDebug() << "Break 5";
+//        sleep(3);
+
+}
+
+QPixmap gGraphView::renderToRasterPixmap()
+{
+    // A QPixmap is a raster paint device, so the QPainter below never reaches OpenGL.
+    // The graph layers draw only through QPainter, so this is the same picture paintGL()
+    // puts on screen. Tagging the pixmap with the widget's ratio keeps the logical
+    // coordinates the layers use while rendering at the display's native resolution.
+    // (gGraphView::size() is the graph count, so the widget size is built explicitly.)
+    const qreal dpr = devicePixelRatioF();
+    QPixmap pixmap((QSizeF(width(), height()) * dpr).toSize());
+    pixmap.setDevicePixelRatio(dpr);
+    pixmap.fill(Qt::white);
+
+    QPainter painter(&pixmap);
+    paintView(painter);
+    painter.end();
+    return pixmap;
+}
+
+bool gGraphView::paintView(QPainter &painter)
+{
+#ifdef DEBUG_EFFICIENCY
+    QElapsedTimer time;
+    time.start();
+#endif
     #if QT_VERSION < QT_VERSION_CHECK(6,0,0)
         painter.setRenderHint(QPainter::HighQualityAntialiasing, true);
         painter.setRenderHint(QPainter::TextAntialiasing, true);
@@ -1750,25 +1792,7 @@ void gGraphView::paintGL()
 
 #endif
 
-    painter.end();
-
-//        qDebug() << "Break 4";
-//        sleep(3);
-
-#ifndef BROKEN_OPENGL_BUILD
-#if QT_VERSION < QT_VERSION_CHECK(5,4,0)
-    swapBuffers();
-#endif
-#endif
-    if (this->isVisible() && !graphs_drawn && render_cube) { // keep the cube spinning
-        redrawtimer->setInterval(1000.0 / 50); // 50 FPS
-        redrawtimer->setSingleShot(true);
-        redrawtimer->start();
-    }
-
-//        qDebug() << "Break 5";
-//        sleep(3);
-
+    return graphs_drawn;
 }
 
 QString gGraphView::getRangeInDaysString()

@@ -571,6 +571,14 @@ class gGraphView
     //! \brief Graph drawing routines, returns true if there weren't any graphs to draw
     bool renderGraphs(QPainter &painter);
 
+    /*! \brief Renders the view, exactly as it appears on screen, into a raster pixmap
+        without touching OpenGL.
+
+        Used by the F12 screenshot: QWidget::grab() reads a QOpenGLWidget back from the
+        GL framebuffer, and some OpenGL drivers return that readback corrupted (#237).
+        The pixmap carries the widget's device pixel ratio. */
+    QPixmap renderToRasterPixmap();
+
     //! \brief Used internally by graph mousehandler to set modifier state
     void setMetaSelect(bool b) { m_metaselect = b; }
 
@@ -633,6 +641,10 @@ class gGraphView
 #else
     void paintGL() override;
 #endif
+    //! \brief Paints the whole view (background, graphs, empty-view message, tooltips)
+    //! onto any painter; returns true if any graphs were drawn.
+    bool paintView(QPainter &painter);
+
     //! \brief Calculates the sum of all graph heights
     float totalHeight();
 

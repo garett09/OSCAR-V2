@@ -62,6 +62,7 @@
 #include "notifyMessageBox.h"
 #include "staticQMessageBox.h"
 #include "translation.h"
+#include "Graphs/gGraphView.h"
 
 
 // Custom loaders that don't autoscan..
@@ -2034,6 +2035,29 @@ void MainWindow::DelayedScreenshot()
     const QSizeF clientSize = clientPixmap.deviceIndependentSize();
     qDebug() << "Screenshot: device pixel ratio" << dpr
              << "grabbed size" << clientPixmap.size();
+
+    // grab() reads each graph view (a QOpenGLWidget) back from the GL framebuffer, and
+    // some OpenGL drivers return that readback overlaid with a lattice of coloured specks
+    // even though the screen itself is fine (#237). Repaint every visible graph view in
+    // this window over its grabbed area from a raster render, which never touches GL.
+    // Clipping to the view's visible region leaves anything covering it untouched.
+    {
+        QPainter overlay(&clientPixmap);
+        const QList<gGraphView *> views = findChildren<gGraphView *>();
+        for (gGraphView *view : views) {
+            if (!view->isVisible() || view->window() != this) {
+                continue;
+            }
+            const QPoint offset = view->mapTo(this, QPoint(0, 0));
+            QRegion visible = view->visibleRegion();
+            if (visible.isEmpty()) {
+                continue;
+            }
+            visible.translate(offset);
+            overlay.setClipRegion(visible);
+            overlay.drawPixmap(offset, view->renderToRasterPixmap());
+        }
+    }
 
     // Prepend a plain version header to replace the title bar information.
     // Sizes here are device-independent pixels, matching fontMetrics().

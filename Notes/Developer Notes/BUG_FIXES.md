@@ -4,6 +4,27 @@ Notable bugs found and fixed during development/investigation.
 
 ---
 
+## 2026-09-29 - F12 screenshot graph pane overlaid with coloured specks on some GPUs (#237)
+
+**Files:** `oscar/Graphs/gGraphView.h/.cpp`, `oscar/mainwindow.cpp`
+
+The F12 screenshot used `QWidget::grab()` on the main window. Each graph view is a
+`QOpenGLWidget`, so grab() reads it back from the GL framebuffer, and on some drivers
+(first seen on NVIDIA) that readback comes back overlaid with a regular lattice of
+multi-coloured specks. The screen and the underlying render were always correct, and the
+Software graphics engine avoided it - both pointing at the driver's readback, not OSCAR's
+drawing. First closed as a driver issue with the Software-engine workaround; reopened
+after a second report.
+
+`gGraphView::paintGL()` is split: the drawing body is now `paintView(QPainter&)`, and the
+new `renderToRasterPixmap()` runs it on a raster `QPixmap` at the widget's device pixel
+ratio. The graph layers draw only through `QPainter`, so that is the same picture as on
+screen with no GL involved. `MainWindow::DelayedScreenshot()` still grabs the window, then
+repaints every visible graph view belonging to the window over its grabbed area from
+that raster render, clipped to the view's visible region.
+
+---
+
 ## 2026-09-15 - Database schema upgraded silently at startup, with no way to decline and no progress
 
 **Files:** `oscar/main.cpp`, `oscar/database/database_manager.h/.cpp`, `oscar/database/database_schema.h/.cpp`
