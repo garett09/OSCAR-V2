@@ -592,16 +592,18 @@ static void clearSpans(QVector<bool> &valid,
     Both statuses are recorded, as prs1_loader does: `Day` counts only MaskOn,
     while gSessionTimesChart draws every slice and renders the off ones black.
 
+    A session in which the blower never ran gets only MaskOff slices, so it is
+    kept with zero usage, as the vendor software shows it. The per-hour indices
+    return 0 for a zero-hour session (GitLab #290).
+
     \param session   Session to append slices to.
     \param startMs   Session start.
     \param endMs     Session end.
-    \param offSpans  Blower-off spans, in milliseconds from \a startMs.
-    \return false if the blower never ran, in which case no slices are set and
-            the session should not be imported — see the note at the end. */
-static bool addMaskSlices(Session *session, qint64 startMs, qint64 endMs,
+    \param offSpans  Blower-off spans, in milliseconds from \a startMs. */
+static void addMaskSlices(Session *session, qint64 startMs, qint64 endMs,
                           const QVector<QPair<qint64, qint64>> &offSpans)
 {
-    if (offSpans.isEmpty()) { return true; }   // ran throughout: the fallback is correct
+    if (offSpans.isEmpty()) { return; }   // ran throughout: the fallback is correct
 
     QVector<SessionSlice> slices;
     qint64 cursor = startMs;
@@ -614,18 +616,7 @@ static bool addMaskSlices(Session *session, qint64 startMs, qint64 endMs,
     }
     if (cursor < endMs) { slices.append(SessionSlice(cursor, endMs, MaskOn)); }
 
-    // An all-off session cannot be represented: an empty slice list means "no
-    // slice information" and hours() then reports the full span, while all-off
-    // slices make hours() zero and Session::cph() and Day::cph() divide by it
-    // unguarded, which would store NaN in session_channels. The caller drops the
-    // session instead — the machine was powered on but never treated.
-    for (const SessionSlice &s : slices) {
-        if (s.status == MaskOn) {
-            session->m_slices = slices;
-            return true;
-        }
-    }
-    return false;
+    session->m_slices = slices;
 }
 
 void SefamLoader::importWaveform(Session *session, const QVector<qint16> &values,
@@ -931,16 +922,7 @@ int SefamLoader::Open(const QString &path)
         // pressure down and inflate the session length.
         const QVector<QPair<qint64, qint64>> offSpans =
             findBlowerOffSpans(pre, preSpec.freq);
-        if (!addMaskSlices(session, startMs, endMs, offSpans)) {
-            // Powered on, blower never started. Nothing below would survive the
-            // blower-off exclusion anyway, and importing it would either count
-            // the whole span as usage or produce a zero-hour session that the
-            // per-hour indices cannot divide by.
-            qWarning() << "Sefam:" << d << "skipped — entirely blower-off";
-            delete session;
-            ++skipped;
-            continue;
-        }
+        addMaskSlices(session, startMs, endMs, offSpans);
 
         // Scored events are deliberately left alone. Only 7 of 1568 on the
         // validated card fall inside a blower-off span, and they sit at the

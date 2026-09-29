@@ -364,13 +364,17 @@ void gSummaryChart::populate(Day * day, int idx)
         QString name;
         QColor color;
         switch (item.type) {
+        // Per-hour values are undefined on a day with no mask time. Omitting the
+        // slice also keeps the day out of customCalc()'s statistics (GitLab #290).
         case ST_CPH:
+            if (hours <= 0) break;
             value = day->count(code) / hours;
             name = chan.label();
             color = item.color;
             slices.append(SummaryChartSlice(&item, value, value, name, color));
             break;
         case ST_SPH:
+            if (hours <= 0) break;
             value = (100.0 / hours) * (day->sum(code) / 3600.0);
             name = QObject::tr("% in %1").arg(chan.label());
             color = item.color;

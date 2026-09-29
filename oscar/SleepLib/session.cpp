@@ -2198,8 +2198,10 @@ EventDataType Session::cph(ChannelID id) // count per hour
         return i.value();
     }
 
-    EventDataType val = count(id);
-    val /= hours();
+    // A session with slices but no MaskOn slice has zero hours; report 0 rather
+    // than storing NaN/inf in session_channels.cph (GitLab #290).
+    const double h = hours();
+    EventDataType val = (h > 0) ? count(id) / h : 0;
 
     m_cph[id] = val;
     return val;
@@ -2212,8 +2214,9 @@ EventDataType Session::sph(ChannelID id) // sum per hour, assuming id is a time 
         return i.value();
     }
 
+    const double h = hours();
     EventDataType val = sum(id) / 3600.0;
-    val = 100.0 / hours() * val;
+    val = (h > 0) ? 100.0 / h * val : 0;   // zero-hours guard, as cph()
     m_sph[id] = val;
     return val;
 }

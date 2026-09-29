@@ -6622,3 +6622,30 @@ save dialog is cancelled. The same unguarded pattern in `MainWindow::FreeSession
 `DailySummaryRepository::calculateRange()` (neither currently called) was guarded as well.
 
 Found by code reading during an effort-level comparison; not reproduced at runtime.
+
+---
+
+## 2026-09-29 - Events-per-hour divided by zero for sessions with no MaskOn time (#290)
+
+**Files:** `oscar/SleepLib/session.cpp`, `oscar/SleepLib/day.cpp`,
+`oscar/Graphs/gAHIChart.cpp`, `oscar/Graphs/gSummaryChart.cpp`, `oscar/reports.cpp`,
+`oscar/welcome.cpp`, `oscar/daily.cpp`, `oscar/exports/exportcsv.cpp`,
+`oscar/SleepLib/loader_plugins/sefam_loader.cpp`
+
+`Session::cph()`, `Session::sph()`, `Day::cph()` and `Day::sph()` divided by `hours()` with
+no check. `hours()` is zero for a session whose slice list holds no `MaskOn` slice (and for a
+day made only of such sessions), so `UpdateSummaries()` cached `0/0 = NaN` or `inf` in
+`m_cph` and it was written to `session_channels.cph`. All four now return 0 when
+`hours() <= 0`, matching the guards already in `Day::calcAHI()` and the session-summary AHI.
+
+Zero-hour sessions were already reachable: the PRS1 loader keeps sessions whose slices are
+all MaskOff. A day made only of such sessions also reached unguarded divisions by day hours
+elsewhere. The Overview AHI chart (`gAHIChart`) now skips the day, and the per-channel
+Overview charts (`gSummaryChart`, `ST_CPH`/`ST_SPH`) omit the slice. Either way the day
+stays out of the chart's median/average instead of adding NaN, or inf, which would set
+the Y-axis peak to infinity. The daily print report, the Welcome page AHI, the Daily "Time over leak redline"
+row and the per-session AHI in the CSV export now show 0.
+
+With the guards in place the SEFAM loader no longer skips a session in which the blower
+never ran (2026-09-13 entry): `addMaskSlices()` gives it only MaskOff slices, so it is
+kept with zero usage, as the vendor software shows it.

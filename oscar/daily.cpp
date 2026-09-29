@@ -1700,7 +1700,7 @@ QString Daily::getStatisticsInfo(Day * day)
 
         if (p_profile->cpap->showLeakRedline()) {
             float rlt = day->timeAboveThreshold(CPAP_Leak, p_profile->cpap->leakRedline()) / 60.0;
-            float pc = 100.0 / hours * rlt;
+            float pc = (hours > 0) ? 100.0 / hours * rlt : 0;
             html+="<tr><td colspan=3 align='left' bgcolor='white'><b>"+tr("Time over leak redline")+
                     QString("</b></td><td colspan=2 bgcolor='white'>%1%</td></tr>").arg(pc, 0, 'f', 3);
         }

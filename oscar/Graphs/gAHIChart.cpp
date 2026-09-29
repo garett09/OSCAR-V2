@@ -158,6 +158,9 @@ void gAHIChart::populate(Day *day, int idx)
     QVector<SummaryChartSlice> & slices = cache[idx];
 
     float hours = day->hours(m_machtype);
+    // A day made only of all-MaskOff sessions has no AHI; leave it out of the
+    // bars and the summary statistics rather than divide by zero (GitLab #290).
+    if (hours <= 0) return;
 
     for (auto & calc : calcitems) {
         ChannelID code = calc.code;
@@ -174,6 +177,7 @@ QString gAHIChart::tooltipData(Day *day, int idx)
     QVector<SummaryChartSlice> & slices = cache[idx];
     float total = 0;
     float hour = day->hours(m_machtype);
+    if (hour <= 0) return QString();   // no mask time, no index (see populate())
     QString txt;
     int i = slices.size();
     while (i > 0) {

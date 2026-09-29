@@ -1106,8 +1106,9 @@ EventDataType Day::cph(ChannelID code)
             sum += sess->count(code);
         }
     }
-    sum /= hours();
-    return sum;
+    // Zero hours (only all-MaskOff sessions) would give NaN/inf (GitLab #290).
+    const EventDataType h = hours();
+    return (h > 0) ? sum / h : 0;
 }
 
 EventDataType Day::sph(ChannelID code)
@@ -1122,6 +1123,7 @@ EventDataType Day::sph(ChannelID code)
     }
 
     h = hours();
+    if (h <= 0) return 0;   // zero-hours guard, as cph()
     sum = (100.0 / h) * sum;
     return sum;
 }
