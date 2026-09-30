@@ -275,11 +275,15 @@ class Profile : public Preferences
     SessionSettings *session;
     QList<Machine *> m_machlist;
 
+    //! \brief Returns true if a loader data-version mismatch occurred and was not upgraded
+    bool hasDataFormatError() const { return m_dataFormatError; }
+
   protected:
     QDate m_first;
     QDate m_last;
 
     bool m_opened;
+    bool m_dataFormatError = false;
     
     //! \brief Database primary key (0 if not in database) - Schema v12
     qint64 m_database_id;

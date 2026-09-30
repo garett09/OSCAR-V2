@@ -213,10 +213,34 @@ MachineLoader * lookupLoader(Machine * m)
 
 MachineLoader * lookupLoader(QString loaderName)
 {
+    // Keys are lower-case; values must match a registered loaderName() exactly.
+    static const QHash<QString, QString> aliases = {
+        {"philips", "PRS1"},
+        {"respironics", "PRS1"},
+        {"devilbiss", "Intellipap"},
+        {"bmc-g3x", "BMCG3X"},
+        {"bmc_g3x", "BMCG3X"},
+        {"icon", "FPIcon"},
+        {"f&p-icon", "FPIcon"},
+        {"f&p-sleepstyle", "SleepStyle"},
+        {"apple-health", "AppleHealth"}
+    };
+
+    QString target = loaderName.trimmed();
+    QString alias = aliases.value(target.toLower());
+    if (!alias.isEmpty()) {
+        target = alias;
+    }
+
     for (int i=0; i < m_loaders.size(); ++i) {
         MachineLoader * loader = m_loaders.at(i);
-        if (loader->loaderName() == loaderName)
+        if (loader->loaderName().compare(target, Qt::CaseInsensitive) == 0)
             return loader;
+        // Also support names without "Loader" suffix (e.g. Apex -> ApexLoader, Sefam -> SefamLoader, Yuwell -> YuwellLoader)
+        if (loader->loaderName().endsWith("Loader", Qt::CaseInsensitive) &&
+            loader->loaderName().left(loader->loaderName().length() - 6).compare(target, Qt::CaseInsensitive) == 0) {
+            return loader;
+        }
     }
     return nullptr;
 }

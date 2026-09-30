@@ -99,7 +99,11 @@ class MainWindow : public QMainWindow
     ~MainWindow();
 
     //! \brief Setup the rest of the GUI stuff
-    void SetupGUI();
+    void SetupGUI(bool batchMode = false);
+
+    //! \brief Batch / headless mode flag (suppresses interactive GUI popups and Startup auto-timer)
+    bool isBatchMode() const { return m_batchMode; }
+    void setBatchMode(bool b) { m_batchMode = b; }
 
     //! \brief Update the list of Favourites (Bookmarks) in the right sidebar.
     void updateFavourites();
@@ -162,8 +166,35 @@ class MainWindow : public QMainWindow
     //! \brief Internal function to set Statistics page html from statistics module
     void setStatsHTML(QString html);
 
-    int importCPAP(ImportPath import, const QString &message);
+    //! \brief Import CPAP data from a detected card/path.
+    //! \param import The import path and machine loader to use.
+    //! \param message Status message to display during import.
+    //! \param silent If true, suppresses progress dialogs, notifications, and interactive modals.
+    //! \return Number of sessions imported on success, 0 if up to date, or -1 on error.
+    int importCPAP(ImportPath import, const QString &message = QString(), bool silent = false);
     void finishCPAPImport();
+
+    //! \brief Import CPAP data directly from a specified directory path.
+    //! Automatically detects which CPAP loader handles the directory.
+    //! \param path The directory path containing CPAP card data.
+    //! \param silent If true, suppresses progress dialogs and interactive modals.
+    //! \return true on success (sessions imported or already up to date), false on error or if no loader matched.
+    bool importCPAPFromPath(const QString &path, bool silent = false);
+
+    //! \brief Import data from a file or folder using a specified loader by name.
+    //! Handles both CPAP loaders (by folder) and non-CPAP loaders (by file or folder).
+    //! \param loaderName The name or alias of the loader (e.g. "Prisma", "Viatom", "Zeo").
+    //! \param path File or folder path to import.
+    //! \param silent If true, suppresses progress dialogs, notifications, and interactive modals.
+    //! \return true if all files/sessions were imported successfully, false on error.
+    bool importFromPath(const QString &loaderName, const QString &path, bool silent = false);
+
+    //! \brief Import non-CPAP data files using a specific loader plugin.
+    //! \param loader The machine loader plugin to use.
+    //! \param files List of file paths to import.
+    //! \param silent If true, suppresses progress dialogs, notifications, and interactive modals.
+    //! \return true if all files were imported successfully, false if any file failed or was aborted.
+    bool importNonCPAPFiles(MachineLoader &loader, const QStringList &files, bool silent = false, bool requireComplete = false);
 
     void startImportDialog() { on_action_Import_Data_triggered(); }
 
@@ -481,6 +512,7 @@ private:
     bool m_clinicalMode = false;
     bool m_geometryCorrected = false;
     volatile bool m_inRecalculation;
+    bool m_batchMode = false;
 
     void PopulatePurgeMenu();
 
