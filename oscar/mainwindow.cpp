@@ -21,6 +21,7 @@
 #include <QScreen>
 #include <QSettings>
 #include <QPixmap>
+#include <QPointer>
 #if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
   #include <QDesktopWidget>
 #endif
@@ -2022,7 +2023,57 @@ void MainWindow::DelayedScreenshot()
     // users post screenshots to forums. QWidget::grab() works cross-platform
     // (Windows, macOS, Linux/X11, Wayland, Raspberry Pi, Chromebook) and handles
     // high-DPI/Retina displays automatically without requiring screen capture permissions.
+    //
+    // Each graph view is a QOpenGLWidget, and grab() captures one by calling its
+    // grabFramebuffer(), which re-runs paintGL() into the widget's own framebuffer - the
+    // one shown on screen - and reads it back. On some OpenGL drivers that extra pass
+    // comes out overlaid with a lattice of coloured specks, which then spoiled both the
+    // saved image and the on-screen graphs until their next repaint (#237). So each
+    // visible graph view is first rendered to a raster pixmap (no GL), then hidden for
+    // the grab - grab() skips hidden children, so no GL pass runs - and shown again
+    // before control returns to the event loop, so nothing moves or flickers on screen.
+    // The raster renders are painted into the grab afterwards, clipped to the part of
+    // each view that was visible.
+    struct CapturedView {
+        gGraphView *view;
+        QPoint offset;
+        QRegion visible;
+        QPixmap pixmap;
+    };
+    QList<CapturedView> capturedViews;
+    const QList<gGraphView *> views = findChildren<gGraphView *>();
+    for (gGraphView *view : views) {
+        if (!view->isVisible() || view->window() != this) {
+            continue;
+        }
+        const QRegion visible = view->visibleRegion();
+        if (visible.isEmpty()) {
+            continue;
+        }
+        const QPoint offset = view->mapTo(this, QPoint(0, 0));
+        capturedViews.append({ view, offset, visible.translated(offset), view->renderToRasterPixmap() });
+    }
+
+    // Hiding a view that has keyboard focus moves focus elsewhere; put it back afterwards.
+    QPointer<QWidget> focused = focusWidget();
+    for (const CapturedView &captured : std::as_const(capturedViews)) {
+        captured.view->hide();
+    }
     QPixmap clientPixmap = grab();
+    for (const CapturedView &captured : std::as_const(capturedViews)) {
+        captured.view->show();
+    }
+    if (focused) {
+        focused->setFocus();
+    }
+
+    if (!capturedViews.isEmpty()) {
+        QPainter overlay(&clientPixmap);
+        for (const CapturedView &captured : std::as_const(capturedViews)) {
+            overlay.setClipRegion(captured.visible);
+            overlay.drawPixmap(captured.offset, captured.pixmap);
+        }
+    }
 
     // grab() returns a pixmap whose raw size is the widget size multiplied by the
     // display's device pixel ratio, and it tags the pixmap with that ratio (1.0 at
@@ -2035,29 +2086,6 @@ void MainWindow::DelayedScreenshot()
     const QSizeF clientSize = clientPixmap.deviceIndependentSize();
     qDebug() << "Screenshot: device pixel ratio" << dpr
              << "grabbed size" << clientPixmap.size();
-
-    // grab() reads each graph view (a QOpenGLWidget) back from the GL framebuffer, and
-    // some OpenGL drivers return that readback overlaid with a lattice of coloured specks
-    // even though the screen itself is fine (#237). Repaint every visible graph view in
-    // this window over its grabbed area from a raster render, which never touches GL.
-    // Clipping to the view's visible region leaves anything covering it untouched.
-    {
-        QPainter overlay(&clientPixmap);
-        const QList<gGraphView *> views = findChildren<gGraphView *>();
-        for (gGraphView *view : views) {
-            if (!view->isVisible() || view->window() != this) {
-                continue;
-            }
-            const QPoint offset = view->mapTo(this, QPoint(0, 0));
-            QRegion visible = view->visibleRegion();
-            if (visible.isEmpty()) {
-                continue;
-            }
-            visible.translate(offset);
-            overlay.setClipRegion(visible);
-            overlay.drawPixmap(offset, view->renderToRasterPixmap());
-        }
-    }
 
     // Prepend a plain version header to replace the title bar information.
     // Sizes here are device-independent pixels, matching fontMetrics().

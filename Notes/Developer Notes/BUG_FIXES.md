@@ -4,6 +4,27 @@ Notable bugs found and fixed during development/investigation.
 
 ---
 
+## 2026-09-30 - F12 still garbled the on-screen graphs while the Save dialog was open (#237)
+
+**Files:** `oscar/mainwindow.cpp`
+
+A tester on the 2026-09-29 fix (below) reported the saved screenshot clean, but the graphs
+on screen were garbled while the Save dialog was open, recovering on Cancel. The Qt 6.10.2
+source explains it: `QWidget::grab()` captures a `QOpenGLWidget` through
+`QOpenGLWidgetPrivate::grabFramebuffer()`, which calls `render()` - a full `paintGL()` into
+the widget's own framebuffer, the one composed on screen - and then reads it back. On the
+affected driver that extra pass is what comes out garbled, so it spoiled the screen as well
+as the grab until the next normal repaint. Painting the raster render over the grab only
+fixed the file.
+
+`DelayedScreenshot()` now renders each visible graph view to a raster pixmap first, hides
+the views for the `grab()` (`paintSiblingsRecursive()` skips hidden children, so no GL pass
+runs), and shows them again before returning to the event loop, restoring keyboard focus if
+a hidden view had it. The raster renders are then painted into the grab, clipped to each
+view's visible region, as before.
+
+---
+
 ## 2026-09-29 - F12 screenshot graph pane overlaid with coloured specks on some GPUs (#237)
 
 **Files:** `oscar/Graphs/gGraphView.h/.cpp`, `oscar/mainwindow.cpp`

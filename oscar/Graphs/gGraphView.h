@@ -574,8 +574,9 @@ class gGraphView
     /*! \brief Renders the view, exactly as it appears on screen, into a raster pixmap
         without touching OpenGL.
 
-        Used by the F12 screenshot: QWidget::grab() reads a QOpenGLWidget back from the
-        GL framebuffer, and some OpenGL drivers return that readback corrupted (#237).
+        Used by the F12 screenshot: QWidget::grab() captures a QOpenGLWidget by re-running
+        paintGL() into its framebuffer, and on some OpenGL drivers that pass comes out
+        corrupted (#237).
         The pixmap carries the widget's device pixel ratio. */
     QPixmap renderToRasterPixmap();
 
