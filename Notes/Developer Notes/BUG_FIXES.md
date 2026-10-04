@@ -4,6 +4,30 @@ Notable bugs found and fixed during development/investigation.
 
 ---
 
+## 2026-10-04 - ResMed: STR.edf settings added to existing sessions were not saved (#308)
+
+**Files:** `oscar/SleepLib/loader_plugins/resmed_loader.cpp`
+
+When a day was first imported without settings and a later card's STR.edf had them,
+`ResmedLoader::checkSummaryDay()` added the settings to the day's sessions, which were
+already in the database, and only marked them changed. Nothing saved them afterwards.
+`CloseProfile()` runs `UnloadMachineData()`, which deletes every session, before
+`Profile::Save()`, so the save at close never sees a changed session. The settings were
+lost at the next launch.
+
+Each session is now stored with `Session::StoreToDatabase()` right after its settings are
+added. The sessions were loaded in full by `LoadFromDatabase()` when the profile opened,
+so the channel, slice and summary rows written alongside the settings keep their values.
+`Session::Store()` was not used because it sets `s_events_loaded`, which would stop the
+session's event data being read from the database later.
+
+A sweep of every `SetChanged(true)` found no other case that relies on a save at close.
+New loader sessions are saved by the import tasks. Recompress/Reprocess call
+`SaveSession()`. Daily journal edits are saved by `Daily::Unload()`, which `CloseProfile()`
+runs first. `Session::setEnabled()` writes straight to the database.
+
+---
+
 ## 2026-09-30 - F12 still garbled the on-screen graphs while the Save dialog was open (#237)
 
 **Files:** `oscar/mainwindow.cpp`

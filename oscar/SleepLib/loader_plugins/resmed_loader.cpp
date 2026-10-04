@@ -1217,8 +1217,15 @@ void ResmedLoader::checkSummaryDay( ResMedDay & resday, QDate date, Machine * ma
 #endif
                 StoreSettings(sess, resday.str);
                 sess->setNoSettings(false);
-                sess->SetChanged(true);
-                sess->StoreSummary();
+                // Store now: this session is already in the database and nothing saves it
+                // later (#308). Not Session::Store(), which marks events as loaded and would
+                // stop this session's event data being read from the database.
+                if (sess->StoreToDatabase()) {
+                    sess->SetChanged(false);
+                } else {
+                    qWarning() << "ResmedLoader: could not store STR.edf settings for session" << sess->session();
+                    sess->SetChanged(true);
+                }
             }
         } else {
 #ifdef STR_DEBUG
