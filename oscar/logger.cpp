@@ -11,8 +11,14 @@
 #include "SleepLib/preferences.h"
 #include "version.h"
 #include <QDir>
+#include <QSemaphore>
 
-QThreadPool * otherThreadPool = NULL;
+using namespace std;
+
+LogThread * logger = nullptr;
+
+static QThreadPool * otherThreadPool = nullptr;
+static QSemaphore s_LoggerStarted;
 
 void MyOutputHandler(QtMsgType type, const QMessageLogContext &context, const QString &msgtxt)
 {
@@ -61,17 +67,13 @@ void MyOutputHandler(QtMsgType type, const QMessageLogContext &context, const QS
 
 }
 
-static QMutex s_LoggerRunning;
-
 void initializeLogger()
 {
-    s_LoggerRunning.lock();  // lock until the thread starts running
     logger = new LogThread();
     otherThreadPool = new QThreadPool();
     bool b = otherThreadPool->tryStart(logger);
     if (b) {
-        s_LoggerRunning.lock();  // wait until the thread begins running
-        s_LoggerRunning.unlock();  // we no longer need the lock
+        s_LoggerStarted.acquire();  // wait until the thread begins running
     }
 #ifndef HARDLOG
     qInstallMessageHandler(MyOutputHandler);  // NOTE: comment this line out when debugging a crash, otherwise the deferred output will mislead you.
@@ -129,7 +131,7 @@ LogThread::~LogThread()
 {
     QMutexLocker lock(&strlock);
     
-    Q_ASSERT(running == false);
+    Q_ASSERT(running.load(memory_order_relaxed) == false);
     if (m_logStream) {
         delete m_logStream;
         m_logStream = nullptr;
@@ -153,12 +155,12 @@ void shutdownLogger()
         logger->quit();
         // The thread is automatically destroyed when its run() method exits.
         otherThreadPool->waitForDone(-1);  // wait until that happens
-        logger = NULL;
+        logger = nullptr;
+        delete otherThreadPool;
+        otherThreadPool = nullptr;
     }
-    delete otherThreadPool;
 }
 
-LogThread * logger = NULL;
 
 void LogThread::append(QString msg)
 {
@@ -189,7 +191,7 @@ void LogThread::quit() {
     qInstallMessageHandler(0);  // Remove our logger.
     
     strlock.lock();
-    running = false;       // Force the thread to exit after its next iteration.
+    running.store(false, memory_order_relaxed);  // Force the thread to exit after its next iteration.
     logTrigger.wakeAll();  // Trigger the final flush.
     strlock.unlock();      // Release the lock so that the thread can complete.
 }
@@ -199,15 +201,17 @@ void LogThread::run()
 {
     QMutexLocker lock(&strlock);
 
-    running = true;
-    s_LoggerRunning.unlock();  // unlock as soon as the thread begins to run
+    running.store(true, memory_order_relaxed);
+    // Release only after running is set, and while strlock is still held, so
+    // that a quit() arriving first cannot be undone by the line above.
+    s_LoggerStarted.release();
     do {
         logTrigger.wait(&strlock);  // releases strlock while it waits
         while (connected && !buffer.isEmpty()) {
             QString msg = buffer.takeFirst();
             emit outputLog(msg);   // file write already done in appendClean()
         }
-    } while (running);
+    } while (running.load(memory_order_relaxed));
 
     // strlock will be released when lock goes out of scope
 }

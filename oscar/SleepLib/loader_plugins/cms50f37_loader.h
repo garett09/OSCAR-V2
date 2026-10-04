@@ -132,11 +132,11 @@ protected:
 
     unsigned char current_command;
 
-    volatile int session_count;
-    volatile int duration;
-    volatile int userCount;
-    volatile int userIdx;
-    volatile int protocolVersion;
+    int session_count;
+    int duration;
+    int userCount;
+    int userIdx;
+    int protocolVersion;
     int device_info;
     QString model;
     QString vendor;

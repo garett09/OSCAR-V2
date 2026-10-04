@@ -1189,7 +1189,7 @@ void Daily::on_calendar_selectionChanged()
 
 void Daily::on_ReloadDay()
 {
-    static volatile bool inReload = false;
+    static bool inReload = false;
 
     if (inReload) {
         qDebug() << "Daily::on_ReloadDay(): attempt to renter on_ReloadDay()";

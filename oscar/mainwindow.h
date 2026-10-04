@@ -10,6 +10,8 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
+#include <atomic>
+
 #include <QMainWindow>
 #ifndef BROKEN_OPENGL_BUILD
     #if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
@@ -480,7 +482,7 @@ private:
     bool m_restartRequired;
     bool m_clinicalMode = false;
     bool m_geometryCorrected = false;
-    volatile bool m_inRecalculation;
+    std::atomic_bool m_inRecalculation;
 
     void PopulatePurgeMenu();
 

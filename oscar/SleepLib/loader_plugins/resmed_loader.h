@@ -139,7 +139,7 @@ class ResmedLoader : public CPAPLoader
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    volatile int sessionCount;
+    int sessionCount;
     static void SaveSession(ResmedLoader* loader, Session* session);
     ResDaySaveCallback saveCallback;
     int OpenWithCallback(const QString & dirpath, ResDaySaveCallback s);
@@ -166,15 +166,15 @@ protected:
 #ifdef DEBUG_EFFICIENCY
     QHash<ChannelID, qint64> channel_efficiency;
     QHash<ChannelID, qint64> channel_time;
-    volatile qint64 timeInLoadBRP;
-    volatile qint64 timeInLoadPLD;
-    volatile qint64 timeInLoadEVE;
-    volatile qint64 timeInLoadCSL;
-    volatile qint64 timeInLoadSAD;
-    volatile qint64 timeInEDFOpen;
-    volatile qint64 timeInEDFInfo;
-    volatile qint64 timeInAddWaveform;
-    volatile qint64 timeInTimeDelta;
+    qint64 timeInLoadBRP;
+    qint64 timeInLoadPLD;
+    qint64 timeInLoadEVE;
+    qint64 timeInLoadCSL;
+    qint64 timeInLoadSAD;
+    qint64 timeInEDFOpen;
+    qint64 timeInEDFInfo;
+    qint64 timeInAddWaveform;
+    qint64 timeInTimeDelta;
     QMutex timeMutex;
 #endif
 
