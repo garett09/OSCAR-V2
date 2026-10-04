@@ -82,7 +82,6 @@ ViatomLoader::Open(const QStringList & paths)
     if (mach) {
         qDebug() << "Imported" << imported << "sessions";
         mach->Save();
-        mach->SaveSummaryCache();
         p_profile->StoreMachines();
     }
     if (mach && s_unexpectedMessages.count() > 0 && p_profile->session->warnOnUnexpectedData()) {

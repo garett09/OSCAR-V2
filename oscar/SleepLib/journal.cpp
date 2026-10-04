@@ -425,7 +425,11 @@ bool Journal::RestoreDay (QDomElement& dayElement,QDate& date,QString& filename)
     if (changed) {
         journal->SetChanged(true);
         journal->settings[LastUpdated] = QDateTime::currentDateTime();
-        journal->machine()->SaveSummaryCache();
+        // Persist now, as Daily::Unload() does: clearing the changed flag below means
+        // nothing else will save this session (GitLab #307).
+        if (!journal->StoreToDatabase()) {
+            qWarning() << "RestoreDay: could not store journal session for" << date;
+        }
         journal->SetChanged(false);
     }
     DEBUGFC O(date) O("\n\n");

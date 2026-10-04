@@ -691,7 +691,6 @@ void AppleHealthTests::testLoaderImportsWeight()
     july1Journal->settings[Journal_BMI] = manualBmi;
     july1Journal->SetChanged(true);
     journalMachine->Save();
-    journalMachine->SaveSummaryCache();
 
     QCOMPARE(s_loader->OpenFile(m_exportPath), 0);
     QVERIFY(qAbs(july1Journal->settings.value(Journal_Weight).toDouble() - manualKg) < 0.0001);

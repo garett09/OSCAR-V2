@@ -2300,7 +2300,6 @@ void MainWindow::on_action_Rebuild_Oximetry_Index_triggered()
     for (int i = 0; i < machines.size(); i++) {
         Machine *m = machines[i];
         m->Save();
-        m->SaveSummaryCache();
     }
 
     daily->LoadDate(daily->getDate());
@@ -2461,14 +2460,10 @@ bool MainWindow::purgeDayData(QDate date, MachineType type)
         sumfile.remove();
     }
 
-    QSet<Machine *> machines;
     for (Session *sess : list) {
-        machines += sess->machine();
         sess->Destroy();
         delete sess;
     }
-    for (auto &mach : machines)
-        mach->SaveSummaryCache();
 
     if (cpap) {
         QDate pd = cpap->purgeDate();
@@ -3746,18 +3741,10 @@ void MainWindow::on_actionPurgeCurrentDaysOximetry_triggered()
         }
 
         QList<Session *> sessionlist=day->getSessions(MT_OXIMETER);
-        QSet<Machine *> machines;
 
         for (auto & sess : sessionlist) {
-            machines += sess->machine();
             sess->Destroy();
             delete sess;
-        }
-
-        // We have to update the summary cache for the affected device(s),
-        // otherwise OSCAR will still think this day has oximetry data at next launch.
-        for (auto & mach : machines) {
-            mach->SaveSummaryCache();
         }
 
         {

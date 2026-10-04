@@ -943,9 +943,6 @@ void Profile::DataFormatError(Machine *m)
 void Profile::UnloadMachineData()
 {
     for (auto & mach : m_machlist) {
-        if (mach->getDatabaseId() == 0) {
-            mach->saveSessionInfo();  // Legacy path only: machine not in DB
-        }
         // Sessions in Days will be deleted by Day::~Day() below.
         // Sessions only in sessionlist (short/ignored sessions that AddSession()
         // kept for duplicate-import prevention but never added to a Day) must be

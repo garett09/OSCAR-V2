@@ -28,6 +28,37 @@ runs first. `Session::setEnabled()` writes straight to the database.
 
 ---
 
+## 2026-10-04 - Imported journal entries were not saved; legacy summary files removed (#307)
+
+**Files:** `oscar/SleepLib/journal.cpp`, `oscar/SleepLib/machine.cpp`,
+`oscar/SleepLib/machine.h`, `oscar/SleepLib/session.cpp`, `oscar/SleepLib/session.h`,
+`oscar/SleepLib/profiles.cpp`, `oscar/SleepLib/importcontext.cpp`, `oscar/mainwindow.cpp`,
+`oscar/oximeterimport.cpp`, `oscar/tests/applehealthtests.cpp`, and the applehealth,
+dreem, resmed, somnopose, viatom and zeo loaders
+
+`Journal::RestoreDay()` (Import Journal) marked the journal session changed, called
+`Machine::SaveSummaryCache()`, then cleared the changed flag. `SaveSummaryCache()` only
+wrote the legacy `Summaries.xml.gz` and `.000` files, so nothing reached the database and
+the imported notes, weight, feelings and bookmarks were lost at the next launch. It now
+calls `Session::StoreToDatabase()`, as `Daily::Unload()` does.
+
+Found during a sweep for code that still reads OSCAR 1.x data files. The sweep also removed:
+- `Machine::SaveSummaryCache()` and `Session::StoreSummary()`, which still wrote
+  `Summaries.xml.gz` and `Summaries/*.000` after every import, purge and session delete
+  although nothing read them.
+- The file fallback in `Machine::Load()`. When a device had no sessions in the database
+  it read `Summaries.xml.gz` (making session shells the database could not fill), scanned
+  `Summaries/*.000`, and read/wrote `Sessions.info`. `Machine::LoadSummary()`, `LoadTask`,
+  and `load`/`saveSessionInfo()` went with it. A device with no sessions now simply loads
+  none.
+
+Journal `.000` migration (`Journal::MigrateToDatabase`) and the 1.x profile importer still
+read these files, as they should.
+
+The same sweep found a ResMed case that lost data the same way; see the #308 entry above.
+
+---
+
 ## 2026-09-30 - F12 still garbled the on-screen graphs while the Save dialog was open (#237)
 
 **Files:** `oscar/mainwindow.cpp`

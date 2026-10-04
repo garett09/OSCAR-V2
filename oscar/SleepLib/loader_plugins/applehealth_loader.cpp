@@ -490,15 +490,12 @@ int AppleHealthLoader::OpenFile(const QString & filename)
 
     if (sleepChanged) {
         sleepMach->Save();
-        sleepMach->SaveSummaryCache();
     }
     if (oxiChanged) {
         oxiMach->Save();
-        oxiMach->SaveSummaryCache();
     }
     if (journalChanged) {
         journalMach->Save();
-        journalMach->SaveSummaryCache();
     }
     if (imported > 0) {
         p_profile->StoreMachines();

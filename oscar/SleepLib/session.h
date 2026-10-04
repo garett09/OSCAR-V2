@@ -82,9 +82,6 @@ class Session
     //! \brief Saves session summary statistics to database (AHI, event counts, pressure stats, etc.)
     bool StoreSummaryToDatabase();
 
-    //! \brief Writes the Sessions Summary Indexes to filename, in SleepLibs custom data format.
-    bool StoreSummary();
-
 //    //! \brief Save the Sessions Summary Indexes to the stream
 //    void StoreSummaryData(QDataStream & out) const;
 

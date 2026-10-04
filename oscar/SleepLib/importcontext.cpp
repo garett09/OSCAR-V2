@@ -192,7 +192,7 @@ bool ImportContext::Commit()
     }
 
     // TODO: Move what we can from finishCPAPImport into here,
-    // e.g. Profile::StoreMachines and Machine::SaveSummaryCache.
+    // e.g. Profile::StoreMachines.
     return ok;
 }
 

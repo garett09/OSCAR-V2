@@ -76,18 +76,6 @@ protected:
     Machine * mach;
 };
 
-class LoadTask:public ImportTask
-{
-public:
-    LoadTask(Session * s, Machine * m): sess(s), mach(m) {}
-    virtual ~LoadTask() {}
-    virtual void run();
-
-protected:
-    Session * sess;
-    Machine * mach;
-};
-
 class MachineLoader;    // forward
 
 /*! \class Machine
@@ -104,17 +92,14 @@ class Machine
     Machine(Profile * _profile, MachineID id = 0);
     virtual ~Machine();
 
-    //! \brief Load all device summary data
+    //! \brief Load all device summary data from the database
     bool Load(ProgressDialog *progress);
 
-    bool LoadSummary(ProgressDialog *progress);
-    
     //! \brief Load sessions from database (for imported profiles)
     bool LoadSessionsFromDatabase(ProgressDialog *progress);
 
     //! \brief Save all Sessions where changed bit is set.
     bool Save();
-    bool SaveSummaryCache();
 
     //! \brief Save individual session
     bool SaveSession(Session *sess);
@@ -238,9 +223,6 @@ class Machine
     
     //! \brief Save this machine to the database
     bool SaveToDatabase();
-
-    bool saveSessionInfo();
-    bool loadSessionInfo();
 
     void setLoaderName(QString value);
 

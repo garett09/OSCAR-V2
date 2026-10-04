@@ -60,7 +60,6 @@ int DreemLoader::OpenFile(const QString & filename)
     }
     if (count > 0) {
         mach->Save();
-        mach->SaveSummaryCache();
         p_profile->StoreMachines();
     }
     closeCSV();
