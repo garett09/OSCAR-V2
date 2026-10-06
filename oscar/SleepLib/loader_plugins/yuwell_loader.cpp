@@ -2107,9 +2107,9 @@ bool YuwellFormatE::OpenSession(Machine *mach, const QString & sessionDirPath)
                     oai_prev = oai > 0;
                     hi_prev = hi > 0;
                     cai_prev = cai > 0;
-                    if (leak > 0) {
-                        LK->AddEvent(ti + (i * 60000), leak);
-                    }
+                    // Zero-leak minutes are real samples: the device's own leak average and
+                    // minimum include them, so they must be recorded too (not skipped).
+                    LK->AddEvent(ti + (i * 60000), leak);
                 }
             }
             mFile.close();
