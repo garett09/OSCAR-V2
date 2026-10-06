@@ -20,7 +20,7 @@
  * YH350 (BreathCare I Auto-CPAP)
  * YH360 (BreathCare I Auto-CPAP)
  * YH450 (BreathCare II Auto-CPAP)
- * YH480 (BreathCare II Auto-CPAP)
+ * YH480 (BreathCare II Auto-CPAP; the YH480C variant is Supported - see YuwellFormatF)
  * YH550 (BreathCare ECO Auto-CPAP, A/B Models) (Supported)
  * YH560 (Auto-CPAP - see YuwellFormatF) (Supported)
  * YH580 (BreathCare I Auto-CPAP) (Supported)
@@ -2154,10 +2154,25 @@ int YuwellFormatE::Open() {
     return c;
 }
 
+// A Format F machine folder holds RunLog.bys (YH-560) or, when that is absent, summer.bys
+// (YH-480C). Matched case-insensitively, since FAT cards may store the names uppercased.
+static bool hasFormatFMarker(const QString & dirPath)
+{
+    QDir dir(dirPath);
+    dir.setFilter(QDir::Files | QDir::NoSymLinks);
+    for (const QString & name : dir.entryList()) {
+        if (name.compare("RunLog.bys", Qt::CaseInsensitive) == 0
+                || name.compare("summer.bys", Qt::CaseInsensitive) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
 bool YuwellFormatF::Detect() {
     /*
      * root - \ MODEL-SERIAL
-     *          | RunLog.bys <- 0 byte file
+     *          | RunLog.bys <- 0 byte file (YH-560 only; YH-480C cards do not have one)
      *          | summer.bys <- concatenation of every session's summary header, not used
      *          | 00100001.bys <- One flat file per session, containing a header and
      *          |                 per-minute records
@@ -2166,15 +2181,17 @@ bool YuwellFormatF::Detect() {
      *
      * Models seen
      * -----------
-     * YH-560
+     * YH-560, YH-480C
      *
      * The session file format (51-byte header + 10-byte per-minute records) is
      * byte-for-byte identical to YuwellFormatA. The only difference is the directory
-     * layout: RunLog.bys and the session files are siblings directly inside the
-     * MODEL-SERIAL folder, rather than RunLog.bys sitting one level above a MODEL-SERIAL
-     * folder that holds the session files (YuwellFormatA), and rather than each session
-     * living in its own subdirectory of s.bys/m.bys files (YuwellFormatE). Many of the
-     * numbered files are 0 bytes - unwritten ring-buffer slots - and are skipped.
+     * layout: the session files are siblings directly inside the MODEL-SERIAL folder,
+     * rather than sitting one level below a folder that holds RunLog.bys (YuwellFormatA),
+     * and rather than each session living in its own subdirectory of s.bys/m.bys files
+     * (YuwellFormatE). RunLog.bys is optional here - summer.bys is accepted as the folder
+     * marker instead - so the YH-480C's card (which has summer.bys but no RunLog.bys)
+     * is detected. Many of the numbered files are 0 bytes - unwritten ring-buffer slots -
+     * and are skipped.
      *
      * Earlier speculation (see the "obfuscated serial" branch of YuwellFormatB) guessed
      * the YH-560 used the same single monolithic YHSD-NEW.BYS file as the YH-580. Real
@@ -2208,7 +2225,7 @@ QStringList YuwellFormatF::GetModelSerials()
 
     for (const QString & candidate : candidateDirs) {
         QDir cardDir(candidate);
-        if (!cardDir.exists("RunLog.bys")) {
+        if (!hasFormatFMarker(candidate)) {
             continue;
         }
 
@@ -2266,7 +2283,7 @@ QString YuwellFormatF::FindDataDir(const QString & serial)
 
     for (const QString & candidate : candidateDirs) {
         QDir cardDir(candidate);
-        if (!cardDir.exists("RunLog.bys")) {
+        if (!hasFormatFMarker(candidate)) {
             continue;
         }
 
@@ -2425,10 +2442,8 @@ bool YuwellFormatF::OpenSession(Machine *mach, const QString & filename)
     in.skipRawData(1);
     in >> humidity_settings;
     in.skipRawData(7);
-    in >> avg_leak_volume;  // Session-average excess leak * 10, L/min. The per-minute
-                             // leak byte (see below) is always 0 across every sample
-                             // seen so far - this device doesn't log leak per-minute -
-                             // so this header average is the only leak figure available.
+    in >> avg_leak_volume;  // Session-average excess leak * 10, L/min. Used as a flat
+                             // line when the session has no per-minute leak (see below).
     in.skipRawData(1);
     in >> avg_pressure;
     in.skipRawData(1);
@@ -2462,15 +2477,42 @@ bool YuwellFormatF::OpenSession(Machine *mach, const QString & filename)
         qint64 ti = qint64(ts) * 1000L;
         qint64 tend = qint64(finish.toSecsSinceEpoch()) * 1000L;
 
-        // Leak isn't logged per-minute on this device (see above), so report the
-        // device's own session-average excess leak, held flat across the night - the
-        // same approach already used for the YH-560 in YuwellFormatB. CPAP_Leak, not
-        // CPAP_LeakTotal: OSCAR's Leak Rate statistic reads CPAP_Leak, which for a
-        // non-ResMed machine it otherwise DERIVES from CPAP_LeakTotal by subtracting the
-        // mask's intentional leak - that would zero out an already-excess value.
-        EventList *LKu = sess->AddEventList(CPAP_Leak, EVL_Event, 0.1F);
-        LKu->AddEvent(ti, avg_leak_volume);
-        LKu->AddEvent(tend, avg_leak_volume);
+        // Read every per-minute record up front, so a short file is rejected before
+        // anything is added and so we can tell whether this session logs leak per-minute.
+        QByteArray records = file.read(qint64(record_count) * 0x0a);
+        if (record_count < 0 || records.size() != record_count * 0x0a) {
+            qWarning() << "Yuwell Session Record Short" << filename;
+            delete sess;
+            file.close();
+            return false;
+        }
+
+        // Record byte 9 is per-minute excess leak in whole L/min (the same position
+        // YuwellFormatA reads). The YH-480C fills it in; the YH-560 leaves it 0 on every
+        // minute. The header average includes the zero-leak minutes, so when per-minute
+        // leak is present every minute is recorded, zeros included.
+        bool perMinuteLeak = false;
+        for (int i = 0; i < record_count; i++) {
+            if (records.at(i * 0x0a + 9) != 0) {
+                perMinuteLeak = true;
+                break;
+            }
+        }
+
+        // CPAP_Leak, not CPAP_LeakTotal: OSCAR's Leak Rate statistic reads CPAP_Leak, which
+        // for a non-ResMed machine it otherwise DERIVES from CPAP_LeakTotal by subtracting
+        // the mask's intentional leak - that would zero out an already-excess value.
+        EventList *LKu;
+        if (perMinuteLeak) {
+            LKu = sess->AddEventList(CPAP_Leak, EVL_Event, 1);
+        } else {
+            // No per-minute leak (YH-560): report the device's own session-average excess
+            // leak, held flat across the night - the same approach already used for the
+            // YH-560 in YuwellFormatB.
+            LKu = sess->AddEventList(CPAP_Leak, EVL_Event, 0.1F);
+            LKu->AddEvent(ti, avg_leak_volume);
+            LKu->AddEvent(tend, avg_leak_volume);
+        }
 
         EventList *PR = sess->AddEventList(CPAP_Pressure, EVL_Event, 0.1F);
         EventList *OA = sess->AddEventList(CPAP_Obstructive, EVL_Event);
@@ -2485,31 +2527,24 @@ bool YuwellFormatF::OpenSession(Machine *mach, const QString & filename)
 
         for (int i = 0; i < record_count; i++) {
             QCoreApplication::processEvents();
-            QByteArray record;
 
-            record = file.read(0x0a);
-
-            if (record.size() != 0x0a) {
-                qWarning() << "Yuwell Session Record Short" << filename;
-                file.close();
-                return false;
-            }
-
-            QDataStream rin(record);
+            QDataStream rin(records.mid(i * 0x0a, 0x0a));
             rin.setVersion(QDataStream::Qt_4_8);
             rin.setByteOrder(QDataStream::LittleEndian);
 
-            unsigned char pressure, oai, hi, cai;
+            unsigned char pressure, oai, hi, cai, leak;
             rin >> pressure;
             rin.skipRawData(2);
             rin >> oai;
             rin >> hi;
             rin >> cai;
-            // Remaining bytes (including the position YuwellFormatA reads as a
-            // per-minute leak volume) are always 0 in every sample seen so far for
-            // this device; not read.
+            rin.skipRawData(3);  // Bytes 6-8: always 0 in every sample seen so far
+            rin >> leak;         // Byte 9: per-minute excess leak, L/min (see above)
 
             PR->AddEvent(ti + (i * 60000), pressure); // Samples are every 60 seconds
+            if (perMinuteLeak) {
+                LKu->AddEvent(ti + (i * 60000), leak);
+            }
 
             if (oai > 0 && !oai_prev) {
                 OA->AddEvent(ti + (i * 60000), 0);
