@@ -4,6 +4,24 @@ Notable bugs found and fixed during development/investigation.
 
 ---
 
+## 2026-10-06 - Profile restore always failed on macOS: "Failed to extract backup package" (#310)
+
+**Files:** `oscar/zip.cpp`
+
+The Zip Slip guard in `UnzipFile::ExtractAll()` compared the extraction root's canonical
+path with an uncanonicalized destination for files that did not exist yet. Restore
+extracts under `QDir::tempPath()`, which on macOS is `/var/folders/...`, and `/var` is a
+symlink to `/private/var`. Qt does not resolve it, so the root resolved to
+`/private/var/...` while each new file stayed under `/var/...`. The first entry,
+`manifest.json`, was rejected as escaping the root, and every restore on a Mac failed.
+The same happened on any platform whose temp path contains a symlink.
+
+The root is now resolved once after it is created, and each entry's destination is built
+from it with `QDir::cleanPath()`. The guard still rejects absolute paths and `..` escapes.
+`ExtractEntry()` was checked and is not affected because its caller supplies the path.
+
+---
+
 ## 2026-10-04 - ResMed: STR.edf settings added to existing sessions were not saved (#308)
 
 **Files:** `oscar/SleepLib/loader_plugins/resmed_loader.cpp`
