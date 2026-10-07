@@ -15,9 +15,13 @@
 
 using namespace std;
 
+//! \brief The global log thread; created by initializeLogger() and cleared by shutdownLogger().
 LogThread * logger = nullptr;
 
+//! \brief The pool that runs the logger; owned here and deleted by shutdownLogger().
 static QThreadPool * otherThreadPool = nullptr;
+
+//! \brief Released by LogThread::run() once it is running; initializeLogger() waits on it.
 static QSemaphore s_LoggerStarted;
 
 void MyOutputHandler(QtMsgType type, const QMessageLogContext &context, const QString &msgtxt)

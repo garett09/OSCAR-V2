@@ -1189,6 +1189,8 @@ void Daily::on_calendar_selectionChanged()
 
 void Daily::on_ReloadDay()
 {
+    //! \brief True while on_ReloadDay() is running, to log re-entry from nested event processing.
+    //! Only touched on the GUI thread, so a plain bool is enough.
     static bool inReload = false;
 
     if (inReload) {

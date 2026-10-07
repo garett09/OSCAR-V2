@@ -62,6 +62,8 @@ public:
 signals:
     void outputLog(QString);
 protected:
+    //! \brief True while run() is looping; quit() clears it to stop the thread.
+    //! Atomic because isRunning() reads it from other threads; writes happen under strlock.
     std::atomic<bool> running;
     QElapsedTimer logtime;
     bool connected;
