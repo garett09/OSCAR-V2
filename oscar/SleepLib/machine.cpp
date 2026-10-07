@@ -206,6 +206,13 @@ bool Machine::AddSession(Session *s, bool allowOldSessions)
 
     updateChannels(s);
 
+    // Learn which channels this device actually scores as soon as a session joins it.
+    // Several loaders (ResMed, BMC, and everything on ImportContext) write the session
+    // to the database *before* this point, so the set cannot be left to Save()'s
+    // pre-pass: StoreSummaryToDatabase() would see an empty set and NULL every count
+    // column of the rows it writes (GitLab #313).
+    noteReportedChannels(s);
+
     if (s->session() > highest_sessionid) {
         highest_sessionid = s->session();
     }
@@ -849,12 +856,20 @@ bool Machine::Save()
     // a channel for the first time after rows already exist — a G3X's first central
     // hypopnea weeks in, a ResMed's first RERA — and rebuilds its earlier rows, which
     // were stored NULL for that channel (GitLab #261).
+    //
+    // Every session is visited, not just the dirty ones: Session::Store() clears the
+    // dirty flag, so a loader that stores its sessions itself would otherwise leave the
+    // set empty here, and the DB-save loop below does not use that condition either
+    // (GitLab #313).
     const QSet<ChannelID> before = m_reportedChannels;
     bool hasStoredRows = false;
     for (s = sessionlist.begin(); s != sessionlist.end(); s++) {
-        if ((*s)->IsChanged()) noteReportedChannels(*s);
+        noteReportedChannels(*s);
         if ((*s)->sessionRowId() != 0) hasStoredRows = true;
     }
+    // Backstop. An import now settles the set in AddSession() and repairs its own rows
+    // through Machine::repairStoredSummaries() (GitLab #313), so this fires only if a
+    // session reached sessionlist some other way.
     if (hasStoredRows && m_database_id > 0 && m_reportedChannels != before) {
         qDebug() << "Machine::Save(): device reports new channels; rebuilding stored summaries for machine" << m_database_id;
         QSqlDatabase db = DatabaseManager::instance().database();
@@ -970,11 +985,14 @@ void Machine::updateChannels(Session * sess)
 
 void Machine::noteReportedChannels(Session * sess)
 {
-    // A session loaded from the database carries its counts in m_cnt ...
+    QMutexLocker locker(&m_reportedChannelsMutex);
+
+    // A session loaded from the database carries its counts in m_cnt, and so does one
+    // whose events have already been trashed after UpdateSummaries() ...
     for (auto it = sess->m_cnt.cbegin(); it != sess->m_cnt.cend(); ++it) {
         if (it.value() > 0) m_reportedChannels.insert(it.key());
     }
-    // ... while one built by a loader still has its events in the EventLists.
+    // ... while one freshly built by a loader still has its events in the EventLists.
     for (auto it = sess->eventlist.cbegin(); it != sess->eventlist.cend(); ++it) {
         if (m_reportedChannels.contains(it.key())) continue;
         for (EventList * el : it.value()) {
@@ -984,6 +1002,18 @@ void Machine::noteReportedChannels(Session * sess)
             }
         }
     }
+}
+
+bool Machine::repairStoredSummaries()
+{
+    if (m_database_id == 0) return false;
+
+    QSqlDatabase db = DatabaseManager::instance().database();
+    if (!SessionSummariesRepository::rebuildFromChannels(db, m_database_id)) {
+        qWarning() << "Machine::repairStoredSummaries(): rebuild failed for machine" << m_database_id;
+        return false;
+    }
+    return true;
 }
 
 QList<ChannelID> Machine::availableChannels(quint32 chantype)

@@ -153,7 +153,10 @@ bool ImportContext::Commit()
         if (profileId == 0) profileId = session->machine()->getProfileId();
     }
 
-    // Update lastImported timestamp for each machine that received sessions.
+    // Update lastImported timestamp for each machine that received sessions, and put
+    // right the summary rows AddSession() has only now settled the capability for:
+    // ImportContext::AddSession() writes each session to the database long before this,
+    // so those rows carry NULL in columns the device does report (GitLab #313).
     if (!m_sessions.isEmpty()) {
         QDateTime now = QDateTime::currentDateTime();
         MachineRepository repo;
@@ -162,6 +165,7 @@ bool ImportContext::Commit()
             Machine* m = session->machine();
             if (updatedMachines.contains(m)) continue;
             updatedMachines.insert(m);
+            m->repairStoredSummaries();
             m->info.lastimported = now;
             if (m->getDatabaseId() > 0) {
                 MachineData data = repo.findById(m->getDatabaseId());

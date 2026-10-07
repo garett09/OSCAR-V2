@@ -1033,6 +1033,15 @@ int MainWindow::importCPAP(ImportPath import, const QString &message)
     // re-imported days kept the row computed from the old data (#286). Do it here for
     // them, inside the transaction so the rows commit together with the sessions.
     if (c > 0 && !import.loader->dailySummariesCalculated()) {
+        // Those loaders also store each session before handing it to the machine, so
+        // its summary row was written before the machine knew which channels the device
+        // reports and carries NULL in columns it does report. AddSession() has settled
+        // that by now; put the rows right before the daily rollup reads them (#313).
+        for (Machine* m : p_profile->GetMachines()) {
+            if (m->loaderName() == import.loader->loaderName() && m->getDatabaseId() > 0) {
+                m->repairStoredSummaries();
+            }
+        }
         p_profile->calculateDailySummaries();
     }
 

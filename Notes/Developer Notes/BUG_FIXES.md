@@ -4,6 +4,43 @@ Notable bugs found and fixed during development/investigation.
 
 ---
 
+## 2026-10-07 - Imports stored NULL event counts and hid OAHI/CAHI (#313)
+
+**Files:** `oscar/SleepLib/machine.h/.cpp`, `oscar/SleepLib/machine_loader.cpp`,
+`oscar/SleepLib/importcontext.cpp`, `oscar/mainwindow.cpp`
+
+Reported as "a day shows a central hypopnea but the AHI block has no OAHI/CAHI line" on a
+freshly imported profile; restarting OSCAR made the line appear. The display was the visible
+part of a wider fault: every import since schema v19 wrote `NULL` into *all* the count
+columns of `session_summaries` and `daily_summaries` — the apnea/hypopnea/RERA counts and
+`rdi`/`oahi`/`cahi` — for devices that plainly report those channels. `ahi` and
+`session_channels` stayed correct, so only SQL reports, CSV exports and the OAHI/CAHI gate
+were wrong.
+
+**Root cause.** Four loaders write a session to the database *before* attaching it to the
+machine: everything on `ImportContext` (Prisma, PRS1) via `ImportContext::AddSession()`, BMC
+and G3X at `bmc_loader.cpp:224`, ResMed at `resmed_loader.cpp:3588` and `:1223`. SEFAM, which
+adds first and lets `Machine::Save()` write, was the only correct one. `Session::Store()`
+reaches `StoreSummaryToDatabase()`, which decides each column's NULL-ness from
+`Machine::hasReportedEvents()`; with no sessions attached yet, `m_reportedChannels` is empty
+and everything is written NULL. The pre-pass in `Machine::Save()` could not repair it, because
+`Session::Store()` clears the dirty flag and the pre-pass only visited `IsChanged()` sessions.
+`calculateDailySummaries()` then wrote all-NULL daily rows, and `Daily::getAHI()`'s
+`reportsHypopneaMechanism()` gate returned false — hence the missing line. A restart masked it:
+`LoadSessionsFromDatabase()` rebuilds the set from `session_channels`.
+
+**Fix.** `Machine::AddSession()` now registers the session's channels, so the set is right
+whatever order a loader uses; the set is mutex-guarded because ResMed and BMC reach
+`AddSession()` from worker threads. The `Machine::Save()` pre-pass visits every session rather
+than only the dirty ones. New `Machine::repairStoredSummaries()` re-applies the NULL rule to a
+device's stored rows from `session_channels`, and the three import paths that already recompute
+daily summaries call it first: `MachineLoader::finishAddingSessions()`,
+`ImportContext::Commit()` and the `MainWindow::importCPAP()` fallback. Databases written by
+2.1.0-beta-1/beta-2 are corrected the next time that device imports, or by Rebuild CPAP Data;
+no migration.
+
+---
+
 ## 2026-10-06 - Version tag lagged one build behind a change in git state (#312)
 
 **Files:** `oscar/oscar.pro`

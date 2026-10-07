@@ -125,6 +125,7 @@ class Machine
     //! pre-create lists (BMC, SEFAM, prisma) make hasChannel() true for channels the
     //! device has never scored.
     inline bool hasReportedEvents(ChannelID code) const {
+        QMutexLocker locker(&m_reportedChannelsMutex);
         return m_reportedChannels.contains(code);
     }
 
@@ -138,10 +139,19 @@ class Machine
 
     //! \brief Record which of \p sess's channels carry at least one event.
     //! Reads both the in-memory EventLists (an import-time session) and m_cnt (a
-    //! session loaded from session_channels). Main thread only: called from
-    //! LoadSessionsFromDatabase() and the pre-pass in Save(), never from the
-    //! SaveTask workers, which is why this is not part of updateChannels().
+    //! session loaded from session_channels). Called from AddSession(), which several
+    //! loaders reach from their worker threads, so the set is mutex-guarded (GitLab #313).
     void noteReportedChannels(Session * sess);
+
+    //! \brief Re-apply the "NULL when this device never reports the channel" rule to the
+    //! session_summaries rows already stored for this device, from session_channels.
+    //!
+    //! Loaders that store a session before adding it to the machine write their first
+    //! rows with an incomplete picture of what the device reports, so an import ends by
+    //! calling this (GitLab #313). Idempotent, and cheap: a few UPDATEs scoped to this
+    //! machine's sessions.
+    //! \return false if the machine is not in the database or a statement failed.
+    bool repairStoredSummaries();
 
     //! \brief Returns a pointer to a valid Session object if SessionID exists
     Session *SessionExists(SessionID session);
@@ -310,6 +320,9 @@ class Machine
     QHash<ChannelID, bool> m_availableChannels;
     QHash<ChannelID, bool> m_availableSettings;
     QSet<ChannelID> m_reportedChannels;   //!< channels with count > 0 on some session, ever
+    //! Guards m_reportedChannels: AddSession() is called from loader worker threads
+    //! (ResMed, BMC), while the summary writers read the set (GitLab #313).
+    mutable QMutex m_reportedChannelsMutex;
 
     QString m_summaryPath;
     QString m_eventsPath;

@@ -13,6 +13,7 @@
 #include <QApplication>
 #include <QFile>
 #include <QDir>
+#include <QSet>
 #include <QThreadPool>
 
 #include "session.h"
@@ -74,12 +75,21 @@ void MachineLoader::finishAddingSessions()
     }
     
     // Using a map specifically so they are inserted in order.
+    QSet<Machine *> touched;
     for (auto it=new_sessions.begin(), end=new_sessions.end(); it != end; ++it) {
         Session * sess = it.value();
         Machine * mach = sess->machine();
         mach->AddSession(sess);
+        touched.insert(mach);
     }
-    
+
+    // Rows written before the device's reported-channel set was complete carry NULL in
+    // columns the device does report. AddSession() above has settled the set, so put
+    // them right before the daily rollup below reads it (GitLab #313).
+    for (Machine * mach : touched) {
+        mach->repairStoredSummaries();
+    }
+
     // Calculate daily summaries for all sessions that have been added to machines
     // This runs during import, not on every profile load
     // Note: Some loaders add sessions directly to machines (not via new_sessions map),
