@@ -4,6 +4,25 @@ Notable bugs found and fixed during development/investigation.
 
 ---
 
+## 2026-10-06 - Version tag lagged one build behind a change in git state (#312)
+
+**Files:** `oscar/oscar.pro`
+
+In shadow builds, the qmake rule that regenerates `git_info.h` was named `git_info.h`,
+relative to the build directory, while qmake wrote `version.o`'s dependency as
+`../../git_info.h`. Make treated these as two unrelated files. It judged `version.o`
+against the old timestamp before `update_gitinfo` rewrote the header, so after a new
+commit or a change between a clean and a dirty tree (`-plus`), the exe carried the
+previous tag until the next build.
+
+The rule target and its `PRE_TARGETDEPS` entry now use
+`$$relative_path($$_PRO_FILE_PWD_/git_info.h, $$OUT_PWD)`, which is the same spelling
+as the dependency. In-source builds still get `git_info.h`. Verified with a stale
+`git_info.h`: a single `make` run regenerated it and recompiled `version.cpp`, and a
+second run with no change recompiled nothing.
+
+---
+
 ## 2026-10-06 - Profile restore always failed on macOS: "Failed to extract backup package" (#310)
 
 **Files:** `oscar/zip.cpp`

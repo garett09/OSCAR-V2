@@ -113,7 +113,12 @@ unix:!macx:!haiku {
 
 TEMPLATE = app
 
-gitinfotarget.target = git_info.h
+# The rule's target must be spelled exactly as qmake spells version.o's dependency on
+# git_info.h: relative to the build directory (e.g. ../../git_info.h in a shadow build).
+# Otherwise make treats them as different files, judges version.o against the old
+# git_info.h, and the version tag lags one build behind a change in git state.
+GIT_INFO_FILE = $$relative_path($$_PRO_FILE_PWD_/git_info.h, $$OUT_PWD)
+gitinfotarget.target = $$GIT_INFO_FILE
 gitinfotarget.depends = FORCE
 
 win32 {
@@ -129,7 +134,7 @@ win32 {
     gitinfotarget.commands = "/bin/bash $$_PRO_FILE_PWD_/update_gitinfo.sh"
 }
 
-PRE_TARGETDEPS += git_info.h
+PRE_TARGETDEPS += $$GIT_INFO_FILE
 QMAKE_EXTRA_TARGETS += gitinfotarget
 
 # Regenerate exports/system_report_strings.cpp from docs/system_reports.orf when the .orf changes.
