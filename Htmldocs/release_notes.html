@@ -13,44 +13,18 @@
    <p>
    <p>
 
-  <b>Changes and fixes in OSCAR v2.1.0-beta-3</b>
-    <br>Portions of OSCAR are &copy; 2019-2026 by
-    <i>The OSCAR Team</i></p>
-    <ul style="margin-top:0">
-      <li>[fix] Further fix to F12 screen shot</li>
-      <li>[fix] Remove dead code left over from OSCAR 1.7</li>
-      <li>[fix] Imported journal data not saved to database</li>
-      <li>[fix] Clean up some rare situations where data was not saved to database</li>
-      <li>[fix] Restore profile now works correctly on Mac</li>
-    </ul>
-    <p>
-  <b>Changes and fixes in OSCAR v2.1.0-beta-2</b>
-    <br>Portions of OSCAR are &copy; 2019-2026 by
-    <i>The OSCAR Team</i></p>
-    <ul style="margin-top:0">
-      <li>[new] Support the Yuwell YH480C with per-minute leak</li>
-      <li>[update] Löwenstein prisma20A now identified and supported</li>
-      <li>[update] Change displayed product and shortcut names from "OSCAR 2.0" to "OSCAR 2"</li>
-      <li>[update] Add Lowenstein humidifier level and empty chamber detection</li>
-      <li>[fix] OSCAR hung when creating a new profile (regression in 2.1.0-beta-1)</li>
-      <li>[fix] Update French translations</li>
-      <li>[fix] Prisma loader could sometimes create an invalid machine</li>
-      <li>[fix] Somnopose data not saved and inclination and orientation graphs were empty (regression in 2.0.0)</li>
-      <li>[fix] Prevent loop when exporting journal data of a profile with no days</li>
-      <li>[fix] Fix F12 screen shot with nVidia and high resolution displays</li>
-    </ul>
-    <p>
-  <b>Changes and fixes in OSCAR v2.1.0-beta-1</b>
+  <b>Changes and fixes in OSCAR v2.1.0</b>
     <br>Portions of OSCAR are &copy; 2019-2026 by
     <i>The OSCAR Team</i></p>
     <ul style="margin-top:0">
       <li>[new] Support for Yuwell YH-560, YH-920</li>
-      <li>[new] Apple Health Files now supported (experimental)</li>
-      <li>[new] Ukrainian language added</li>
+      <li>[new] Support the Yuwell YH-480C with per-minute leak</li>
       <li>[new] Sefam S.Box, Néa, Sanrai Reve Auto now supported</li>
       <li>[new] Apex Medical Apex XT now supported (experimental)</li>
       <li>[new] BMC G3X E5 B25A Plus supported</li>
-      <li>[new] Central and Obstructive Hypopneas shown for Sefam, BMC G3X, and Lowenstein Prisma CPAP</li>
+      <li>[new] Apple Health Files now supported (experimental)</li>
+      <li>[new] Central and Obstructive Hypopneas shown when reported by Sefam, BMC G3X, and Lowenstein Prisma CPAP</li>
+      <li>[new] Ukrainian language added</li>
       <li>[update] Present clearer instructions on first use of OSCAR</li>
       <li>[update] Give user option not to update database schema</li>
       <li>[update] Central and Obstructive AHI are now reported (AHI = central AHI + obstructive AHI)</li>
@@ -59,6 +33,10 @@
       <li>[update] Improvement to the steady breathing waveform</li>
       <li>[update] Device Settings updated for ResMed iVAPS, S, ST modes</li>
       <li>[update] Show absent fields in summary database files as NULL rather than as zero</li>
+      <li>[update] Löwenstein prisma20A now identified and supported</li>
+      <li>[update] Change displayed product and shortcut names from "OSCAR 2.0" to "OSCAR 2"</li>
+      <li>[update] Add Lowenstein humidifier level and empty chamber detection</li>
+      <li>[update] Show Oximeter Information block for oximeter data included with CPAP data</li>
       <li>[fix] AHI and RDI values in session_summaries table were incorrect and have been fixed</li>
       <li>[fix] Resmed AirSense 11 CSR event not shown if none have ever been seen</li>
       <li>[fix] Resmed loader would occasionally show zero pressure</li>
@@ -88,6 +66,16 @@
       <li>[fix] Bug in PRS1 loader that skipped some old data</li>
       <li>[fix] Adjust graph dotted line colors for percentiles to keep them distinct and repeatable</li>
       <li>[fix] Revise File>Database>New dialogs to match initial OSCAR startup dialogs</li>
+      <li>[fix] OSCAR hung when creating a new profile (regression in 2.1.0-beta-1)</li>
+      <li>[fix] Update French translations</li>
+      <li>[fix] Prisma loader could sometimes create an invalid machine</li>
+      <li>[fix] Somnopose data not saved and inclination and orientation graphs were empty (regression in 2.0.0)</li>
+      <li>[fix] Prevent loop when exporting journal data of a profile with no days</li>
+      <li>[fix] Fix F12 screen shot with nVidia and high resolution displays</li>
+      <li>[fix] Remove dead code left over from OSCAR 1.7</li>
+      <li>[fix] Imported journal data not saved to database</li>
+      <li>[fix] Clean up some rare situations where data was not saved to database</li>
+      <li>[fix] Restore profile now works correctly on Mac</li>
     </ul>
     <p>
   <b>Changes and fixes in OSCAR v2.0.1</b>
