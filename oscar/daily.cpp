@@ -1496,18 +1496,53 @@ QString Daily::getMachineSettings(Day * day) {
     return html;
 }
 
+/*! \brief True if an enabled session recorded SpO2 or pulse samples.
+ *
+ *  Reads the summary counts, so it works whether or not the session's events are loaded.
+ */
+static bool sessionHasOximetry(Session * sess)
+{
+    return sess->enabled()
+           && (sess->m_cnt.value(OXI_SPO2, 0) > 0 || sess->m_cnt.value(OXI_Pulse, 0) > 0);
+}
+
+/*! \brief Builds the left sidebar's Oximeter Information block.
+ *
+ *  Oximetry comes either from a dedicated oximeter (MT_OXIMETER) or from a CPAP that records
+ *  SpO2/pulse in its own sessions (ResMed or PRS1 with an attached oximeter, BMC, ...). The
+ *  dedicated oximeter wins when the day has one. All figures are summed over the chosen
+ *  machine's oximetry sessions only, so a CPAP's SpO2 Drop events are not folded into a
+ *  separate oximeter's rates, and the per-hour rates use only the hours that carried oximetry.
+ */
 QString Daily::getOximeterInformation(Day * day)
 {
     QString html;
     Machine * oxi = day->machine(MT_OXIMETER);
-    if (oxi && day->hasEnabledSessions(MT_OXIMETER)) {
+    bool cpapOximetry = false;
+    if (!oxi || !day->hasEnabledSessions(MT_OXIMETER)) {
+        // No dedicated oximeter: fall back to a CPAP that recorded oximetry itself
+        oxi = nullptr;
+        Machine * cpap = day->machine(MT_CPAP);
+        for (auto & sess : day->sessions) {
+            if (cpap && sess->machine() == cpap && sessionHasOximetry(sess)) {
+                oxi = cpap;
+                cpapOximetry = true;
+                break;
+            }
+        }
+    }
+    if (oxi) {
         htmlLsbSectionHeader(html,tr("Oximeter Information"),LSB_OXIMETER_INFORMATION );
         if (!leftSideBarEnable[LSB_OXIMETER_INFORMATION] ) {
             return html;
         }
         html+="<table cellpadding=0 cellspacing=0 border=0 width=100%>";
 //        html+="<tr><td colspan=5 align=center>&nbsp;</td></tr>";
-        html+="<tr><td colspan=5 align=center>"+oxi->brand()+" "+oxi->model()+"</td></tr>\n";
+        if (cpapOximetry) {
+            html+="<tr><td colspan=5 align=center>"+tr("Recorded by %1 %2").arg(oxi->brand(), oxi->model())+"</td></tr>\n";
+        } else {
+            html+="<tr><td colspan=5 align=center>"+oxi->brand()+" "+oxi->model()+"</td></tr>\n";
+        }
 //        html+="<tr><td colspan=5 align=center>&nbsp;</td></tr>";
         if (oxi->loaderName() == applehealth_class_name) {
             // Per-machine, since day->count() would fold in a CPAP's SpO2/pulse from the same day
@@ -1521,10 +1556,38 @@ QString Daily::getOximeterInformation(Day * day)
             html+=QString("<tr><td colspan=3 width='60%'>%1</td><td colspan=2 width='40%'>%2</td></tr>").arg(tr("Pulse readings")).arg(int(pulseCount));
             html+=QString("<tr><td colspan=5><i>%1</i></td></tr>").arg(tr("Spot-check data; desaturation detection is not applicable"));
         } else {
+            // Totals over this machine's oximetry sessions only. For a CPAP, sessions without
+            // the oximeter attached are left out so they don't dilute the per-hour rates.
+            double hours = 0, dropCount = 0, dropSum = 0, pcCount = 0, pcSum = 0;
+            double baseWeighted = 0, baseHours = 0;
+            for (auto & sess : day->sessions) {
+                if (!sess->enabled() || sess->machine() != oxi) continue;
+                if (cpapOximetry && !sessionHasOximetry(sess)) continue;
+                double h = sess->hours();
+                hours += h;
+                // Guarded like Day::count()/sum(): Session::count() caches a 0 in m_cnt for an
+                // absent channel, which would then make channelHasData() report it present.
+                if (sess->m_cnt.contains(OXI_SPO2Drop)) dropCount += sess->count(OXI_SPO2Drop);
+                if (sess->m_sum.contains(OXI_SPO2Drop)) dropSum += sess->sum(OXI_SPO2Drop);
+                if (sess->m_cnt.contains(OXI_PulseChange)) pcCount += sess->count(OXI_PulseChange);
+                if (sess->m_sum.contains(OXI_PulseChange)) pcSum += sess->sum(OXI_PulseChange);
+                // calcSPO2Drop() stores the baseline it used in the session settings
+                auto base = sess->settings.constFind(OXI_SPO2Drop);
+                if (base != sess->settings.constEnd()) {
+                    baseWeighted += base.value().toDouble() * h;
+                    baseHours += h;
+                }
+            }
+            double pctDrop = (hours > 0) ? (100.0 / hours) * (dropSum / 3600.0) : 0;
+            double rateDrop = (hours > 0) ? dropCount / hours : 0;
+            double pctPC = (hours > 0) ? (100.0 / hours) * (pcSum / 3600.0) : 0;
+            double ratePC = (hours > 0) ? pcCount / hours : 0;
+            double baseline = (baseHours > 0) ? baseWeighted / baseHours : 0;
+
             // Include SpO2 and PC drops per hour of Oximetry data in case CPAP data is missing
-            html+=QString("<tr><td colspan=5 align=center>%1: %2 (%3%) %4/h</td></tr>").arg(tr("SpO2 Desaturations")).arg(day->count(OXI_SPO2Drop)).arg((100.0/day->hours(MT_OXIMETER)) * (day->sum(OXI_SPO2Drop)/3600.0),0,'f',2).arg((day->count(OXI_SPO2Drop)/day->hours(MT_OXIMETER)),0,'f',2);
-            html+=QString("<tr><td colspan=5 align=center>%1: %2 (%3%) %4/h</td></tr>").arg(tr("Pulse Change events")).arg(day->count(OXI_PulseChange)).arg((100.0/day->hours(MT_OXIMETER)) * (day->sum(OXI_PulseChange)/3600.0),0,'f',2).arg((day->count(OXI_PulseChange)/day->hours(MT_OXIMETER)),0,'f',2);
-            html+=QString("<tr><td colspan=5 align=center>%1: %2%</td></tr>").arg(tr("SpO2 Baseline Used")).arg(day->settings_wavg(OXI_SPO2Drop),0,'f',2); // CHECKME: Should this value be wavg OXI_SPO2 isntead?
+            html+=QString("<tr><td colspan=5 align=center>%1: %2 (%3%) %4/h</td></tr>").arg(tr("SpO2 Desaturations")).arg(dropCount).arg(pctDrop,0,'f',2).arg(rateDrop,0,'f',2);
+            html+=QString("<tr><td colspan=5 align=center>%1: %2 (%3%) %4/h</td></tr>").arg(tr("Pulse Change events")).arg(pcCount).arg(pctPC,0,'f',2).arg(ratePC,0,'f',2);
+            html+=QString("<tr><td colspan=5 align=center>%1: %2%</td></tr>").arg(tr("SpO2 Baseline Used")).arg(baseline,0,'f',2); // CHECKME: Should this value be wavg OXI_SPO2 isntead?
         }
         html+="</table>\n";
         html+="<hr/>\n";

@@ -4,6 +4,32 @@ Notable bugs found and fixed during development/investigation.
 
 ---
 
+## 2026-10-07 - Daily sidebar Oximeter Information missing for CPAP-recorded oximetry (#315)
+
+**File:** `oscar/daily.cpp` (`Daily::getOximeterInformation()`, new `sessionHasOximetry()`)
+
+**Symptom:** For CPAPs that store SpO2/Pulse in their own sessions (ResMed and PRS1 with an
+attached oximeter, BMC G3X/E5), the Daily page drew the SpO2 and Pulse graphs and the
+Statistics rows, but the left sidebar's Oximeter Information block (SpO2 Desaturations,
+Pulse Change events, SpO2 Baseline Used) never appeared.
+
+**Root cause:** The block was gated on `day->machine(MT_OXIMETER)`, unchanged since 1.7.1.
+#98 (Statistics page), #103 (Welcome page) and the calendar `hasoxi` fix added an `MT_CPAP`
+fallback for their own screens; the Daily sidebar was never covered (the 2026-07-29 BMC entry
+below already noted the gap). Its rates also divided by `hours(MT_OXIMETER)`, which is 0
+without an oximeter, so simply widening the gate would have printed inf/NaN.
+
+**Fix:** With no enabled oximeter sessions, the block falls back to the CPAP machine when
+one of its enabled sessions has a non-zero SpO2 or Pulse count, and labels the source
+"Recorded by <brand> <model>". All figures are now summed over the chosen machine's sessions
+only (for a CPAP, only those that carried oximetry), so the rates use oximetry hours and a
+CPAP's SpO2 Drop events are no longer folded into a separate oximeter's counts. The baseline
+is the hours-weighted `OXI_SPO2Drop` session setting, as `settings_wavg()` did. Count/sum
+calls are guarded by `m_cnt`/`m_sum.contains()` because `Session::count()` caches 0 for an
+absent channel, which would make `channelHasData()` report it present.
+
+---
+
 ## 2026-10-07 - Imports stored NULL event counts and hid OAHI/CAHI (#313)
 
 **Files:** `oscar/SleepLib/machine.h/.cpp`, `oscar/SleepLib/machine_loader.cpp`,
