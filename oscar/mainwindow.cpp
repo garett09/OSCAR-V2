@@ -4277,11 +4277,22 @@ void MainWindow::on_actionCompress_Database_triggered()
     QFile::remove(dbPath + "-wal");
     QFile::remove(dbPath + "-shm");
 
+    // Reopen the database only if oscar.db is really there: initialize() on a missing
+    // file silently creates a new, empty database, which would hide the user's data
+    // behind an apparently successful reopen (GitLab #316).
+    auto reopenDatabase = [&dbPath]() -> bool {
+        if (!QFile::exists(dbPath)) {
+            qCritical() << "Compress Database: not reopening, database file is missing:" << dbPath;
+            return false;
+        }
+        return DatabaseManager::instance().initialize(dbPath);
+    };
+
     // Rename original → .bak (keeps it recoverable if rename of new file fails).
     QString bakPath = dbPath + ".bak";
     QFile::remove(bakPath);
     if (!QFile::rename(dbPath, bakPath)) {
-        DatabaseManager::instance().initialize(dbPath);
+        reopenDatabase();
         QFile::remove(tempPath);
         staticQMessageBox::warning(this, tr("Compress Database"),
             tr("Compression succeeded but the database file could not be replaced.\n\n"
@@ -4291,8 +4302,25 @@ void MainWindow::on_actionCompress_Database_triggered()
     }
 
     if (!QFile::rename(tempPath, dbPath)) {
-        QFile::rename(bakPath, dbPath);  // restore original
-        DatabaseManager::instance().initialize(dbPath);
+        // Put the original back. A rename can be refused while another program (a cloud
+        // sync client or virus scanner) holds the file, so fall back to a copy.
+        const bool restored = QFile::rename(bakPath, dbPath) || QFile::copy(bakPath, dbPath);
+        if (!restored) {
+            // Neither file is at dbPath. Reopening would create an empty database there,
+            // so stop and tell the user where their data is. The next launch will not
+            // find oscar.db and will ask before doing anything.
+            qCritical() << "Compress Database: could not restore" << bakPath << "to" << dbPath;
+            QMessageBox::critical(this, tr("Compress Database"),
+                tr("The compressed database could not be put in place, and OSCAR could not put the "
+                   "original database back.") + "\n\n" +
+                tr("Your data is safe in this file:") + "\n" + QDir::toNativeSeparators(bakPath) + "\n\n" +
+                tr("OSCAR will now close. Before starting OSCAR again, rename that file to oscar.db."),
+                QMessageBox::Ok);
+            QApplication::instance()->exit();
+            return;
+        }
+        reopenDatabase();
+        QFile::remove(tempPath);
         staticQMessageBox::warning(this, tr("Compress Database"),
             tr("Compression succeeded but the new file could not be put in place.\n\n"
                "The original database has been restored."),

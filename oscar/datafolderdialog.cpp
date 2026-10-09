@@ -241,6 +241,31 @@ StartupChoice showStartupChoice(const QString& missingPath)
     }
 }
 
+StartupChoice showDatabaseMissingChoice(const QString& folder)
+{
+    const QString text =
+        QObject::tr("OSCAR's data folder is still there, but the database file it contains (oscar.db) is missing:") +
+        "\n\n" + QDir::toNativeSeparators(QDir(folder).filePath("oscar.db")) + "\n\n" +
+        QObject::tr("The file may have been moved, renamed or deleted, or removed by a cloud synchronisation or disk clean-up tool.") +
+        "\n\n" +
+        QObject::tr("If you have a backup copy of oscar.db (for example in Time Machine, File History, or your cloud service's deleted files), "
+                    "choose Exit, put the copy back in this folder, and start OSCAR again.") + "\n\n" +
+        QObject::tr("If your data folder is somewhere else, choose Find.") + " " +
+        QObject::tr("Choose Create only if you want to start again with an empty database; your CPAP data will then need to be imported again.");
+
+    SetupChoiceDialog dialog(QObject::tr("OSCAR Database Not Found"), text,
+                             { QObject::tr("Find my OSCAR 2 data folder"),
+                               QObject::tr("Create new empty database"),
+                               QObject::tr("Exit") });
+    dialog.exec();
+
+    switch (dialog.choice()) {
+    case 0:  return StartupChoice::FindExisting;
+    case 1:  return StartupChoice::UseThisFolder;
+    default: return StartupChoice::Cancel;
+    }
+}
+
 MigrationChoice showMigrationChoice()
 {
     QString text = QObject::tr("OSCAR 2 uses a different data folder than OSCAR 1.x, so it cannot share the folder used by OSCAR 1.x.") + " " +

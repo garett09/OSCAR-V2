@@ -4,6 +4,32 @@ Notable bugs found and fixed during development/investigation.
 
 ---
 
+## 2026-10-09 - Empty database created silently when oscar.db went missing (#316)
+
+**Files:** `oscar/main.cpp`, `oscar/datafolderdialog.cpp/.h` (new `showDatabaseMissingChoice()`),
+`oscar/mainwindow.cpp` (`on_actionCompress_Database_triggered()`)
+
+**Symptom:** A macOS user returned after a week away to find OSCAR showing no data. The data
+folder and its profile folder were intact, but `oscar.db` held no profiles or machines; the
+log showed `Found 0 profiles` / `Database empty, falling back to directory scan`.
+
+**Root cause:** `main()` offered the startup dialog only on a first run or when the data
+folder itself was missing; it never checked for `oscar.db`. When the folder existed but the
+file had gone (moved, deleted, removed by a cloud sync or clean-up tool),
+`DatabaseManager::initialize()` saw no file and created a new, empty schema without a word.
+A second, narrower path: in Compress Database, if moving the compacted file into place failed
+and moving the original back from `oscar.db.bak` also failed, the second failure was
+ignored, `initialize()` created an empty database, and the user was told the original had
+been restored.
+
+**Fix:** At startup a recorded folder that `classifyDataFolder()` reports as `Other` (exists,
+holds files, no `oscar.db`, not OSCAR 1.x) now shows "OSCAR Database Not Found", which
+explains how to put a backup back and offers Find my data folder / Create new empty
+database / Exit. An empty folder still counts as a new data folder, as before. Compress
+Database reopens the database only when `oscar.db` exists, falls back to a copy when the
+rename back fails, and if the original still cannot be restored it names the `.bak` file
+and closes OSCAR instead of creating a database.
+
 ## 2026-10-07 - Daily sidebar Oximeter Information missing for CPAP-recorded oximetry (#315)
 
 **File:** `oscar/daily.cpp` (`Daily::getOximeterInformation()`, new `sessionHasOximetry()`)

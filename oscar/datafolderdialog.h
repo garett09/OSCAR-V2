@@ -59,10 +59,11 @@ QString dataFolderNameProblem(const QString& name);
  */
 QString cloudServiceForPath(const QString& path);
 
-/*! \brief Outcome of the startup choice dialog. */
+/*! \brief Outcome of the startup choice dialogs. */
 enum class StartupChoice {
     FirstUse,       //!< Create a new data folder.
     FindExisting,   //!< Locate an existing OSCAR 2 data folder.
+    UseThisFolder,  //!< Keep the recorded data folder and start a new, empty database in it.
     Cancel          //!< Exit OSCAR.
 };
 
@@ -72,6 +73,17 @@ enum class StartupChoice {
  *                    When given it is shown so the user knows what OSCAR was looking for.
  */
 StartupChoice showStartupChoice(const QString& missingPath);
+
+/*!
+ * \brief Show the "OSCAR Database Not Found" dialog for a data folder that has lost its oscar.db.
+ * \param folder The recorded data folder: it exists and holds files, but no oscar.db.
+ * \return FindExisting, UseThisFolder (start an empty database in \a folder) or Cancel.
+ *
+ * Opening the folder as it is would make the database layer create a new, empty oscar.db
+ * there without a word, so the user's data would appear to have vanished. This asks first
+ * and explains how to put a backup copy back (GitLab #316).
+ */
+StartupChoice showDatabaseMissingChoice(const QString& folder);
 
 /*! \brief Outcome of the migration choice dialog. */
 enum class MigrationChoice {

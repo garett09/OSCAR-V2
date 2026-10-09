@@ -999,11 +999,20 @@ int main(int argc, char *argv[]) {
     if (firstRun)
         qDebug() << "First time: no data folder recorded";
 
-    if (!force_data_dir && (firstRun || !QDir(GetAppData()).exists())) {
-        // Either a first run or the recorded folder has gone (moved, deleted, drive or
-        // cloud mirror not mounted). Creating a folder and finding one are separate
-        // paths: the single "choose or create" picker used before led many users to
-        // hand back the intended parent folder, putting the database in Documents.
+    // A recorded folder that still exists and holds files, but no oscar.db and no OSCAR 1.x
+    // data, has lost its database (moved, deleted, or removed by a cloud sync or clean-up
+    // tool). Opening it as it is would make DatabaseManager create a new, empty oscar.db
+    // without a word, and the user's data would appear to have vanished (GitLab #316).
+    // An empty folder is not a loss: it is a new data folder and carries on as before.
+    const bool databaseMissing = !firstRun && classifyDataFolder(GetAppData()) == DataFolderStatus::Other;
+    if (databaseMissing)
+        qWarning().noquote() << "Data folder" << GetAppData() << "exists but has no oscar.db";
+
+    if (!force_data_dir && (firstRun || databaseMissing || !QDir(GetAppData()).exists())) {
+        // Either a first run, or the recorded folder or its database has gone (moved,
+        // deleted, drive or cloud mirror not mounted). Creating a folder and finding one
+        // are separate paths: the single "choose or create" picker used before led many
+        // users to hand back the intended parent folder, putting the database in Documents.
         const QString missingPath = firstRun ? QString() : QDir::cleanPath(GetAppData());
         // The setup dialog always suggests the default folder name; the location is where
         // the missing folder used to be, or Documents on a first run.
@@ -1012,13 +1021,22 @@ int main(int argc, char *argv[]) {
         QString chosen;
 
         while (chosen.isEmpty()) {
-            const StartupChoice choice = showStartupChoice(missingPath);
+            const StartupChoice choice = databaseMissing ? showDatabaseMissingChoice(missingPath)
+                                                         : showStartupChoice(missingPath);
 
             if (choice == StartupChoice::Cancel) {
                 QMessageBox::information(nullptr, QObject::tr("Exiting"),
-                                         QObject::tr("As you did not select a data folder, OSCAR will exit.")+"\n"+
+                                         (databaseMissing ? QObject::tr("OSCAR will exit without changing your data folder.")
+                                                          : QObject::tr("As you did not select a data folder, OSCAR will exit.")) + "\n" +
                                          QObject::tr("Next time you run OSCAR, you will be asked again."));
                 return 0;
+            }
+
+            if (choice == StartupChoice::UseThisFolder) {
+                // The user has chosen, knowingly, to start again with an empty database here.
+                chosen = missingPath;
+                qWarning().noquote() << "User chose to create a new empty database in" << chosen;
+                continue;
             }
 
             if (choice == StartupChoice::FirstUse) {
