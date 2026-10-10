@@ -2681,8 +2681,36 @@ void MainWindow::on_actionRebuildCPAP(QAction *action)
     if (!mach) return;
     QString bpath = mach->getBackupPath();
     bool backups = (dirCount(bpath) > 0) ? true : false;
+    MachineLoader *loader = lookupLoader(mach);
 
-    if (backups) {
+    // Normal imports only open a folder the loader's Detect() accepts. Rebuild opens the
+    // Backup folder directly, so check it the same way (some loaders back up one level down)
+    // before purging; otherwise the data is deleted and the import then fails (GitLab #321).
+    bool backupRecognised = false;
+    if (backups && loader) {
+        backupRecognised = loader->Detect(bpath);
+        if (!backupRecognised) {
+            QDir bdir(bpath);
+            const QStringList subdirs = bdir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+            for (const QString & sub : subdirs) {
+                if (loader->Detect(bdir.absoluteFilePath(sub))) {
+                    backupRecognised = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    if (backups && !backupRecognised) {
+        if (staticQMessageBox::warning(this, STR_MessageBox_Warning,
+                "<p><b>"+STR_MessageBox_Warning+": </b>"+tr("OSCAR does not recognise the backup data for the following device:")+"</p>" +
+                "<p>"+mach->brand() + " " + mach->model() + " " + mach->modelnumber() + " (" + mach->serial() + ")</p>"+
+                "<p>"+tr("Rebuilding will delete all of this device's data, and OSCAR may not be able to restore it from the backup. You would then have to import it again from the SD card or your own backups.")+"</p>" +
+                "<p><b>"+tr("Are you really sure you want to do this?")+"</b></p>",
+                QMessageBox::Yes | QMessageBox::No, QMessageBox::No) == QMessageBox::No) {
+            return;
+        }
+    } else if (backups) {
         if (staticQMessageBox::question(this, STR_MessageBox_Question,
                 tr("Are you sure you want to rebuild all CPAP data for the following device:\n\n") +
                 mach->brand() + " " + mach->model() + " " +
@@ -2704,7 +2732,6 @@ void MainWindow::on_actionRebuildCPAP(QAction *action)
     }
 
     QString path = mach->getBackupPath();
-    MachineLoader *loader = lookupLoader(mach);
 
     purgeMachine(mach); // purge destroys device record
 

@@ -4,6 +4,33 @@ Notable bugs found and fixed during development/investigation.
 
 ---
 
+## 2026-10-10 - Rebuild CPAP Data failed for Prisma and deleted the data first (#321)
+
+**Files:** `oscar/SleepLib/loader_plugins/prisma_loader.cpp/.h`, `oscar/mainwindow.cpp`
+
+**Symptom:** Data → Advanced → Rebuild CPAP Data on a Löwenstein Prisma purged all of the
+device's data, then reported "Couldn't find any valid Device Data at …/Backup". The data
+stayed gone until re-imported from the SD card.
+
+**Root cause:** Two problems.
+1. `PrismaLoader::Open()` backs the card up to `Backup/<imported folder name>/`
+   (e.g. `Backup/Prisma/`), but Rebuild opens the `Backup` root, and `Open()` only looked
+   for the config file in the folder it was given.
+2. `on_actionRebuildCPAP()` purged the device before anything checked that the backup was
+   importable. Every normal import path calls `Open()` only on a folder `Detect()` accepts;
+   Rebuild skipped that check.
+
+**Fix:** New `PrismaLoader::findCardPath()`, used by `Open()` and `PeekInfo()`, falls back to
+an immediate subfolder that `Detect()` accepts. Normal imports are unaffected, because they
+already pass a detected folder. Rebuild now runs the loader's `Detect()` on the backup root
+or an immediate subfolder before purging. If neither matches, the user gets a warning
+(default No) instead of the usual confirmation. The backup layouts of the
+Apex/BMC/G3X/Intellipap/PRS1/ResMed/Sefam/Yuwell test profiles all pass `Detect()`.
+ICON, SleepStyle, Resvent and vREM were not checked against real backups; a mismatch
+there produces only the warning, not a blocked rebuild.
+
+---
+
 ## 2026-10-10 - Prisma 20A APAP max pressure shown equal to min pressure (#319)
 
 **Files:** `oscar/SleepLib/loader_plugins/prisma_loader.cpp`

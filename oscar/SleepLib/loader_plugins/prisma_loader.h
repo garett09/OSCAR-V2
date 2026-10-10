@@ -265,6 +265,10 @@ class PrismaLoader : public CPAPLoader
 
     MachineInfo PeekInfoFromConfig(const QString & selectedPath);
 
+    //! \brief Returns the folder holding the Prisma config file: \a path itself, or one of its
+    //! immediate subfolders (where Open() puts the backup copy). Returns \a path if neither.
+    QString findCardPath(const QString & path);
+
     void ImportDataDir(QDir& dataDir, QSet<SessionID>& sessions, QHash<SessionID, QString>& eventFiles, QHash<SessionID, QString>& signalFiles);
 
     //! \brief Scans the given directories for session data and create an import task for each logical session.

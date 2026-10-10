@@ -646,7 +646,25 @@ bool PrismaLoader::Detect(const QString & selectedPath)
     return prismaSmartConfigFile.exists() || prismaLineConfigFile.exists();
 }
 
-int PrismaLoader::Open(const QString & selectedPath)
+QString PrismaLoader::findCardPath(const QString & path)
+{
+    if (Detect(path)) {
+        return path;
+    }
+    // Open() backs the card up into a subfolder of the device's Backup folder named after the
+    // imported folder, but Rebuild CPAP Data opens the Backup folder itself (GitLab #321).
+    QDir dir(path);
+    const QStringList subdirs = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+    for (const QString & sub : subdirs) {
+        const QString subPath = dir.absoluteFilePath(sub);
+        if (Detect(subPath)) {
+            return subPath;
+        }
+    }
+    return path;
+}
+
+int PrismaLoader::Open(const QString & path)
 {
     if (m_ctx == nullptr) {
         qWarning() << "PrismaLoader::Open() called without a valid m_ctx object present";
@@ -654,6 +672,7 @@ int PrismaLoader::Open(const QString & selectedPath)
     }
     Q_ASSERT(m_ctx);
 
+    const QString selectedPath = findCardPath(path);
     qDebug() << "Prisma opening" << selectedPath;
 
 
@@ -802,8 +821,9 @@ int PrismaLoader::Open(const QString & selectedPath)
     return tasks;
 }
 
-MachineInfo PrismaLoader::PeekInfo(const QString & selectedPath)
+MachineInfo PrismaLoader::PeekInfo(const QString & path)
 {
+    const QString selectedPath = findCardPath(path);
     qDebug() << "PeekInfo " << selectedPath;
     if (!Detect(selectedPath))
         return MachineInfo();
