@@ -480,7 +480,6 @@ private:
     bool m_restartRequired;
     bool m_clinicalMode = false;
     bool m_geometryCorrected = false;
-    volatile bool m_inRecalculation;
 
     void PopulatePurgeMenu();
 

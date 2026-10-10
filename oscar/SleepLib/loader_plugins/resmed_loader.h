@@ -139,7 +139,9 @@ class ResmedLoader : public CPAPLoader
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    volatile int sessionCount;
+    //! \brief Number of sessions saved during the current import.
+    //! Reset in Open() and incremented by SaveSession() under sessionMutex.
+    int sessionCount;
     static void SaveSession(ResmedLoader* loader, Session* session);
     ResDaySaveCallback saveCallback;
     int OpenWithCallback(const QString & dirpath, ResDaySaveCallback s);
@@ -166,15 +168,16 @@ protected:
 #ifdef DEBUG_EFFICIENCY
     QHash<ChannelID, qint64> channel_efficiency;
     QHash<ChannelID, qint64> channel_time;
-    volatile qint64 timeInLoadBRP;
-    volatile qint64 timeInLoadPLD;
-    volatile qint64 timeInLoadEVE;
-    volatile qint64 timeInLoadCSL;
-    volatile qint64 timeInLoadSAD;
-    volatile qint64 timeInEDFOpen;
-    volatile qint64 timeInEDFInfo;
-    volatile qint64 timeInAddWaveform;
-    volatile qint64 timeInTimeDelta;
+    // Cumulative profiling times in ms. Worker threads update them under timeMutex.
+    qint64 timeInLoadBRP;       //!< Time spent in LoadBRP().
+    qint64 timeInLoadPLD;       //!< Time spent in LoadPLD().
+    qint64 timeInLoadEVE;       //!< Time spent in LoadEVE().
+    qint64 timeInLoadCSL;       //!< Time spent in LoadCSL().
+    qint64 timeInLoadSAD;       //!< Time spent in LoadSAD().
+    qint64 timeInEDFOpen;       //!< Time spent opening EDF files.
+    qint64 timeInEDFInfo;       //!< Time spent parsing EDF headers.
+    qint64 timeInAddWaveform;   //!< Time spent in AddWaveform() for BRP data.
+    qint64 timeInTimeDelta;     //!< Time spent computing time deltas.
     QMutex timeMutex;
 #endif
 

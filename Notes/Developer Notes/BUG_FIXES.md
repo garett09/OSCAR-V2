@@ -4,6 +4,26 @@ Notable bugs found and fixed during development/investigation.
 
 ---
 
+## 2026-10-09 - Logger startup unlocked a mutex from a non-owning thread (MR !48)
+
+**Files:** `oscar/logger.cpp/.h`; also `volatile` cleanup in `oscar/daily.cpp`,
+`oscar/mainwindow.cpp/.h`, `resmed_loader.h`, `cms50f37_loader.h`
+
+**Symptom:** None observed; latent undefined behaviour at every startup.
+
+**Root cause:** `initializeLogger()` locked `s_LoggerRunning` on the main thread and
+`LogThread::run()` unlocked it on the logger thread to signal startup. Qt documents
+unlocking a `QMutex` from a thread that does not own it as undefined behaviour.
+`LogThread::running` was `volatile bool`, which gives no cross-thread guarantees, yet
+`isRunning()` is read from arbitrary threads by the message handler.
+
+**Fix:** Startup now hands off through a `QSemaphore` released by `run()` after `running`
+is set and while `strlock` is still held, so `isRunning()` is true once
+`initializeLogger()` returns and `quit()` cannot wake the thread before it waits.
+`running` is `std::atomic<bool>`. `shutdownLogger()` is safe to call twice. The other
+`volatile` fields were only touched on one thread or under a mutex, so they became plain
+types, and the dead `MainWindow::m_inRecalculation` flag (never set true) was removed.
+
 ## 2026-10-09 - Empty database created silently when oscar.db went missing (#316)
 
 **Files:** `oscar/main.cpp`, `oscar/datafolderdialog.cpp/.h` (new `showDatabaseMissingChoice()`),

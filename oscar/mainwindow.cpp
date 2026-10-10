@@ -310,7 +310,6 @@ void MainWindow::SetupGUI()
     ui->helpButton->setVisible(false);
 #endif
 
-    m_inRecalculation = false;
     m_restartRequired = false;
     // Initialize Status Bar objects
 
@@ -1360,10 +1359,6 @@ void MainWindow::on_action_Import_Data_triggered()
         QMessageBox::warning(this, tr("Import"), tr("Please open or create a profile before importing data."));
         return;
     }
-    if (m_inRecalculation) {
-        Notify(tr("Access to Import has been blocked while recalculations are in progress."),STR_MessageBox_Busy);
-        return;
-    }
     if (in_import) {
         Notify(tr("Import is already running in the background."),STR_MessageBox_Busy);
         return;
@@ -1863,11 +1858,6 @@ void MainWindow::on_action_Preferences_triggered()
 {
     if (!p_profile) {
         QMessageBox::warning(this, tr("Preferences"), tr("Please open or create a profile first."));
-        return;
-    }
-
-    if (m_inRecalculation) {
-        mainwin->Notify(tr("Access to Preferences has been blocked until recalculation completes."));
         return;
     }
 
