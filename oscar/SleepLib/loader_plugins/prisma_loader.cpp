@@ -347,8 +347,10 @@ void PrismaImport::run()
                         session->settings[Prisma_Mode] = (int)PRISMA_COMBINED_MODE_APAP_DYN;
                     break;
                 }
+                // In APAP mode IPAP (1200) equals EPAP (the minimum); the upper limit of the
+                // auto range is IPAP_MAX (1199), which matches EEPAP_MAX (1139) on the 20A.
                 session->settings[CPAP_PressureMin] = parameters[PRISMA_LINE_EPAP] / 100.0;
-                session->settings[CPAP_PressureMax] = parameters[PRISMA_LINE_IPAP] / 100.0;
+                session->settings[CPAP_PressureMax] = parameters[PRISMA_LINE_IPAP_MAX] / 100.0;
                 session->settings[Prisma_AutoStart] = parameters[PRISMA_LINE_AUTOSTART];
                 session->settings[Prisma_SoftPAP] = parameters[PRISMA_LINE_SOFT_PAP_LEVEL];
                 session->settings[Prisma_Softstart_Time] = parameters[PRISMA_LINE_SOFT_START_TIME];
@@ -360,6 +362,7 @@ void PrismaImport::run()
 
         case PRISMA_MODE_CPAP:
             session->settings[CPAP_Mode] = (int)MODE_CPAP;
+            session->settings[Prisma_Mode] = (int)PRISMA_COMBINED_MODE_CPAP;
 
             session->settings[CPAP_Pressure] = parameters[PRISMA_LINE_EPAP] / 100.0;
             session->settings[Prisma_AutoStart] = parameters[PRISMA_LINE_AUTOSTART];

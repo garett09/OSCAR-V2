@@ -4,6 +4,28 @@ Notable bugs found and fixed during development/investigation.
 
 ---
 
+## 2026-10-10 - Prisma 20A APAP max pressure shown equal to min pressure (#319)
+
+**Files:** `oscar/SleepLib/loader_plugins/prisma_loader.cpp`
+
+**Symptom:** For a Löwenstein prisma 20A in APAP mode, the Daily sidebar showed the
+maximum pressure equal to the minimum (e.g. 7.5–7.5 for a 7.5–9.0 setting). The pressure
+graph was correct. Present since the Prisma Line support was added (1.7.x too).
+
+**Root cause:** The Prisma Line APAP branch took `CPAP_PressureMax` from parameter 1200
+(`PRISMA_LINE_IPAP`). In APAP mode the 20A writes 1200 = 1201 = the minimum; the upper
+limit of the auto range is in 1199 (`IPAP_MAX`), which equalled 1139 (`EEPAP_MAX`) in
+every session of the sample card.
+
+**Fix:** Read the max from `PRISMA_LINE_IPAP_MAX`. Settings are stored per session, so
+existing data needs a re-import or rebuild to show the corrected value.
+
+**Also fixed:** In CPAP mode the Prisma Line branch set `CPAP_Mode` but not `Prisma_Mode`,
+the loader's mode channel, so the sidebar Mode row was blank on 20A CPAP days. It now
+sets `PRISMA_COMBINED_MODE_CPAP`, as the Prisma Smart branch already did.
+
+---
+
 ## 2026-10-10 - Preferences Events/Waveforms checkboxes invisible on macOS 27 (#318)
 
 **Files:** `oscar/treecheckdelegate.cpp/.h` (new), `oscar/combocheckdelegate.h`,
