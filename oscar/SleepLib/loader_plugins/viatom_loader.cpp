@@ -25,6 +25,9 @@
 #include "SleepLib/session.h"
 #include <memory>
 #include <QTimeZone>
+#include "mainwindow.h"
+
+extern MainWindow *mainwin;
 
 // TODO: Merge this with PRS1 macros and generalize for all loaders.
 #define SESSIONID m_session->session()
@@ -91,11 +94,15 @@ ViatomLoader::Open(const QStringList & paths)
         if (newMessages.count() > 0) {
             // TODO: Rework the importer call structure so that this can become an
             // emit statement to the appropriate import job.
-            QMessageBox::information(QApplication::activeWindow(),
-                                     QObject::tr("Untested Data"),
-                                     QObject::tr("Your Viatom device generated data that OSCAR has never seen before.") +"\n\n"+
-                                     QObject::tr("The imported data may not be entirely accurate, so the developers would like a copy of your Viatom files to make sure OSCAR is handling the data correctly.")
-                                     ,QMessageBox::Ok);
+            if (mainwin && mainwin->isBatchMode()) {
+                qWarning() << "ViatomLoader: Untested data from device:" << newMessages;
+            } else {
+                QMessageBox::information(QApplication::activeWindow(),
+                                         QObject::tr("Untested Data"),
+                                         QObject::tr("Your Viatom device generated data that OSCAR has never seen before.") +"\n\n"+
+                                         QObject::tr("The imported data may not be entirely accurate, so the developers would like a copy of your Viatom files to make sure OSCAR is handling the data correctly.")
+                                         ,QMessageBox::Ok);
+            }
             mach->previouslySeenUnexpectedData() += newMessages;
         }
     }
@@ -250,15 +257,18 @@ Session* ViatomLoader::ParseFilePOD2(const QString & filename, bool *existing)
     m_session->set_last(time_ms);
     if (batterydead)
     {
-
         QString message = QString(QObject::tr("The imported data for the session starting %1 may be incomplete or incorrect."));
         message=message.arg(QDateTime::fromMSecsSinceEpoch(m_session->first(),QTimeZone::systemTimeZone()).toString());
-        QMessageBox::warning(QApplication::activeWindow(),
+        if (mainwin && mainwin->isBatchMode()) {
+            qWarning().noquote() << "ViatomLoader: Dead battery detected during session starting"
+                                 << QDateTime::fromMSecsSinceEpoch(m_session->first(), QTimeZone::systemTimeZone()).toString();
+        } else {
+            QMessageBox::warning(QApplication::activeWindow(),
                                  QObject::tr("Dead battery"),
                                  QObject::tr("Your Viatom device registered a dead battery during operation.") +"\n\n"+
                                  message,
                                  QMessageBox::Ok);
-
+        }
     }
 
 

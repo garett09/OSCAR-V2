@@ -245,14 +245,18 @@ Machine* ProfileImportContext::CreateMachineFromInfo(const MachineInfo & info)
 
 // MARK: -
 
-ImportUI::ImportUI(Profile* profile)
-    : m_profile(profile)
+ImportUI::ImportUI(Profile* profile, bool batchMode)
+    : m_profile(profile), m_batchMode(batchMode)
 {
     Q_ASSERT(m_profile);
 }
 
 void ImportUI::onUnexpectedData(const MachineInfo & info, QSet<QString> & /*newMessages*/)
 {
+    if (m_batchMode) {
+        qWarning() << "Untested data from" << info.brand << info.model << info.modelnumber;
+        return;
+    }
     QMessageBox::information(QApplication::activeWindow(),
                              QObject::tr("Untested Data"),
                              QObject::tr("Your %1 %2 (%3) generated data that OSCAR has never seen before.").arg(info.brand).arg(info.model).arg(info.modelnumber) +"\n\n"+
@@ -262,6 +266,10 @@ void ImportUI::onUnexpectedData(const MachineInfo & info, QSet<QString> & /*newM
 
 void ImportUI::onDeviceReportsUsageOnly(const MachineInfo & info)
 {
+    if (m_batchMode) {
+        qWarning() << "Non-data-capable device detected:" << info.brand << info.modelnumber;
+        return;
+    }
     if (m_profile->cpap->brickWarning()) {
         QApplication::processEvents();
         QMessageBox::information(QApplication::activeWindow(),
@@ -276,6 +284,10 @@ void ImportUI::onDeviceReportsUsageOnly(const MachineInfo & info)
 void ImportUI::onDeviceIsUntested(const MachineInfo & info)
 {
     Machine* m = m_profile->CreateMachine(info);
+    if (m_batchMode) {
+        qWarning() << "Untested device detected:" << info.brand << info.modelnumber;
+        return;
+    }
     if (m_profile->session->warnOnUntestedMachine() && m->warnOnUntested()) {
         m->suppressWarnOnUntested();  // don't warn the user more than once
         QMessageBox::information(QApplication::activeWindow(),
@@ -288,6 +300,10 @@ void ImportUI::onDeviceIsUntested(const MachineInfo & info)
 
 void ImportUI::onDeviceIsUnsupported(const MachineInfo & info)
 {
+    if (m_batchMode) {
+        qWarning() << "Unsupported device detected:" << info.brand << info.modelnumber;
+        return;
+    }
     QMessageBox::information(QApplication::activeWindow(),
                              QObject::tr("Device Unsupported"),
                              QObject::tr("Sorry, your %1 CPAP Device (%2) is not supported yet.").arg(info.brand).arg(info.modelnumber) +"\n\n"+

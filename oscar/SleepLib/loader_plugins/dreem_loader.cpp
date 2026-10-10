@@ -22,6 +22,9 @@
 #include "SleepLib/session.h"
 #include "SleepLib/machine.h"
 #include "csv.h"
+#include "mainwindow.h"
+
+extern MainWindow *mainwin;
 
 static QSet<QString> s_unexpectedMessages;
 
@@ -81,11 +84,15 @@ bool DreemLoader::openCSV(const QString & filename)
         file.peek(magic, 2);
         if (magic[0] == 'P' && magic[1] == 'K') {
             file.close();
-            QMessageBox::warning(QApplication::activeWindow(),
-                QObject::tr("Wrong File Format"),
-                QObject::tr("The selected file does not appear to be a valid Dreem CSV file.\n\n"
-                            "Dreem data must be formatted as a semicolon-delimited CSV file. "
-                            "Please ensure your data is in CSV format and try again."));
+            if (mainwin && mainwin->isBatchMode()) {
+                qWarning() << "DreemLoader: Wrong file format: file appears to be a zip archive, not a semicolon-delimited CSV.";
+            } else {
+                QMessageBox::warning(QApplication::activeWindow(),
+                    QObject::tr("Wrong File Format"),
+                    QObject::tr("The selected file does not appear to be a valid Dreem CSV file.\n\n"
+                                "Dreem data must be formatted as a semicolon-delimited CSV file. "
+                                "Please ensure your data is in CSV format and try again."));
+            }
             return false;
         }
     } else {

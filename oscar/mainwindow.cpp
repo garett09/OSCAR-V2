@@ -72,6 +72,7 @@
 #include <SleepLib/loader_plugins/applehealth_loader.h>
 #include <SleepLib/loader_plugins/somnopose_loader.h>
 #include <SleepLib/loader_plugins/viatom_loader.h>
+#include <memory>
 
 #ifdef REMSTAR_M_SUPPORT
 #include <SleepLib/loader_plugins/mseries_loader.h>
@@ -272,8 +273,9 @@ void prepOpenGL (QWidget * widg) {
 #endif
 }
 
-void MainWindow::SetupGUI()
+void MainWindow::SetupGUI(bool batchMode)
 {
+    m_batchMode = batchMode;
     setupRunning = true;
 
     setWindowTitle(getMainWindowTitle() + dbFolderSuffix());
@@ -374,7 +376,9 @@ void MainWindow::SetupGUI()
     ui->mainsplitter->setStretchFactor(0,1);
     ui->mainsplitter->setStretchFactor(1,0);
 
-    QTimer::singleShot(50, this, SLOT(Startup()));
+    if (!m_batchMode) {
+        QTimer::singleShot(50, this, SLOT(Startup()));
+    }
 
     ui->action_Frequently_Asked_Questions->setVisible(false);
     ui->actionReport_a_Bug->setVisible(false);  // remove this once we actually implement it
@@ -600,6 +604,8 @@ void MainWindow::addMachineToMenu(Machine* mach, QMenu* menu)
 
 void MainWindow::firstRunMessage()
 {
+    if (m_batchMode) return;
+
     if (AppSetting->showAboutDialog() > 0) {
         AboutDialog * about = new AboutDialog(this);
 
@@ -668,6 +674,11 @@ bool MainWindow::OpenProfile(QString profileName)
 
     if (!lockhost.isEmpty()) {
         if (lockhost.compare(QHostInfo::localHostName()) != 0) {
+            if (m_batchMode) {
+                qCritical().noquote() << QString("OpenProfile: Lockfile already present for profile '%1', claimed on host '%2'. Aborting batch operation.")
+                    .arg(prof->user->userName(), lockhost);
+                return false;
+            }
             if (staticQMessageBox::warning(this, STR_MessageBox_Warning,
                     QObject::tr("There is a lockfile already present for this profile '%1', claimed on '%2'.").arg(prof->user->userName(), lockhost)+"\n\n"+
                     QObject::tr("You can only work with one instance of an individual OSCAR profile at a time.")+"\n\n"+
@@ -764,6 +775,11 @@ bool MainWindow::OpenProfile(QString profileName)
     PERF_TIMER_START("MW::OP::LoadMachineData");
     p_profile->LoadMachineData(progress);
     PERF_TIMER_STOP("MW::OP::LoadMachineData");
+
+    if (p_profile->hasDataFormatError()) {
+        abortOpenProfile("OpenProfile: Loader version mismatch requires interactive database upgrade.");
+        return false;
+    }
 
     if (!p_profile->LastDay(MT_CPAP).isValid() ) { // quick test if new profile or not.
         // Override default value of clinicalMode if new profile.
@@ -966,7 +982,7 @@ void MainWindow::Startup()
     }
 }
 
-int MainWindow::importCPAP(ImportPath import, const QString &message)
+int MainWindow::importCPAP(ImportPath import, const QString &message, bool silent)
 {
     qDebug() << "MainWindow::importCPAP entered";
     if (!import.loader) {
@@ -974,27 +990,30 @@ int MainWindow::importCPAP(ImportPath import, const QString &message)
         return 0;
     }
 
-    ui->tabWidget->setCurrentWidget(welcome);
-    QApplication::processEvents();
-    ProgressDialog * progdlg = new ProgressDialog(this);
+    ProgressDialog * progdlg = nullptr;
+    if (!silent) {
+        ui->tabWidget->setCurrentWidget(welcome);
+        QApplication::processEvents();
+        progdlg = new ProgressDialog(this);
 
-    QPixmap image = import.loader->getPixmap(import.loader->PeekInfo(import.path).series);
-    image = image.scaled(64,64);
-    progdlg->setPixmap(image);
+        QPixmap image = import.loader->getPixmap(import.loader->PeekInfo(import.path).series);
+        image = image.scaled(64,64);
+        progdlg->setPixmap(image);
 
-    progdlg->addAbortButton();
+        progdlg->addAbortButton();
 
-    progdlg->setWindowModality(Qt::ApplicationModal);
-    progdlg->setWindowTitle(tr("Importing CPAP data"));
-    progdlg->open();
-    progdlg->setMessage(message);
+        progdlg->setWindowModality(Qt::ApplicationModal);
+        progdlg->setWindowTitle(tr("Importing CPAP data"));
+        progdlg->open();
+        progdlg->setMessage(message);
 
-    connect(import.loader, SIGNAL(updateMessage(QString)), progdlg, SLOT(setMessage(QString)));
-    connect(import.loader, SIGNAL(setProgressMax(int)), progdlg, SLOT(setProgressMax(int)));
-    connect(import.loader, SIGNAL(setProgressValue(int)), progdlg, SLOT(setProgressValue(int)));
-    connect(progdlg, SIGNAL(abortClicked()), import.loader, SLOT(abortImport()));
+        connect(import.loader, SIGNAL(updateMessage(QString)), progdlg, SLOT(setMessage(QString)));
+        connect(import.loader, SIGNAL(setProgressMax(int)), progdlg, SLOT(setProgressMax(int)));
+        connect(import.loader, SIGNAL(setProgressValue(int)), progdlg, SLOT(setProgressValue(int)));
+        connect(progdlg, SIGNAL(abortClicked()), import.loader, SLOT(abortImport()));
+    }
 
-    ImportUI importui(p_profile);
+    ImportUI importui(p_profile, m_batchMode || silent);
     ImportContext* ctx = new ProfileImportContext(p_profile);
     import.loader->SetContext(ctx);
     connect(ctx, &ImportContext::importEncounteredUnexpectedData, &importui, &ImportUI::onUnexpectedData);
@@ -1008,22 +1027,28 @@ int MainWindow::importCPAP(ImportPath import, const QString &message)
     if (!dbMgr.transaction()) {
         QString errText = dbMgr.lastError().text();
         qWarning() << "MainWindow::importCPAP() - Failed to start database transaction:" << errText;
-        progdlg->close();
-        delete progdlg;
+        if (progdlg) {
+            progdlg->close();
+            delete progdlg;
+        }
         import.loader->SetContext(nullptr);
         delete ctx;
-        QMessageBox::critical(this, tr("Database Locked"),
-            tr("Cannot import data: the OSCAR database is locked by another application.\n\n"
-               "If you have the database open in a SQLite viewer or editor, "
-               "please close it and try again.\n\nError: %1").arg(errText));
+        if (!silent) {
+            QMessageBox::critical(this, tr("Database Locked"),
+                tr("Cannot import data: the OSCAR database is locked by another application.\n\n"
+                   "If you have the database open in a SQLite viewer or editor, "
+                   "please close it and try again.\n\nError: %1").arg(errText));
+        }
         return -1;
     }
 
     import.loader->resetDailySummariesCalculated();
     int c = import.loader->Open(import.path);
 
-    progdlg->setMessage(QObject::tr("Finishing up..."));
-    QCoreApplication::processEvents();
+    if (progdlg) {
+        progdlg->setMessage(QObject::tr("Finishing up..."));
+        QCoreApplication::processEvents();
+    }
     ctx->Commit();
 
     // Loaders that add sessions with mach->AddSession() directly (BMC, G3X, Resvent)
@@ -1076,33 +1101,48 @@ int MainWindow::importCPAP(ImportPath import, const QString &message)
     import.loader->SetContext(nullptr);
     delete ctx;
 
-    if (!commitError.isEmpty()) {
-        // Don't show a false success/up-to-date notification — fall through to error below
-    } else if (c > 0) {
-        Notify(tr("Imported %1 CPAP session(s) from\n\n%2").arg(c).arg(import.path), tr("Import Success"));
-    } else if (c == 0) {
-        Notify(tr("Already up to date with CPAP data at\n\n%1").arg(import.path), tr("Up to date"));
+    if (!silent) {
+        if (!commitError.isEmpty()) {
+            // Don't show a false success/up-to-date notification — fall through to error below
+        } else if (c > 0) {
+            Notify(tr("Imported %1 CPAP session(s) from\n\n%2").arg(c).arg(import.path), tr("Import Success"));
+        } else if (c == 0) {
+            Notify(tr("Already up to date with CPAP data at\n\n%1").arg(import.path), tr("Up to date"));
+        } else {
+            Notify(tr("Couldn't find any valid Device Data at\n\n%1").arg(import.path),tr("Import Problem"));
+        }
     } else {
-        Notify(tr("Couldn't find any valid Device Data at\n\n%1").arg(import.path),tr("Import Problem"));
+        if (c > 0) {
+            qInfo().noquote() << QString("Imported %1 CPAP session(s) from %2").arg(c).arg(import.path);
+        } else if (c == 0) {
+            qInfo().noquote() << QString("Already up to date with CPAP data at %1").arg(import.path);
+        } else {
+            qWarning().noquote() << QString("Couldn't find any valid Device Data at %1").arg(import.path);
+        }
     }
-    disconnect(progdlg, SIGNAL(abortClicked()), import.loader, SLOT(abortImport()));
-    disconnect(import.loader, SIGNAL(setProgressMax(int)), progdlg, SLOT(setProgressMax(int)));
-    disconnect(import.loader, SIGNAL(setProgressValue(int)), progdlg, SLOT(setProgressValue(int)));
-    disconnect(import.loader, SIGNAL(updateMessage(QString)), progdlg, SLOT(setMessage(QString)));
 
-    progdlg->close();
-    delete progdlg;
+    if (progdlg) {
+        disconnect(progdlg, SIGNAL(abortClicked()), import.loader, SLOT(abortImport()));
+        disconnect(import.loader, SIGNAL(setProgressMax(int)), progdlg, SLOT(setProgressMax(int)));
+        disconnect(import.loader, SIGNAL(setProgressValue(int)), progdlg, SLOT(setProgressValue(int)));
+        disconnect(import.loader, SIGNAL(updateMessage(QString)), progdlg, SLOT(setMessage(QString)));
+
+        progdlg->close();
+        delete progdlg;
+    }
 
     if (!commitError.isEmpty()) {
-        QMessageBox::critical(this, tr("Import Failed"),
-            tr("The imported data could not be saved to the database. No data was stored.\n\n"
-               "If you have the OSCAR database open in another application "
-               "(e.g., a SQLite viewer or editor), please close it and try again.\n\nError: %1")
-            .arg(commitError));
+        if (!silent) {
+            QMessageBox::critical(this, tr("Import Failed"),
+                tr("The imported data could not be saved to the database. No data was stored.\n\n"
+                   "If you have the OSCAR database open in another application "
+                   "(e.g., a SQLite viewer or editor), please close it and try again.\n\nError: %1")
+                .arg(commitError));
+        }
         return -1;
     }
 
-    if (AppSetting->openTabAfterImport()>0) {
+    if (!silent && AppSetting->openTabAfterImport()>0) {
         ui->tabWidget->setCurrentIndex(AppSetting->openTabAfterImport());
     }
 
@@ -1509,6 +1549,13 @@ QList<ImportPath> MainWindow::selectCPAPDataCards(const QString & prompt, bool a
                         prevDesc = (lastLoader.isEmpty() ? lastLoader : lastLoader + " ") + "(" + lastSerial + ")";
                     }
                     QString newDesc = machDesc(info);
+
+                    if (m_batchMode) {
+                        qWarning().noquote() << QString("Different CPAP machine detected on SD card (%1 vs last imported %2). Aborting import.")
+                            .arg(newDesc, prevDesc);
+                        datacards.clear();
+                        return datacards;
+                    }
 
                     QMessageBox warn(QMessageBox::Warning,
                         tr("Different CPAP Machine Detected"),
@@ -3406,103 +3453,132 @@ bool MainWindow::importNonCPAP(MachineLoader &loader, const QString &folderPrefK
     w.setOption(QFileDialog::DontUseNativeDialog, true);
     w.setNameFilters(loader.getNameFilter());
 
-    // Display progress if we have more than 1 file to load...
-    ProgressDialog progress(this);
-
     if (w.exec() == QFileDialog::Accepted) {
         saveProfilePath(folderPrefKey, w.directory().absolutePath());
         QStringList files = w.selectedFiles();
-        int size = files.size();
-        if (size > 1) {
-            progress.setMessage(QObject::tr("Importing Sessions..."));
-            progress.setProgressMax(size);
-            progress.setProgressValue(0);
-            progress.addAbortButton();
-            progress.setWindowModality(Qt::ApplicationModal);
-            connect(&loader, SIGNAL(setProgressValue(int)), &progress, SLOT(setProgressValue(int)));
-            connect(&progress, SIGNAL(abortClicked()), &loader, SLOT(abortImport()));
-            progress.open();
-            QCoreApplication::processEvents();
+        return importNonCPAPFiles(loader, files, false, false);
+    }
+    return false;
+}
+
+bool MainWindow::importNonCPAPFiles(MachineLoader &loader, const QStringList &files, bool silent, bool requireComplete)
+{
+    if (p_profile == nullptr) {
+        if (!silent) {
+            QMessageBox::warning(this, tr("Import"), tr("Please open or create a profile before importing data."));
+        } else {
+            qWarning() << "MainWindow::importNonCPAPFiles: No active profile";
         }
-        QString name = loader.loaderName();
+        return false;
+    }
 
-        ImportUI importui(p_profile);
-        ImportContext* ctx = new ProfileImportContext(p_profile);
-        loader.SetContext(ctx);
-        connect(ctx, &ImportContext::importEncounteredUnexpectedData, &importui, &ImportUI::onUnexpectedData);
-        connect(&loader, &MachineLoader::deviceReportsUsageOnly, &importui, &ImportUI::onDeviceReportsUsageOnly);
-        connect(&loader, &MachineLoader::deviceIsUntested, &importui, &ImportUI::onDeviceIsUntested);
-        connect(&loader, &MachineLoader::deviceIsUnsupported, &importui, &ImportUI::onDeviceIsUnsupported);
+    int size = files.size();
+    if (size == 0) {
+        return false;
+    }
 
-        DatabaseManager& dbMgr = DatabaseManager::instance();
-        if (!dbMgr.transaction()) {
-            QString errText = dbMgr.lastError().text();
-            qWarning() << "MainWindow::importNonCPAP() - Failed to start database transaction:" << errText;
-            if (size > 1) {
-                disconnect(&loader, SIGNAL(setProgressValue(int)), &progress, SLOT(setProgressValue(int)));
-                disconnect(&progress, SIGNAL(abortClicked()), &loader, SLOT(abortImport()));
-                progress.allowClose();
-                progress.close();
-            }
-            loader.SetContext(nullptr);
-            delete ctx;
+    // Display progress if we have more than 1 file to load...
+    ProgressDialog *progress = nullptr;
+    if (!silent && size > 1) {
+        progress = new ProgressDialog(this);
+        progress->setMessage(QObject::tr("Importing Sessions..."));
+        progress->setProgressMax(size);
+        progress->setProgressValue(0);
+        progress->addAbortButton();
+        progress->setWindowModality(Qt::ApplicationModal);
+        connect(&loader, SIGNAL(setProgressValue(int)), progress, SLOT(setProgressValue(int)));
+        connect(progress, SIGNAL(abortClicked()), &loader, SLOT(abortImport()));
+        progress->open();
+        QCoreApplication::processEvents();
+    }
+    QString name = loader.loaderName();
+
+    ImportUI importui(p_profile, m_batchMode || silent);
+    ImportContext* ctx = new ProfileImportContext(p_profile);
+    loader.SetContext(ctx);
+    connect(ctx, &ImportContext::importEncounteredUnexpectedData, &importui, &ImportUI::onUnexpectedData);
+    connect(&loader, &MachineLoader::deviceReportsUsageOnly, &importui, &ImportUI::onDeviceReportsUsageOnly);
+    connect(&loader, &MachineLoader::deviceIsUntested, &importui, &ImportUI::onDeviceIsUntested);
+    connect(&loader, &MachineLoader::deviceIsUnsupported, &importui, &ImportUI::onDeviceIsUnsupported);
+
+    DatabaseManager& dbMgr = DatabaseManager::instance();
+    if (!dbMgr.transaction()) {
+        QString errText = dbMgr.lastError().text();
+        qWarning() << "MainWindow::importNonCPAPFiles() - Failed to start database transaction:" << errText;
+        if (progress) {
+            disconnect(&loader, SIGNAL(setProgressValue(int)), progress, SLOT(setProgressValue(int)));
+            disconnect(progress, SIGNAL(abortClicked()), &loader, SLOT(abortImport()));
+            progress->allowClose();
+            progress->close();
+            delete progress;
+        }
+        loader.SetContext(nullptr);
+        delete ctx;
+        if (!silent) {
             QMessageBox::critical(this, tr("Database Locked"),
                 tr("Cannot import data: the OSCAR database is locked by another application.\n\n"
                    "If you have the database open in a SQLite viewer or editor, "
                    "please close it and try again.\n\nError: %1").arg(errText));
-            return false;
         }
+        return false;
+    }
 
-        int res = loader.Open(files);
+    int res = loader.Open(files);
 
-        progress.setMessage(QObject::tr("Finishing up..."));
+    if (progress) {
+        progress->setMessage(QObject::tr("Finishing up..."));
         QCoreApplication::processEvents();
-        ctx->Commit();
+    }
+    ctx->Commit();
 
-        if (res > 0) {
-            QDateTime now = QDateTime::currentDateTime();
-            MachineRepository repo;
-            for (Machine* m : p_profile->GetMachines()) {
-                if (m->loaderName() == loader.loaderName() && m->getDatabaseId() > 0) {
-                    m->info.lastimported = now;
-                    MachineData data = repo.findById(m->getDatabaseId());
-                    if (data.id > 0) {
-                        data.lastImported = now.toString(Qt::ISODate);
-                        repo.update(data);
-                    }
+    if (res > 0) {
+        QDateTime now = QDateTime::currentDateTime();
+        MachineRepository repo;
+        for (Machine* m : p_profile->GetMachines()) {
+            if (m->loaderName() == loader.loaderName() && m->getDatabaseId() > 0) {
+                m->info.lastimported = now;
+                MachineData data = repo.findById(m->getDatabaseId());
+                if (data.id > 0) {
+                    data.lastImported = now.toString(Qt::ISODate);
+                    repo.update(data);
                 }
             }
         }
+    }
 
-        QString commitError;
-        if (!dbMgr.commit()) {
-            commitError = dbMgr.lastError().text();
-            qWarning() << "MainWindow::importNonCPAP() - Failed to commit database transaction:" << commitError;
-            dbMgr.rollback();
-            res = -1;
-        }
+    QString commitError;
+    if (!dbMgr.commit()) {
+        commitError = dbMgr.lastError().text();
+        qWarning() << "MainWindow::importNonCPAPFiles() - Failed to commit database transaction:" << commitError;
+        dbMgr.rollback();
+        res = -1;
+    }
 
-        loader.SetContext(nullptr);
-        delete ctx;
+    loader.SetContext(nullptr);
+    delete ctx;
 
-        if (size > 1) {
-            disconnect(&loader, SIGNAL(setProgressValue(int)), &progress, SLOT(setProgressValue(int)));
-            disconnect(&progress, SIGNAL(abortClicked()), &loader, SLOT(abortImport()));
-            progress.allowClose();
-            progress.close();
-            QCoreApplication::processEvents();
-        }
+    if (progress) {
+        disconnect(&loader, SIGNAL(setProgressValue(int)), progress, SLOT(setProgressValue(int)));
+        disconnect(progress, SIGNAL(abortClicked()), &loader, SLOT(abortImport()));
+        progress->allowClose();
+        progress->close();
+        delete progress;
+        QCoreApplication::processEvents();
+    }
 
-        if (!commitError.isEmpty()) {
+    if (!commitError.isEmpty()) {
+        if (!silent) {
             QMessageBox::critical(this, tr("Import Failed"),
                 tr("The imported data could not be saved to the database. No data was stored.\n\n"
                    "If you have the OSCAR database open in another application "
                    "(e.g., a SQLite viewer or editor), please close it and try again.\n\nError: %1")
                 .arg(commitError));
-            return false;
         }
+        return false;
+    }
 
-        const bool aborted = loader.isAborted();
+    const bool aborted = loader.isAborted();
+    if (!silent) {
         if (aborted) {
             if (res > 0) {
                 Notify(tr("Import aborted: %1 file(s) already imported were kept").arg(res),
@@ -3510,15 +3586,11 @@ bool MainWindow::importNonCPAP(MachineLoader &loader, const QString &folderPrefK
             }
         } else if (res < 0) {
             // Negative res means a bad file format or a missing file.
-            //QString fileName = QFileInfo(files[0]).fileName();
             QString msg = QString(tr("There was a problem parsing %1 \nData File: %2")
-                .arg(name, QFileInfo( files[0]).fileName() ) );
-            //QString msg = QString(tr("There was a problem parsing %1 \nData File: %2") .arg(name, fileName) );
+                .arg(name, QFileInfo(files[0]).fileName()));
             Notify(msg,"",20*1000 /* convert sec to ms */);
-            return false;
         } else if (res == 0) {
             Notify(tr("There was a problem opening %1 Data File: %2").arg(name, files[0]));
-            return false;
         } else if (res < size){
             Notify(tr("%1 Data Import of %2 file(s) complete").arg(name).arg(res) + "\n\n" +
                    tr("There was a problem opening %1 Data File: %2").arg(name, files[res]),
@@ -3526,19 +3598,177 @@ bool MainWindow::importNonCPAP(MachineLoader &loader, const QString &folderPrefK
         } else {
             Notify(tr("%1 Data Import complete").arg(name));
         }
-        if (res > 0) {
-            // Refresh daily_summaries for the newly imported days so that
-            // oximetry stats (spo2_avg, pulse_avg/min/max, has_oximetry) appear.
-            p_profile->calculateDailySummaries();
+    } else {
+        if (aborted) {
+            qWarning().noquote() << QString("%1 import aborted: %2 file(s) processed").arg(name).arg(res);
+        } else if (res < 0 || res == 0) {
+            qWarning().noquote() << QString("Failed to import %1 data from: %2").arg(name, files[0]);
+        } else if (res < size) {
+            qWarning().noquote() << QString("%1 import partial: %2 of %3 files imported. Failed on: %4")
+                .arg(name).arg(res).arg(size).arg(files[res]);
+        } else {
+            qInfo().noquote() << QString("%1 import of %2 file(s) complete").arg(name).arg(res);
         }
+    }
+
+    // A non-aborted import that produced nothing (parse error or empty file) is a
+    // failure: no GUI refresh and return false, as importNonCPAP() always did.
+    const bool failed = !aborted && res <= 0;
+
+    if (res > 0) {
+        // Refresh daily_summaries for the newly imported days so that
+        // oximetry stats (spo2_avg, pulse_avg/min/max, has_oximetry) appear.
+        p_profile->calculateDailySummaries();
+    }
+    if (!silent && !failed) {
         PopulatePurgeMenu();
         if (overview) overview->ReloadGraphs();
         if (welcome) welcome->refreshPage();
         GenerateStatistics();
         daily->LoadDate(daily->getDate());
-        return !aborted || res > 0;
     }
+    if (requireComplete) {
+        return (!aborted && res == size);
+    }
+    // Partial or aborted imports that kept at least one file still count as success.
+    return !failed && (!aborted || res > 0);
+}
+
+bool MainWindow::importCPAPFromPath(const QString &path, bool silent)
+{
+    if (p_profile == nullptr) {
+        qWarning() << "MainWindow::importCPAPFromPath: No active profile";
+        return false;
+    }
+    QDir dir(path);
+    if (!dir.exists()) {
+        qWarning().noquote() << QString("MainWindow::importCPAPFromPath: Path does not exist: %1").arg(path);
+        return false;
+    }
+
+    QList<MachineLoader *> loaders = GetLoaders(MT_CPAP);
+    for (MachineLoader * loader : loaders) {
+        if (loader->Detect(path)) {
+            qDebug() << "MainWindow::importCPAPFromPath: detected" << loader->loaderName() << "at" << path;
+            if (p_profile && p_profile->cpap->warnOnDifferentSDCard()) {
+                MachineInfo info = loader->PeekInfo(dir.absolutePath());
+                const QString lastSerial = p_profile->cpap->lastSDCardSerial();
+                if (!info.serial.isEmpty() && !lastSerial.isEmpty() && lastSerial != info.serial) {
+                    qWarning().noquote() << QString("MainWindow::importCPAPFromPath: Different CPAP machine detected on target path (%1 %2, serial %3 vs last imported serial %4).")
+                        .arg(info.brand, info.model, info.serial, lastSerial);
+                }
+            }
+            int c = importCPAP(ImportPath(dir.absolutePath(), loader), tr("Importing CPAP data"), silent);
+            if (!silent) {
+                finishCPAPImport();
+            }
+            if (c >= 0) {
+                if (!m_batchMode) {
+                    (*p_profile)[STR_PREF_LastCPAPPath] = dir.absolutePath();
+                }
+                return true;
+            }
+            return false;
+        }
+    }
+    qWarning().noquote() << QString("MainWindow::importCPAPFromPath: No CPAP loader recognized data structure at: %1").arg(path);
     return false;
+}
+
+bool MainWindow::importFromPath(const QString &loaderName, const QString &path, bool silent)
+{
+    if (loaderName.compare("CPAP", Qt::CaseInsensitive) == 0) {
+        return importCPAPFromPath(path, silent);
+    }
+
+    std::unique_ptr<MachineLoader> localLoader;
+    MachineLoader *loader = lookupLoader(loaderName);
+    if (!loader) {
+        if (loaderName.compare("Zeo", Qt::CaseInsensitive) == 0) {
+            localLoader = std::make_unique<ZEOLoader>();
+        } else if (loaderName.compare("Somnopose", Qt::CaseInsensitive) == 0) {
+            localLoader = std::make_unique<SomnoposeLoader>();
+        } else if (loaderName.compare("Dreem", Qt::CaseInsensitive) == 0) {
+            localLoader = std::make_unique<DreemLoader>();
+        }
+        if (localLoader) {
+            loader = localLoader.get();
+        }
+    }
+
+    if (!loader) {
+        QStringList available;
+        available << "CPAP";
+        for (MachineLoader *l : GetLoaders()) {
+            available << l->loaderName();
+        }
+        available << "Zeo" << "Somnopose" << "Dreem";
+        available.removeDuplicates();
+        qWarning().noquote() << QString("MainWindow::importFromPath: Loader '%1' not recognized. Available loaders: %2")
+            .arg(loaderName, available.join(", "));
+        return false;
+    }
+
+    QFileInfo fi(path);
+    if (!fi.exists()) {
+        qWarning().noquote() << QString("MainWindow::importFromPath: Path does not exist: %1").arg(path);
+        return false;
+    }
+
+    if (loader->type() == MT_CPAP) {
+        qDebug() << "MainWindow::importFromPath: importing CPAP data using" << loader->loaderName() << "from" << path;
+        if (p_profile && p_profile->cpap->warnOnDifferentSDCard()) {
+            MachineInfo info = loader->PeekInfo(fi.absoluteFilePath());
+            const QString lastSerial = p_profile->cpap->lastSDCardSerial();
+            if (!info.serial.isEmpty() && !lastSerial.isEmpty() && lastSerial != info.serial) {
+                qWarning().noquote() << QString("MainWindow::importFromPath: Different CPAP machine detected on target path (%1 %2, serial %3 vs last imported serial %4).")
+                    .arg(info.brand, info.model, info.serial, lastSerial);
+            }
+        }
+        int c = importCPAP(ImportPath(fi.absoluteFilePath(), loader), tr("Importing %1 data").arg(loader->loaderName()), silent);
+        if (!silent) {
+            finishCPAPImport();
+        }
+        if (p_profile && c >= 0) {
+            if (!m_batchMode) {
+                (*p_profile)[STR_PREF_LastCPAPPath] = fi.absoluteFilePath();
+            }
+        }
+        return (c >= 0);
+    }
+
+    QStringList files;
+    if (fi.isFile()) {
+        files << fi.absoluteFilePath();
+    } else if (fi.isDir()) {
+        QDir dir(fi.absoluteFilePath());
+        QStringList nameFilters;
+        const QStringList rawFilters = loader->getNameFilter();
+        for (const QString &filter : rawFilters) {
+            int start = filter.indexOf('(');
+            int end = filter.lastIndexOf(')');
+            if (start != -1 && end > start) {
+                QString glob = filter.mid(start + 1, end - start - 1).trimmed();
+                nameFilters.append(glob.split(' ', Qt::SkipEmptyParts));
+            } else if (!filter.trimmed().isEmpty()) {
+                nameFilters.append(filter.trimmed());
+            }
+        }
+        if (nameFilters.isEmpty()) {
+            nameFilters << "*";
+        }
+        const QFileInfoList entries = dir.entryInfoList(nameFilters, QDir::Files | QDir::Readable, QDir::Name);
+        for (const QFileInfo &entry : entries) {
+            files << entry.absoluteFilePath();
+        }
+        if (files.isEmpty()) {
+            qWarning().noquote() << QString("MainWindow::importFromPath: No matching files found in '%1' for loader '%2'")
+                .arg(path, loader->loaderName());
+            return false;
+        }
+    }
+
+    return importNonCPAPFiles(*loader, files, silent, true);
 }
 
 void MainWindow::on_actionImport_Somnopose_Data_triggered()

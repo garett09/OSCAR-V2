@@ -106,7 +106,7 @@ class ImportUI : public QObject
 {
     Q_OBJECT
 public:
-    ImportUI(Profile* profile);
+    ImportUI(Profile* profile, bool batchMode = false);
     virtual ~ImportUI() {}
 
 public slots:
@@ -117,6 +117,7 @@ public slots:
 
 protected:
     Profile* m_profile;
+    bool m_batchMode;
 };
 
 

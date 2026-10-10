@@ -61,7 +61,7 @@ QFileDialog::Options nativeDialogOption()
     return QFileDialog::DontUseNativeDialog;
 }
 
-void initTranslations()
+void initTranslations(bool batchMode)
 {
     // Add any languages with need for a special character set to this list
     langNames["af"] = "Afrikaans";
@@ -158,64 +158,68 @@ void initTranslations()
     if (extratrans.size()>0) qDebug() << "Extra Translations:" << QString(extratrans.join(", ")).toLocal8Bit().data();
 
     if (language.isEmpty() || !langNames.contains(language)) {
-        QDialog langsel(nullptr, Qt::CustomizeWindowHint | Qt::WindowTitleHint);
-        QFont font;
-        font.setPointSize(12);
-        langsel.setFont(font);
-        // Intentionally not tr()-wrapped: this dialog appears before any language is loaded,
-        // so we show the word "Language" in several languages simultaneously.
-        langsel.setWindowTitle("Language / Taal / Sprache / Langue / \xe8\xaf\xad\xe8\xa8\x80 / ... ");
-        QHBoxLayout lang_layout(&langsel);
+        if (batchMode) {
+            language = DefaultLanguage;
+        } else {
+            QDialog langsel(nullptr, Qt::CustomizeWindowHint | Qt::WindowTitleHint);
+            QFont font;
+            font.setPointSize(12);
+            langsel.setFont(font);
+            // Intentionally not tr()-wrapped: this dialog appears before any language is loaded,
+            // so we show the word "Language" in several languages simultaneously.
+            langsel.setWindowTitle("Language / Taal / Sprache / Langue / \xe8\xaf\xad\xe8\xa8\x80 / ... ");
+            QHBoxLayout lang_layout(&langsel);
 
-        QLabel img;
-        img.setPixmap(QPixmap(":/icons/logo-lg.png"));
+            QLabel img;
+            img.setPixmap(QPixmap(":/icons/logo-lg.png"));
 
-        QPushButton lang_okbtn("->", &langsel); // hard coded non translatable
+            QPushButton lang_okbtn("->", &langsel); // hard coded non translatable
 
-        QVBoxLayout layout1;
-        QVBoxLayout layout2;
+            QVBoxLayout layout1;
+            QVBoxLayout layout2;
 
-        layout2.setContentsMargins(6, 6, 6, 6);
-        lang_layout.setContentsMargins(6, 6, 6, 6);
-        layout2.setSpacing(6);
-        QListWidget langlist;
+            layout2.setContentsMargins(6, 6, 6, 6);
+            lang_layout.setContentsMargins(6, 6, 6, 6);
+            layout2.setSpacing(6);
+            QListWidget langlist;
 
-        lang_layout.addLayout(&layout1);
-        lang_layout.addLayout(&layout2);
+            lang_layout.addLayout(&layout1);
+            lang_layout.addLayout(&layout2);
 
-        layout1.addWidget(&img);
-        layout2.addWidget(&langlist, 1);
+            layout1.addWidget(&img);
+            layout2.addWidget(&langlist, 1);
 
-        langlist.setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOn);
-        int row = 0;
-        for (QHash<QString, QString>::iterator it = langNames.begin(); it != langNames.end(); ++it) {
-            const QString & code = it.key();
-            const QString & name = it.value();
-            if (!langFiles.contains(code) || langFiles[code].isEmpty())
-                continue;
+            langlist.setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOn);
+            int row = 0;
+            for (QHash<QString, QString>::iterator it = langNames.begin(); it != langNames.end(); ++it) {
+                const QString & code = it.key();
+                const QString & name = it.value();
+                if (!langFiles.contains(code) || langFiles[code].isEmpty())
+                    continue;
 
-            QListWidgetItem *item = new QListWidgetItem(name);
-            item->setData(Qt::UserRole, code);
-            langlist.insertItem(row++, item);
-            // Todo: Use base system language code if available.
-            if (code.compare(DefaultLanguage) == 0) {
-                langlist.setCurrentItem(item);
+                QListWidgetItem *item = new QListWidgetItem(name);
+                item->setData(Qt::UserRole, code);
+                langlist.insertItem(row++, item);
+                // Todo: Use base system language code if available.
+                if (code.compare(DefaultLanguage) == 0) {
+                    langlist.setCurrentItem(item);
+                }
             }
+            langlist.sortItems();
+            layout2.addWidget(&lang_okbtn);
+
+            langsel.connect(&langlist, SIGNAL(itemDoubleClicked(QListWidgetItem*)), &langsel, SLOT(close()));
+            langsel.connect(&lang_okbtn, SIGNAL(clicked()), &langsel, SLOT(close()));
+
+            langsel.raise();
+
+            langsel.exec();
+
+            langsel.disconnect(&lang_okbtn, SIGNAL(clicked()), &langsel, SLOT(close()));
+            langsel.disconnect(&langlist, SIGNAL(itemDoubleClicked(QListWidgetItem*)), &langsel, SLOT(close()));
+            language = langlist.currentItem()->data(Qt::UserRole).toString();
+            settings.setValue(LangSetting, language);
         }
-        langlist.sortItems();
-        layout2.addWidget(&lang_okbtn);
-
-        langsel.connect(&langlist, SIGNAL(itemDoubleClicked(QListWidgetItem*)), &langsel, SLOT(close()));
-        langsel.connect(&lang_okbtn, SIGNAL(clicked()), &langsel, SLOT(close()));
-
-        langsel.raise();
-
-        langsel.exec();
-
-        langsel.disconnect(&lang_okbtn, SIGNAL(clicked()), &langsel, SLOT(close()));
-        langsel.disconnect(&langlist, SIGNAL(itemDoubleClicked(QListWidgetItem*)), &langsel, SLOT(close()));
-        language = langlist.currentItem()->data(Qt::UserRole).toString();
-        settings.setValue(LangSetting, language);
     }
 
     QString langname=langNames[language];
