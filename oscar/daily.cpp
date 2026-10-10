@@ -1197,7 +1197,6 @@ void Daily::on_ReloadDay()
         qDebug() << "Daily::on_ReloadDay(): attempt to renter on_ReloadDay()";
     }
     inReload = true;
-    graphView()->releaseKeyboard();
     QElapsedTimer time;
     time_t unload_time, load_time, other_time;
     time.start();

@@ -1,8 +1,9 @@
 # Graph view keyboard grab blocks Alt+Tab on Linux (GitLab #305)
 
-**Status:** Deferred until after the 2.1.0 release (decided 2026-10-02). There is no
-Linux X11 testing available before release, and the change touches focus behaviour on
-every platform.
+**Status:** Implemented 2026-10-09, after the 2.1.0 release, as planned below. Two
+refinements: read-only text widgets (e.g. a `QTextBrowser`) do not block hover focus, and
+`mousePressEvent` clears the saved widget so focus given by a click stays on the graph.
+Awaiting Linux X11 confirmation.
 
 ## Symptom
 

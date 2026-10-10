@@ -30,6 +30,7 @@
 #include <QElapsedTimer>
 #include <QGestureEvent>
 #include <QPinchGesture>
+#include <QPointer>
 
 #ifndef BROKEN_OPENGL_BUILD
 #if QT_VERSION < QT_VERSION_CHECK(5,4,0)
@@ -634,7 +635,15 @@ class gGraphView
     bool pinchTriggered(QPinchGesture * gesture);
 
 
+    //! \brief Mouse entered the graph area, including when the graphs appear under a still cursor
+    void enterEvent(QEnterEvent * event) override;
+
+    //! \brief Mouse left the graph area; hands keyboard focus back to the widget that had it before hovering
     void leaveEvent (QEvent * event) override;
+
+    //! \brief Takes keyboard focus while the mouse hovers over the graphs, so graph keys work without a click.
+    //! Leaves text-entry widgets alone so typing is never interrupted by mouse movement.
+    void takeHoverFocus();
 
     //! \brief The heart of the drawing code
 #ifdef BROKEN_OPENGL_BUILD
@@ -712,6 +721,9 @@ class gGraphView
     QPoint m_point_clicked;
     QPoint m_point_released;
     bool m_metaselect;
+
+    //! \brief Widget that had keyboard focus before hovering gave it to the graph view (see takeHoverFocus())
+    QPointer<QWidget> m_focusBeforeHover;
 
     QPoint m_sizer_point;
     int m_horiz_travel;

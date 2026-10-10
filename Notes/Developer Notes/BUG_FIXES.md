@@ -4,6 +4,29 @@ Notable bugs found and fixed during development/investigation.
 
 ---
 
+## 2026-10-09 - Alt+Tab blocked on Linux X11 while the mouse is over the graphs (#305)
+
+**Files:** `oscar/Graphs/gGraphView.cpp/.h`, `oscar/daily.cpp`
+
+**Symptom:** On Linux X11 (reported on Debian 13 / Cinnamon), Alt+Tab did nothing while
+the mouse was over OSCAR's graphs. With OSCAR maximized there was no way out without
+clicking. Windows was not affected.
+
+**Root cause:** `gGraphView::mouseMoveEvent()` called `grabKeyboard()` on every mouse move
+and released it only in `leaveEvent()` and `Daily::on_ReloadDay()`. On xcb that is an X
+server keyboard grab, so the window manager never saw Alt+Tab. On Windows the grab only
+redirects keys within the application.
+
+**Fix:** The grab is replaced by ordinary focus. New `gGraphView::takeHoverFocus()` takes
+focus on hover in the active window, remembering the previous focus widget, but leaves
+editable text fields, spin boxes and editable combos alone so typing is never interrupted.
+`leaveEvent()` hands focus back to the remembered widget; a click on the graph clears it,
+so clicked focus stays put as before. The `releaseKeyboard()` in `on_ReloadDay()` is gone.
+A new `enterEvent()` also calls `takeHoverFocus()`. This fixes a related 2.1.0 bug: after
+clicking the Daily tab with the cursor landing on a graph, Left/Right went to the main tab
+bar and switched tabs, because no mouse move had happened yet. Qt sends a synthetic Enter
+event when a widget appears under a still cursor.
+
 ## 2026-10-09 - Logger startup unlocked a mutex from a non-owning thread (MR !48)
 
 **Files:** `oscar/logger.cpp/.h`; also `volatile` cleanup in `oscar/daily.cpp`,
