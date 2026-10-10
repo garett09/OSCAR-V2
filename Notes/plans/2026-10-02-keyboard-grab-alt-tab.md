@@ -3,7 +3,7 @@
 **Status:** Implemented 2026-10-09, after the 2.1.0 release, as planned below. Two
 refinements: read-only text widgets (e.g. a `QTextBrowser`) do not block hover focus, and
 `mousePressEvent` clears the saved widget so focus given by a click stays on the graph.
-Awaiting Linux X11 confirmation.
+Confirmed on Linux X11 2026-10-10.
 
 ## Symptom
 
