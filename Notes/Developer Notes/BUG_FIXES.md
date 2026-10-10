@@ -4,6 +4,30 @@ Notable bugs found and fixed during development/investigation.
 
 ---
 
+## 2026-10-10 - Preferences Events/Waveforms checkboxes invisible on macOS 27 (#318)
+
+**Files:** `oscar/treecheckdelegate.cpp/.h` (new), `oscar/combocheckdelegate.h`,
+`oscar/preferencesdialog.cpp`, `oscar/oscar.pro`
+
+**Symptom:** On macOS 27 (dark mode), Preferences → Events and Waveforms showed no
+checkboxes in the Name or Overview columns. Clicking the empty cell still toggled the
+setting. Enabling the Fusion theme (with restart) did not bring them back.
+
+**Root cause:** Qt's native macOS style draws item-view check indicators outside the cell
+on macOS 27 (Liquid Glass), so only a first-row/column indicator can appear
+(QTBUG-150017, fixed in Qt 6.12.1 / 6.8.10 / 6.13.0, not 6.12.0). These two trees are
+OSCAR's only checkable item views. Why Fusion was also blank on the reporter's Mac is
+unexplained.
+
+**Fix:** New `TreeCheckDelegate` on columns 0 and 2 of `chanView`/`waveView` paints the
+check box itself with fixed colours (shared `drawOscarCheckBox()` helper, also now used
+by `ComboCheckDelegate`) and does its own hit-testing, so the drawn box and click area
+match. The style still draws background, selection and focus. The box is centred when
+the cell has no text (Overview column). Changes the look on all platforms to match the
+graph context-menu checkboxes.
+
+---
+
 ## 2026-10-09 - Alt+Tab blocked on Linux X11 while the mouse is over the graphs (#305)
 
 **Files:** `oscar/Graphs/gGraphView.cpp/.h`, `oscar/daily.cpp`

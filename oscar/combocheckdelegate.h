@@ -11,6 +11,30 @@
 #include <QPixmap>
 #include <QStyledItemDelegate>
 
+/*! \brief Draws OSCAR's style-independent checkbox indicator into \a rect.
+ *
+ * Rounded box with a grey outline and white fill when unchecked, or a blue fill
+ * with a white tick when checked. Fixed colours keep it visible regardless of the
+ * platform style or palette (the native macOS 27 style draws no item-view
+ * indicators at all). Shared by ComboCheckDelegate and TreeCheckDelegate. */
+inline void drawOscarCheckBox(QPainter *painter, const QRect &rect, bool checked)
+{
+    painter->save();
+    painter->setRenderHint(QPainter::Antialiasing, true);
+    painter->setPen(QPen(checked ? QColor("#005a9e") : QColor("#888888"), 1));
+    painter->setBrush(checked ? QColor("#0078d4") : Qt::white);
+    painter->drawRoundedRect(rect, 3, 3);
+
+    if (checked) {
+        static const QPixmap tick(":/icons/white_tick.png");
+        if (!tick.isNull()) {
+            painter->setRenderHint(QPainter::SmoothPixmapTransform, true);
+            painter->drawPixmap(rect.adjusted(2, 2, -2, -2), tick);
+        }
+    }
+    painter->restore();
+}
+
 class ComboCheckDelegate : public QStyledItemDelegate
 {
 public:
@@ -42,23 +66,10 @@ public:
         int yc = opt.rect.center().y();
         QRect ir(opt.rect.left() + pad, yc - sz / 2, sz, sz);
 
-        bool checked = (checkState.toInt() == Qt::Checked);
-        painter->setRenderHint(QPainter::Antialiasing, true);
-        painter->setPen(QPen(checked ? QColor("#005a9e") : QColor("#888888"), 1));
-        painter->setBrush(checked ? QColor("#0078d4") : Qt::white);
-        painter->drawRoundedRect(ir, 3, 3);
-
-        if (checked) {
-            static const QPixmap tick(":/icons/white_tick.png");
-            if (!tick.isNull()) {
-                painter->setRenderHint(QPainter::SmoothPixmapTransform, true);
-                painter->drawPixmap(ir.adjusted(2, 2, -2, -2), tick);
-            }
-        }
+        drawOscarCheckBox(painter, ir, checkState.toInt() == Qt::Checked);
 
         // Text
         QRect textRect = opt.rect.adjusted(pad + sz + pad, 0, -pad, 0);
-        painter->setRenderHint(QPainter::Antialiasing, false);
         painter->setFont(opt.font);
         painter->setPen((opt.state & QStyle::State_Selected)
                         ? opt.palette.highlightedText().color()

@@ -348,6 +348,7 @@ SOURCES += \
     staticQMessageBox.cpp \
     statistics.cpp \
     translation.cpp \
+    treecheckdelegate.cpp \
     version.cpp \
     welcome.cpp \
     zip.cpp \
@@ -525,6 +526,7 @@ HEADERS  += \
     reports.h \
     sessionbar.h \
     speedcheck.h \
+    treecheckdelegate.h \
 #    updateparser.h \
     version.h \
     VERSION \
