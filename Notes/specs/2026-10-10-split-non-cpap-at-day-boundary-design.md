@@ -1,8 +1,40 @@
 # Split oximetry and other non-CPAP sessions at the day boundary: design
 
 **Date:** 2026-10-10
-**Status:** approved design, scope decisions recorded 2026-10-10; not implemented
+**Status:** implemented 2026-10-10; see "As built" below
 **Tracking:** GitLab #216 (open); #314 closed as a duplicate of #216
+
+## As built: deviations from the plan
+
+- **One hook, not six call sites.** The cut happens in `Machine::AddSession()`, which is now
+  a wrapper: `splitAtDayBoundaries()` cuts the session, then `addSessionImpl()` (the old
+  body) adds each piece. Every non-CPAP import path already ends in `AddSession()`, so no
+  loader changed. The cut runs only for a session fresh from a loader: not on profile load
+  (`allowOldSessions`), not for one already stored (`sessionRowId() != 0`, which excludes
+  profile migration), not for summary-only sessions or sessions with no EventLists.
+- **The cutting code** is in `SleepLib/session_split.{h,cpp}` (`SessionSplit::splitAt()`,
+  `boundariesWithin()`). It does not use the profile, so it is unit tested in
+  `tests/sessionsplittests.cpp`.
+- **§4, derived events.** `calcSPO2Drop()` and `calcPulseChange()` run on the whole recording
+  before it is cut (both are no-ops if already calculated), and their flags are divided by
+  time like any other list. A desaturation that straddles the cut is therefore found once.
+  The SpO2 baseline in `settings[OXI_SPO2Drop]` is copied to every piece.
+- **Other session settings** (Zeo/Dreem per-night totals such as time in REM, ZQ) stay with
+  the first piece only, which keeps the original session ID. Copying them would count them
+  twice in Overview and Statistics.
+- **Value held across the cut.** For channels that hold a value (everything except flags
+  and spans), the last value before the cut is repeated at the cut on both sides, so a
+  change-only list (oximeter import wizard, sleep stages) neither ends early nor starts
+  blank.
+- **Pitfall 5, combine close sessions.** Pieces after the first are added with combining
+  turned off, so they stay on the day they start.
+- **Pitfalls 2 and 3 were left as they are.** Apple Health's check for already-imported
+  nights follows the same one-machine-per-type-per-day rule as `Day::addSession()`. A
+  piece from another oximeter on day N+1 would make `Day` refuse Apple Health's session
+  for that night anyway, so skipping it is consistent. This only arises when two different
+  oximeters are used on consecutive nights and the first recording runs past the split time.
+- **A cut with no samples on one side is skipped.** For example, a session whose end time
+  passes noon but whose last sample is before it stays whole.
 
 ## Problem
 

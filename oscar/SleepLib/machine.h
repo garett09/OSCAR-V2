@@ -156,7 +156,13 @@ class Machine
     //! \brief Returns a pointer to a valid Session object if SessionID exists
     Session *SessionExists(SessionID session);
 
-    //! \brief Adds the session to this device object, and the Master Profile list. (used during load)
+    /*! \brief Adds the session to this device object, and the Master Profile list. (used during load)
+
+        A newly imported oximetry, sleep-stage or position session that crosses the day
+        split time is first cut there when the profile asks for it (see
+        splitAtDayBoundaries()); every piece is added, and the return value is that of
+        \a s, which keeps the earliest part and its session ID.
+        */
     bool AddSession(Session *s, bool allowOldSessions=false);
 
     //! \brief Find the date this session belongs in, according to profile settings
@@ -337,6 +343,24 @@ class Machine
     int skipped_sessions;
 
     QList<ImportTask *> m_tasklist;
+
+  private:
+    /*! \brief The body of AddSession() for one session.
+        \param splitPiece  true for a piece made by splitAtDayBoundaries(): it is placed
+                           on the day it starts in, never combined into the previous one,
+                           which would undo the cut.
+        */
+    bool addSessionImpl(Session *s, bool allowOldSessions, bool splitPiece);
+
+    /*! \brief Cuts a newly imported non-CPAP session at each day split time it crosses,
+        when the profile's "split non-CPAP sessions" option is on (GitLab #216).
+
+        Applies only to oximetry, sleep-stage and position sessions that still hold their
+        events and are not yet stored, so sessions loaded from the database or migrated
+        from another profile are never cut. \a s is truncated in place to the first piece.
+        \return the later pieces, in time order; empty if nothing was cut.
+        */
+    QList<Session *> splitAtDayBoundaries(Session *s);
 };
 
 

@@ -414,6 +414,7 @@ const QString STR_IS_IgnoreOlderSessionsDate = "IgnoreOlderSessionsDate";
 const QString STR_IS_LockSummarySessions = "LockSummarySessions";
 const QString STR_IS_WarnOnUntestedMachine = "WarnOnUntestedMachine";
 const QString STR_IS_WarnOnUnexpectedData = "WarnOnUnexpectedData";
+const QString STR_IS_SplitNonCPAPSessions = "SplitNonCPAPSessions";
 
 //Apperance Settings
 const QString STR_AS_EventFlagSessionBar = "EventFlagSessionBar";
@@ -796,6 +797,7 @@ class SessionSettings : public PrefSettings
         m_lockSummarySessions = initPref(STR_IS_LockSummarySessions, true).toBool();
         m_warnOnUntestedMachine = initPref(STR_IS_WarnOnUntestedMachine, true).toBool();
         m_warnOnUnexpectedData = initPref(STR_IS_WarnOnUnexpectedData, true).toBool();
+        m_splitNonCPAPSessions = initPref(STR_IS_SplitNonCPAPSessions, false).toBool();
     }
 
     inline QTime daySplitTime() const { return m_daySplitTime; }
@@ -810,6 +812,9 @@ class SessionSettings : public PrefSettings
     inline bool lockSummarySessions() const { return m_lockSummarySessions; }
     inline bool warnOnUntestedMachine() const { return m_warnOnUntestedMachine; }
     inline bool warnOnUnexpectedData() const { return m_warnOnUnexpectedData; }
+    //! \brief True if imported oximetry, sleep-stage and position sessions are cut at the
+    //! day split time, to line up with CPAP devices that split there (GitLab #216).
+    inline bool splitNonCPAPSessions() const { return m_splitNonCPAPSessions; }
 
     void setDaySplitTime(QTime time) { setPref(STR_IS_DaySplitTime, m_daySplitTime=time); }
     void setPreloadSummaries(bool b) { setPref(STR_IS_PreloadSummaries, m_preloadSummaries=b); }
@@ -823,6 +828,7 @@ class SessionSettings : public PrefSettings
     void setLockSummarySessions(bool b) { setPref(STR_IS_LockSummarySessions, m_lockSummarySessions=b); }
     void setWarnOnUntestedMachine(bool b) { setPref(STR_IS_WarnOnUntestedMachine, m_warnOnUntestedMachine=b); }
     void setWarnOnUnexpectedData(bool b) { setPref(STR_IS_WarnOnUnexpectedData, m_warnOnUnexpectedData=b); }
+    void setSplitNonCPAPSessions(bool b) { setPref(STR_IS_SplitNonCPAPSessions, m_splitNonCPAPSessions=b); }
 
     //! \brief Refresh cached member variables from the underlying preference map (call after loading from DB).
     void refreshCachedValues() {
@@ -838,12 +844,13 @@ class SessionSettings : public PrefSettings
         m_lockSummarySessions = getPref(STR_IS_LockSummarySessions).toBool();
         m_warnOnUntestedMachine = getPref(STR_IS_WarnOnUntestedMachine).toBool();
         m_warnOnUnexpectedData = getPref(STR_IS_WarnOnUnexpectedData).toBool();
+        m_splitNonCPAPSessions = getPref(STR_IS_SplitNonCPAPSessions).toBool();
     }
 
     QTime m_daySplitTime;
     QDateTime m_ignoreOlderSessionsDate;
     bool m_preloadSummaries, m_backupCardData, m_compressBackupData, m_compressSessionData, m_ignoreOlderSessions, m_lockSummarySessions;
-    bool m_warnOnUntestedMachine, m_warnOnUnexpectedData;
+    bool m_warnOnUntestedMachine, m_warnOnUnexpectedData, m_splitNonCPAPSessions;
     double m_combineCloseSessions, m_ignoreShortSessions;
 };
 

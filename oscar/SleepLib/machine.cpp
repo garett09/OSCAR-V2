@@ -34,6 +34,8 @@
 #include "profiles.h"
 #include "schema.h"
 #include "session.h"
+#include "session_split.h"
+#include "calcs.h"
 #include "mainwindow.h"
 #include "../database/machine_repository.h"
 #include "../database/profile_repository.h"
@@ -170,6 +172,82 @@ QDate Machine::pickDate(qint64 first)
 // given date.
 bool Machine::AddSession(Session *s, bool allowOldSessions)
 {
+    // Cut before adding: s keeps the part before the first day split time.
+    const QList<Session *> pieces = allowOldSessions ? QList<Session *>() : splitAtDayBoundaries(s);
+
+    const bool added = addSessionImpl(s, allowOldSessions, false);
+    for (Session *piece : pieces) {
+        addSessionImpl(piece, false, true);
+    }
+    return added;
+}
+
+QList<Session *> Machine::splitAtDayBoundaries(Session *s)
+{
+    QList<Session *> pieces;
+    if (s == nullptr || profile == nullptr || !profile->session->splitNonCPAPSessions()) {
+        return pieces;
+    }
+    const MachineType mt = s->type();
+    if (mt != MT_OXIMETER && mt != MT_SLEEPSTAGE && mt != MT_POSITION) {
+        return pieces;
+    }
+    // Only a session fresh from a loader can be cut: one already stored (a profile
+    // migration stores before adding) or summary-only has no events to divide.
+    if (s->sessionRowId() != 0 || s->summaryOnly() || s->eventlist.isEmpty()
+            || s->realFirst() == 0 || sessionlist.contains(s->session())) {
+        return pieces;
+    }
+
+    // Boundaries are wall-clock times, so work in corrected time as the day pick below
+    // does, then convert each back to the session's raw time.
+    const qint64 corrFirst = correctionMs(QDateTime::fromMSecsSinceEpoch(s->realFirst()).date());
+    const QList<qint64> bounds = SessionSplit::boundariesWithin(s->realFirst() + corrFirst,
+                                                                s->realLast() + corrFirst,
+                                                                profile->session->daySplitTime());
+    if (bounds.isEmpty()) {
+        return pieces;
+    }
+
+    // Find desaturations and pulse changes over the whole recording before cutting, so an
+    // event that straddles a cut is found once (both are no-ops if already calculated).
+    calcSPO2Drop(s);
+    calcPulseChange(s);
+
+    Session *piece = s;
+    for (qint64 bound : bounds) {
+        // Use the correction addSessionImpl() will apply to this piece, so that it lands
+        // exactly on the boundary and is placed on the new day.
+        const qint64 corr = correctionMs(QDateTime::fromMSecsSinceEpoch(bound - corrFirst).date());
+        const qint64 rawBound = bound - corr;
+
+        SessionID sid = SessionID(rawBound / 1000L);
+        bool taken = true;
+        while (taken) {
+            taken = sessionlist.contains(sid);
+            for (Session *p : pieces) {
+                if (p->session() == sid) taken = true;
+            }
+            if (taken) ++sid;
+        }
+
+        Session *next = SessionSplit::splitAt(piece, rawBound, sid);
+        if (next == nullptr) {
+            continue;   // no samples on one side of this boundary
+        }
+        pieces.append(next);
+        piece = next;
+    }
+
+    if (!pieces.isEmpty()) {
+        qDebug() << "Machine::AddSession: split session" << s->session() << "of" << serial()
+                 << "into" << pieces.size() + 1 << "pieces at the day split time";
+    }
+    return pieces;
+}
+
+bool Machine::addSessionImpl(Session *s, bool allowOldSessions, bool splitPiece)
+{
     if (s == nullptr) {
         qCritical() << "AddSession() called with a null object";
         return false;
@@ -227,6 +305,9 @@ bool Machine::AddSession(Session *s, bool allowOldSessions)
     } else {
         split_time = profile->session->daySplitTime();
         combine_sessions = profile->session->combineCloseSessions();
+    }
+    if (splitPiece) {
+        combine_sessions = 0;   // combining would pull the piece back onto the day it was cut from
     }
 
     int ignore_sessions = profile->session->ignoreShortSessions();

@@ -428,6 +428,7 @@ SOURCES += \
     SleepLib/schema.cpp \
     SleepLib/serialoximeter.cpp \
     SleepLib/session.cpp \
+    SleepLib/session_split.cpp \
     SleepLib/thirdparty/miniz.c \
     SleepLib/xmlreplay.cpp \
     database/database_manager.cpp \
@@ -564,6 +565,7 @@ HEADERS  += \
     SleepLib/profiles.h \
     SleepLib/schema.h \
     SleepLib/session.h \
+    SleepLib/session_split.h \
     SleepLib/loader_plugins/applehealthDataParsing.h \
     SleepLib/loader_plugins/applehealth_loader.h \
     SleepLib/loader_plugins/apexDataParsing.h \
@@ -839,7 +841,8 @@ test {
         tests/eventstabtests.cpp \
         tests/zeotests.cpp \
         tests/applehealthtests.cpp \
-        tests/machinetests.cpp
+        tests/machinetests.cpp \
+        tests/sessionsplittests.cpp
 
     HEADERS += \
         tests/AutoTest.h \
@@ -856,7 +859,8 @@ test {
         tests/eventstabtests.h \
         tests/zeotests.h \
         tests/applehealthtests.h \
-        tests/machinetests.h
+        tests/machinetests.h \
+        tests/sessionsplittests.h
 }
 
 macx {

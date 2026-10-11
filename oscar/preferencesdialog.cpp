@@ -173,6 +173,7 @@ PreferencesDialog::PreferencesDialog(QWidget *parent, Profile *_profile) :
     ui->autoLoadLastUsed->setChecked(AppSetting->autoOpenLastUsed());
 
     ui->timeEdit->setTime(profile->session->daySplitTime());
+    ui->splitNonCPAPSessions->setChecked(profile->session->splitNonCPAPSessions());
     int val = profile->session->combineCloseSessions();
     ui->combineSlider->setValue(val);
 
@@ -910,6 +911,8 @@ bool PreferencesDialog::Save()
     profile->session->setLockSummarySessions(ui->LockSummarySessionSplitting->isChecked());
     profile->session->setWarnOnUntestedMachine(ui->warnOnUntestedMachine->isChecked());
     profile->session->setWarnOnUnexpectedData(ui->warnOnUnexpectedData->isChecked());
+    // Affects later imports only, so nothing needs reloading.
+    profile->session->setSplitNonCPAPSessions(ui->splitNonCPAPSessions->isChecked());
 
     AppSetting->setOpenTabAtStart(ui->openingTabCombo->currentIndex());
     AppSetting->setOpenTabAfterImport(ui->importTabCombo->currentIndex());
