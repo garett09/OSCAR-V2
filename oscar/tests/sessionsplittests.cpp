@@ -20,7 +20,7 @@ namespace {
 qint64 at(int hour, int minute, int second = 0, int dayOffset = 0)
 {
     return QDateTime(QDate(2026, 3, 10).addDays(dayOffset), QTime(hour, minute, second),
-                     QTimeZone(QTimeZone::LocalTime)).toMSecsSinceEpoch();
+                     QTimeZone::systemTimeZone()).toMSecsSinceEpoch();
 }
 
 const QTime kNoon(12, 0, 0);

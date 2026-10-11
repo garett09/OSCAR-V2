@@ -133,8 +133,8 @@ void ApexTests::testDecodeApfRecord()
     ApfRecord rec;
     QVERIFY(decodeApfRecord(reinterpret_cast<const quint8 *>(bytes.constData()), rec));
 
-    QCOMPARE(rec.start, QDateTime(QDate(2024, 1, 15), QTime(22, 3, 0), QTimeZone::LocalTime));
-    QCOMPARE(rec.end, QDateTime(QDate(2024, 1, 16), QTime(6, 15, 0), QTimeZone::LocalTime));
+    QCOMPARE(rec.start, QDateTime(QDate(2024, 1, 15), QTime(22, 3, 0), QTimeZone::systemTimeZone()));
+    QCOMPARE(rec.end, QDateTime(QDate(2024, 1, 16), QTime(6, 15, 0), QTimeZone::systemTimeZone()));
     QCOMPARE(rec.initialPressure, 8.0f);
     QCOMPARE(rec.maxPressure, 10.0f);
     QCOMPARE(rec.minPressure, 4.0f);
@@ -188,7 +188,7 @@ void ApexTests::testApfTableCapacity()
     QString error;
     QVERIFY(parseApf(data, out, error));
     QCOMPARE(out.size(), recordCount);
-    QCOMPARE(out.first().start, QDateTime(QDate(2024, 1, 1), QTime(0, 0, 0), QTimeZone::LocalTime));
+    QCOMPARE(out.first().start, QDateTime(QDate(2024, 1, 1), QTime(0, 0, 0), QTimeZone::systemTimeZone()));
 }
 
 void ApexTests::testRingAdvanceWraps()
@@ -372,8 +372,8 @@ void ApexTests::testParseApe_matchesByExactTimestamp()
     QVERIFY(parseApe(ape, out));
     QCOMPARE(out.size(), 2);
 
-    const QDateTime ts0(QDate(2024, 3, 10), QTime(7, 30, 0), QTimeZone::LocalTime);
-    const QDateTime ts1(QDate(2024, 3, 11), QTime(8, 0, 0), QTimeZone::LocalTime);
+    const QDateTime ts0(QDate(2024, 3, 10), QTime(7, 30, 0), QTimeZone::systemTimeZone());
+    const QDateTime ts1(QDate(2024, 3, 11), QTime(8, 0, 0), QTimeZone::systemTimeZone());
     QVERIFY(out.contains(ts0));
     QVERIFY(out.contains(ts1));
     QCOMPARE(out.value(ts0).size(), 2);
@@ -400,8 +400,8 @@ void ApexTests::testParseApe_staleEntrySkippedSilently()
     QVERIFY(parseApe(ape, out));
     QCOMPARE(out.size(), 1);
 
-    const QDateTime staleTs(QDate(2024, 4, 1), QTime(9, 0, 0), QTimeZone::LocalTime);
-    const QDateTime liveTs(QDate(2024, 4, 2), QTime(9, 0, 0), QTimeZone::LocalTime);
+    const QDateTime staleTs(QDate(2024, 4, 1), QTime(9, 0, 0), QTimeZone::systemTimeZone());
+    const QDateTime liveTs(QDate(2024, 4, 2), QTime(9, 0, 0), QTimeZone::systemTimeZone());
     QVERIFY(!out.contains(staleTs));
     QVERIFY(out.contains(liveTs));
 }
