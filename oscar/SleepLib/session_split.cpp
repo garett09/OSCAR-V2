@@ -117,7 +117,7 @@ QList<qint64> SessionSplit::boundariesWithin(qint64 first, qint64 last, const QT
     QList<qint64> result;
     if (last <= first || !splitTime.isValid()) return result;
 
-    const QTimeZone local(QTimeZone::LocalTime);
+    const QTimeZone local = QTimeZone::systemTimeZone();
     QDate date = QDateTime::fromMSecsSinceEpoch(first, local).date();
 
     // A recording longer than a few days is unusual; the cap only guards against a
