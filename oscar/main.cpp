@@ -33,6 +33,7 @@
 #include <QRegularExpression>
 #include <QStyleHints>
 #include <QStyleFactory>
+#include <QElapsedTimer>
 #include <QLockFile>
 #include <QProcess>
 #include <QPushButton>
@@ -42,6 +43,7 @@
 #include "version.h"
 #include "logger.h"
 #include "mainwindow.h"
+#include "importhandover.h"
 #include "datafolderdialog.h"
 #include "SleepLib/profiles.h"
 #include "translation.h"
@@ -759,10 +761,78 @@ void optionExit(int exitCode, QString error) {
                              Not yet safe unattended (may show a dialog on bad or
                              unexpected data): BMC, BMCG3X, CMS50, CMS50F37, FPIcon,
                              MD300W1, ResMed, SleepStyle, Yuwell.
+                             If OSCAR is already running on the same data folder, the
+                             import is handed to that instance: it imports, refreshes
+                             its views and reports back. Exit code 0 = imported,
+                             1 = failed, 75 = the running OSCAR is busy (an import or
+                             a dialog is open, no profile is open, or it does not
+                             respond) - try again later.
+                             If another batch import has the folder, OSCAR waits up to
+                             60 seconds for it to finish.
     --upgrade-database       Automatically back up and upgrade database schema (batch mode only).
     --help                   Displays this menu and exits.
     )" );
     exit (exitCode);
+}
+
+/*! \brief The data folder is in use and imports were requested: have them done anyway.
+
+    Either the instance that holds the folder is a running OSCAR window, which takes the
+    request and reports the result (\a exitCode is then set, >= 0), or it is another batch
+    import, which ends by itself - then wait for the lock.
+    \return true if \a lockFile was obtained and this process should import itself. */
+static bool handOverImportsOrWaitForLock(QLockFile &lockFile, const QString &profile,
+                                         const QList<QPair<QString, QString>> &importTasks, int &exitCode)
+{
+    if (!profile.isEmpty() && profile.trimmed().isEmpty()) {
+        // "--profile" without a name: a batch import refuses that, so does a handed-over one.
+        qCritical().noquote() << QString("Specified profile '%1' does not exist in OSCAR database.").arg(profile);
+        exitCode = ImportHandover::ExitFailed;
+        return false;
+    }
+    ImportHandover::Request request;
+    request.profile = profile.trimmed();
+    for (const auto &task : importTasks) {
+        // The running instance has its own working directory.
+        request.tasks.append(qMakePair(task.first, QFileInfo(task.second).absoluteFilePath()));
+    }
+
+    const int waitMs = 60 * 1000;
+    bool saidWaiting = false;
+    QElapsedTimer waited;
+    waited.start();
+    do {
+        ImportHandover::Reply reply;
+        switch (ImportHandover::send(GetAppData(), request, reply)) {
+        case ImportHandover::SendResult::Replied:
+            if (reply.exitCode == ImportHandover::ExitOk) {
+                qInfo().noquote() << reply.message;
+            } else {
+                qCritical().noquote() << reply.message;
+            }
+            exitCode = reply.exitCode;
+            return false;
+        case ImportHandover::SendResult::ConnectionLost:
+            qCritical() << "The running OSCAR closed the connection before the import was reported as done.";
+            exitCode = ImportHandover::ExitFailed;
+            return false;
+        case ImportHandover::SendResult::NotResponding:
+            qCritical() << "The running OSCAR does not respond. Nothing was imported; try again later.";
+            exitCode = ImportHandover::ExitBusy;
+            return false;
+        case ImportHandover::SendResult::NoInstanceListening:
+            // A batch import, or a window that is still starting up.
+            break;
+        }
+        if (!saidWaiting) {
+            qInfo().noquote() << QString("The OSCAR data folder is in use by another OSCAR process; waiting up to %1 seconds for it.").arg(waitMs / 1000);
+            saidWaiting = true;
+        }
+        if (lockFile.tryLock(1000)) {
+            return true;
+        }
+    } while (waited.elapsed() < waitMs);
+    return false;
 }
 
 #ifdef Q_OS_WIN
@@ -1219,7 +1289,16 @@ int main(int argc, char *argv[]) {
     // time — concurrent access would cause SQLite write conflicts and profile corruption.
     QLockFile lockFile(GetAppData() + "/oscar.lock");
     lockFile.setStaleLockTime(0);  // never treat a lock as stale
-    if (!lockFile.tryLock()) {
+    bool haveLock = lockFile.tryLock();
+    if (!haveLock && !importTasks.isEmpty()) {
+        // "OSCAR --import" while OSCAR is open: the running instance does the import.
+        int handedOverExitCode = -1;
+        haveLock = handOverImportsOrWaitForLock(lockFile, load_profile, importTasks, handedOverExitCode);
+        if (handedOverExitCode >= 0) {
+            return handedOverExitCode;
+        }
+    }
+    if (!haveLock) {
         qint64 pid = 0;
         QString hostname, appname;
         lockFile.getLockInfo(&pid, &hostname, &appname);
@@ -1635,7 +1714,17 @@ int main(int argc, char *argv[]) {
     sc.check();
     mainwin->show();
 
+    // From here on "OSCAR --import <loader> <path>" started by this user for this data
+    // folder is carried out by this instance (see importhandover.h).
+    ImportHandover::Server importRequests;
+    if (!importRequests.listen(GetAppData(), [](const ImportHandover::Request &request) {
+            return mainwin->importOnRequest(request);
+        })) {
+        qWarning().noquote() << "Main: Not accepting import requests from other OSCAR processes:" << importRequests.errorString();
+    }
+
     int result = mainapp.exec();
+    importRequests.close();
 
     // Release the lock immediately so a restarted instance (e.g. after a language change)
     // can acquire it without racing against our potentially-slow widget/DB cleanup below.

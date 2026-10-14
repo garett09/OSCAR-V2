@@ -79,7 +79,10 @@
 #endif
 
 #include "logger.h"
+#include <QScopedValueRollback>
+
 #include "mainwindow.h"
+#include "importhandover.h"
 #include "ui_mainwindow.h"
 #include "devicetimecorrectiondialog.h"
 #include "timealignmentwelcomedialog.h"
@@ -982,8 +985,22 @@ void MainWindow::Startup()
     }
 }
 
+namespace {
+// Counts the imports in progress for as long as it lives. Loaders process events while they
+// work, so a request to import (importOnRequest) can arrive in the middle of one.
+class ImportRunning
+{
+  public:
+    explicit ImportRunning(int &counter) : m_counter(counter) { ++m_counter; }
+    ~ImportRunning() { --m_counter; }
+  private:
+    int &m_counter;
+};
+}
+
 int MainWindow::importCPAP(ImportPath import, const QString &message, bool silent)
 {
+    ImportRunning importRunning(m_importsRunning);
     qDebug() << "MainWindow::importCPAP entered";
     if (!import.loader) {
         qDebug() << "MainWindow::importCPAP no import loader found";
@@ -1404,6 +1421,7 @@ void MainWindow::on_action_Import_Data_triggered()
         return;
     }
     in_import=true;
+    ImportRunning importRunning(m_importsRunning);  // from the search for a data card on
 
     ui->tabWidget->setCurrentWidget(welcome);
     QApplication::processEvents();
@@ -3490,6 +3508,7 @@ bool MainWindow::importNonCPAP(MachineLoader &loader, const QString &folderPrefK
 
 bool MainWindow::importNonCPAPFiles(MachineLoader &loader, const QStringList &files, bool silent, bool requireComplete)
 {
+    ImportRunning importRunning(m_importsRunning);
     if (p_profile == nullptr) {
         if (!silent) {
             QMessageBox::warning(this, tr("Import"), tr("Please open or create a profile before importing data."));
@@ -3796,6 +3815,141 @@ bool MainWindow::importFromPath(const QString &loaderName, const QString &path, 
     }
 
     return importNonCPAPFiles(*loader, files, silent, true);
+}
+
+namespace {
+// The dialog shown while an import requested by another process runs. Escape must not
+// dismiss it (QDialog::reject() would): it is what keeps the window from being used
+// while the import is under way.
+class RequestedImportProgress : public ProgressDialog
+{
+  public:
+    using ProgressDialog::ProgressDialog;
+    void reject() override {}
+};
+}
+
+ImportHandover::Reply MainWindow::importOnRequest(const ImportHandover::Request &request)
+{
+    ImportHandover::Reply reply;
+
+    // The server calls this only when the main event loop is idle, so no other part of
+    // OSCAR is in the middle of something. What is left to check is what the user has open:
+    // a dialog shown without its own event loop, a menu of the menu bar - then the user
+    // owns the window, and the requester can try again. (First, because while a profile is
+    // being opened or imported the profile checks below would answer for the wrong one.)
+    if (m_importsRunning > 0 || QApplication::activeModalWidget() || QApplication::activePopupWidget()) {
+        reply.exitCode = ImportHandover::ExitBusy;
+        reply.message = QStringLiteral("The running OSCAR is busy (an import is running or a dialog is open).");
+        return reply;
+    }
+    if (p_profile == nullptr) {
+        reply.exitCode = ImportHandover::ExitBusy;
+        reply.message = QStringLiteral("No profile is open in the running OSCAR.");
+        return reply;
+    }
+    const QString openProfile = p_profile->user->userName();
+    if (!request.profile.isEmpty() && request.profile != openProfile) {
+        reply.exitCode = ImportHandover::ExitFailed;
+        reply.message = QStringLiteral("The running OSCAR has profile '%1' open, not '%2'.").arg(openProfile, request.profile);
+        return reply;
+    }
+    // Without --profile a batch import takes the only profile, or the one that is opened
+    // automatically, and refuses to guess otherwise. The profile that happens to be open
+    // here must not widen that.
+    if (request.profile.isEmpty() && Profiles::profiles.size() != 1
+        && !(AppSetting->autoOpenLastUsed() && AppSetting->profileName() == openProfile)) {
+        reply.exitCode = ImportHandover::ExitFailed;
+        reply.message = QStringLiteral("Several profiles exist and the running OSCAR has '%1' open. "
+                                       "Say which one the import is for with --profile <name>.").arg(openProfile);
+        return reply;
+    }
+
+    qInfo().noquote() << QString("Import requested by another OSCAR process: %1 import(s) into profile '%2'")
+        .arg(request.tasks.size()).arg(openProfile);
+
+    // Save what the user typed in the journal of the day on screen before its data changes.
+    const QDate viewDate = daily ? daily->getDate() : QDate();
+    if (daily) {
+        daily->Unload(viewDate);
+    }
+
+    // While the dialog is up the application cannot be used, so nothing else can start
+    // half-way through the import.
+    RequestedImportProgress progress(this);
+    progress.setWindowModality(Qt::ApplicationModal);
+    progress.setWindowTitle(tr("Importing data"));
+    progress.setMessage(tr("Importing data, as requested on the command line..."));
+    progress.progress->setRange(0, 0);  // busy indicator: the loaders' progress is not reported here
+    progress.show();                    // not open(), which would make it modal for this window only
+    QApplication::processEvents();
+
+    QStringList done;
+    QString failed;
+    {
+        // Nobody asked for this import at this window: behave as a batch import does. Loaders
+        // log instead of asking, and the folder suggested for the next manual import is kept.
+        QScopedValueRollback<bool> unattended(m_batchMode, true);
+        for (const auto &task : request.tasks) {
+            qInfo().noquote() << QString("Importing %1 from %2 on request").arg(task.first, task.second);
+            progress.setMessage(tr("Importing %1 data, as requested on the command line...").arg(task.first));
+            QApplication::processEvents();
+            if (!importFromPath(task.first, task.second, true)) {
+                failed = QString("Import failed for loader '%1' from '%2'").arg(task.first, task.second);
+                qCritical().noquote() << failed;
+                break;
+            }
+            done << QString("%1 from %2").arg(task.first, task.second);
+        }
+    }
+
+    // Show the new data, also when a later import failed: earlier ones may have added some.
+    progress.setMessage(QObject::tr("Finishing up..."));
+    QApplication::processEvents();
+    PopulatePurgeMenu();
+    GenerateStatistics();
+    profileSelector->updateProfileList();
+    if (welcome) {
+        welcome->refreshPage();
+    }
+    if (overview) {
+        overview->ReloadGraphs();
+    }
+    if (daily) {
+        daily->clearLastDay();
+        if (viewDate.isValid()) {
+            // Mark the days that now have data, in the month on screen and in the month new
+            // data usually lands in, then show the day the user was looking at again.
+            QList<QDate> days;
+            QList<QDate> months { viewDate };
+            const QDate newest = p_profile->LastDay();      // of any kind of device
+            if (newest.isValid() && (newest.year() != viewDate.year() || newest.month() != viewDate.month())) {
+                months << newest;
+            }
+            for (const QDate &month : months) {
+                for (int day = 1; day <= month.daysInMonth(); ++day) {
+                    days << QDate(month.year(), month.month(), day);
+                }
+            }
+            daily->updateCalendarDays(days);
+            daily->LoadDate(viewDate);
+        } else {
+            daily->ReloadGraphs();      // nothing was shown yet: as after a menu import
+        }
+    }
+
+    progress.allowClose();
+    progress.close();
+    QApplication::processEvents();   // the window is back to normal before the requester is told
+
+    if (failed.isEmpty()) {
+        reply.exitCode = ImportHandover::ExitOk;
+        reply.message = QString("Imported by the running OSCAR into profile '%1': %2").arg(openProfile, done.join("; "));
+    } else {
+        reply.exitCode = ImportHandover::ExitFailed;
+        reply.message = failed + QString(" (in the running OSCAR, profile '%1'; see its debug log)").arg(openProfile);
+    }
+    return reply;
 }
 
 void MainWindow::on_actionImport_Somnopose_Data_triggered()
