@@ -217,28 +217,30 @@ void Report::PrintReport(gGraphView *gv, QString name, QDate date)
             if (p_profile->general->calculateRDI()) { ahi += day->count(CPAP_RERA); }
 
             float hours = day->hours(MT_CPAP);
-            ahi /= hours;
-            float csr = (100.0 / hours) * (day->sum(CPAP_CSR) / 3600.0);
+            // A day with no mask time reports 0 for every index, not NaN (GitLab #290).
+            auto perHour = [hours](float v) -> float { return (hours > 0) ? v / hours : 0.0f; };
+            ahi = perHour(ahi);
+            float csr = (hours > 0) ? (100.0 / hours) * (day->sum(CPAP_CSR) / 3600.0) : 0;
             //float pb = (100.0 / hours) * (day->sum(CPAP_PB) / 3600.0);
-            float uai = day->count(CPAP_Apnea) / hours;
-            float oai = day->count(CPAP_Obstructive) / hours;
-            float ai = day->count(CPAP_AllApnea) / hours;
-            float hi = (day->count(CPAP_ExP) + day->count(CPAP_Hypopnea)) / hours;
-            float ohi = day->count(CPAP_ObstructiveHypopnea) / hours;
-            float chi = day->count(CPAP_CentralHypopnea) / hours;
+            float uai = perHour(day->count(CPAP_Apnea));
+            float oai = perHour(day->count(CPAP_Obstructive));
+            float ai = perHour(day->count(CPAP_AllApnea));
+            float hi = perHour(day->count(CPAP_ExP) + day->count(CPAP_Hypopnea));
+            float ohi = perHour(day->count(CPAP_ObstructiveHypopnea));
+            float chi = perHour(day->count(CPAP_CentralHypopnea));
             float oahi = day->calcOAHI();
             float cahi = day->calcCAHI();
-            float cai = day->count(CPAP_ClearAirway) / hours;
-            float rei = day->count(CPAP_RERA) / hours;
-            float vsi = day->count(CPAP_VSnore) / hours;
+            float cai = perHour(day->count(CPAP_ClearAirway));
+            float rei = perHour(day->count(CPAP_RERA));
+            float vsi = perHour(day->count(CPAP_VSnore));
             if (day->channelHasData(CPAP_VSnore2)) {  // PRS1 puts its 2-minute VS count in a different channel rather than reporting each incident.
-                vsi = day->sum(CPAP_VSnore2) / hours;
+                vsi = perHour(day->sum(CPAP_VSnore2));
             }
-            float fli = day->count(CPAP_FlowLimit) / hours;
+            float fli = perHour(day->count(CPAP_FlowLimit));
 //            float sai = day->count(CPAP_SensAwake) / hours;
-            float nri = day->count(CPAP_NRI) / hours;
-            float lki = day->count(CPAP_LeakFlag) / hours;
-            float exp = day->count(CPAP_ExP) / hours;
+            float nri = perHour(day->count(CPAP_NRI));
+            float lki = perHour(day->count(CPAP_LeakFlag));
+            float exp = perHour(day->count(CPAP_ExP));
 
             int piesize = (2048.0 / 8.0) * 1.3; // 1.5" in size
             //float fscale=font_scale;
@@ -287,12 +289,15 @@ void Report::PrintReport(gGraphView *gv, QString name, QDate date)
             stats = QObject::tr("AI=%1 HI=%2 CAI=%3 ").arg(oai, 0, 'f', 2).arg(hi, 0, 'f', 2).arg(cai, 0, 'f',
                     2);
 
-            // Only devices that score hypopneas by mechanism report these, so keep them
-            // off the line entirely for everything else rather than printing 0.00.
-            if (day->channelHasData(CPAP_ObstructiveHypopnea) || day->channelHasData(CPAP_CentralHypopnea)) {
+            // Only a device that scores hypopneas by mechanism reports these; for any
+            // other device OAHI would just restate AHI, so the whole group stays off
+            // the line rather than printing 0.00 (GitLab #261). Gated on the device,
+            // not on today's data, so a capable device's zero night prints 0.00 like
+            // the Daily sidebar does.
+            if (cpap->reportsHypopneaMechanism()) {
                 stats += QObject::tr("OHI=%1 CHI=%2 ").arg(ohi, 0, 'f', 2).arg(chi, 0, 'f', 2);
+                stats += QObject::tr("OAHI=%1 CAHI=%2 ").arg(oahi, 0, 'f', 2).arg(cahi, 0, 'f', 2);
             }
-            stats += QObject::tr("OAHI=%1 CAHI=%2 ").arg(oahi, 0, 'f', 2).arg(cahi, 0, 'f', 2);
 
             if (cpap->loaderName() == STR_MACH_PRS1) {
 

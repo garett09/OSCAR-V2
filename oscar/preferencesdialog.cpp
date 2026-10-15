@@ -25,6 +25,7 @@
 #include <cmath>
 
 #include "preferencesdialog.h"
+#include "treecheckdelegate.h"
 #include "version.h"
 
 #include <Graphs/gGraphView.h>
@@ -172,6 +173,7 @@ PreferencesDialog::PreferencesDialog(QWidget *parent, Profile *_profile) :
     ui->autoLoadLastUsed->setChecked(AppSetting->autoOpenLastUsed());
 
     ui->timeEdit->setTime(profile->session->daySplitTime());
+    ui->splitNonCPAPSessions->setChecked(profile->session->splitNonCPAPSessions());
     int val = profile->session->combineCloseSessions();
     ui->combineSlider->setValue(val);
 
@@ -410,6 +412,14 @@ PreferencesDialog::PreferencesDialog(QWidget *parent, Profile *_profile) :
 
     ui->waveView->sortByColumn(0, Qt::AscendingOrder);
     ui->chanView->sortByColumn(0, Qt::AscendingOrder);
+
+    // Draw the Name (enabled) and Overview checkboxes ourselves: on macOS 27 the
+    // platform style leaves item-view check indicators invisible (#318).
+    TreeCheckDelegate *checkDelegate = new TreeCheckDelegate(this);
+    for (QTreeView *view : {ui->chanView, ui->waveView}) {
+        view->setItemDelegateForColumn(0, checkDelegate);
+        view->setItemDelegateForColumn(2, checkDelegate);
+    }
 
     //added by Sheila 1/5/2026 for marks1
 
@@ -898,6 +908,8 @@ bool PreferencesDialog::Save()
     profile->session->setLockSummarySessions(ui->LockSummarySessionSplitting->isChecked());
     profile->session->setWarnOnUntestedMachine(ui->warnOnUntestedMachine->isChecked());
     profile->session->setWarnOnUnexpectedData(ui->warnOnUnexpectedData->isChecked());
+    // Affects later imports only, so nothing needs reloading.
+    profile->session->setSplitNonCPAPSessions(ui->splitNonCPAPSessions->isChecked());
 
     AppSetting->setOpenTabAtStart(ui->openingTabCombo->currentIndex());
     AppSetting->setOpenTabAfterImport(ui->importTabCombo->currentIndex());

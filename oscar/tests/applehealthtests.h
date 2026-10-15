@@ -23,6 +23,7 @@ private slots:
     void initTestCase();
     void testParser();
     void testParserCutoff();
+    void testVitalsSourcePolicy();
     void testLoaderImport();
     void testLoaderIdempotency();
     void testLoaderImportsWeight();
@@ -31,6 +32,7 @@ private slots:
     void testLoaderRejectsGarbage();
     void testLoaderImportsSingleNonWatchSource();
     void testLoaderSkipsNonAppleOximeterNight();
+    void testLoaderKeepsChosenSleepSourceVitals();
     void testLoaderSummarizesMultipleFiles();
     void testLoaderCancelledChooserImportsNothing();
     void testSPO2DropSparsity();

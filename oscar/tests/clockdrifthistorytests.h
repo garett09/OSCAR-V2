@@ -23,6 +23,7 @@ private slots:
     void testCorrectionDateCountMatchesInput();
     void testFindAllIncludingUndoneReturnsUndoneRows();
     void testSchemaVersion18HasNightClockOffsetsTable();
+    void testUpgradeEitherVersion19Schema();
     void testUpsertNightsInsertsRows();
     void testUpsertNightsUpdatesOnRerun();
     void testFindByMachinesFiltersDateRange();

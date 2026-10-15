@@ -3294,12 +3294,13 @@ Notable identifiers:
   (Weinmann was renamed to / acquired into Löwenstein Medical). Firmware-internal tags
   retain the historical name; box labels and current marketing use "Löwenstein". The
   loader name `Prisma` reflects the product family that spans both naming eras.
-- **`DeviceType=10`** — *not* in the loader's `s_PrismaTestedModels` list
-  (`prisma_loader.cpp:507-513`), which currently enumerates `0x92` (Prisma Smart),
-  `0x91` (Prisma Soft), `22` (prisma25S), `23` (prisma25ST). The loader's fallback
-  returns "Unknown Model" — but `config.pcfg` still triggers detection, so import
-  proceeds. This sample likely represents a Prisma 20A entry that should be added to
-  the model table; the loader code comment at line 500 notes "was created for
+- **`DeviceType=10`** — added to `s_PrismaTestedModels` as `prisma20A` in 2026-09
+  (contributed, then reviewed). The table now enumerates `0x92` (Prisma Smart),
+  `0x91` (Prisma Soft), `10` (prisma20A), `22` (prisma25S), `23` (prisma25ST); the hex
+  ids come from the Firefly JSON `devid`, the decimal ones from the LINE `device.xml`.
+  Before that the loader's fallback returned "Unknown Model" — but `config.pcfg` still
+  triggered detection, so import proceeded either way. The loader code comment notes
+  "was created for
   PrismaSmart, should be extended to support PrismaLines as they stabilize."
 - **`FWBuild value="2023-0310-1825-Eyra"`** — `Eyra` appears to be the firmware project
   codename for this platform generation; build timestamp `2023-03-10 18:25`.
@@ -3463,10 +3464,12 @@ self-contained, externally-readable bundle complete with its own decoding tools.
 
 ### Observations / open questions
 
-- **`DeviceType=10` not in `s_PrismaTestedModels`** — this Prisma 20A would import via
-  the generic LINE path but report "Unknown Model". Candidate for the tested-models
-  table once end-to-end loader behaviour against this device is verified
-  (see "Prisma model candidates pending verification" below).
+- **`DeviceType=10` — RESOLVED 2026-09.** Added to `s_PrismaTestedModels` as
+  `prisma20A` after a contributor verified a 20A end to end against a Löwenstein
+  prismaTS clinical report (event types, session durations, leak and pressure curves
+  all matched). The same change records `FWVersion`+`FWRevision` as the machine's
+  `firmware` property. Before this the device imported via the generic LINE path but
+  reported "Unknown Model".
 - **`Eyra` firmware codename** — internal project name for the 20A's platform. Worth
   watching for the same codename on related Prisma LINE models (20C, 25, etc.) to
   confirm a shared firmware lineage.
@@ -3564,10 +3567,10 @@ different `DeviceBranding` value.
 
 ### `DeviceType=23` IS in the loader's tested list
 
-`prisma_loader.cpp:511` already maps `"23"` to `"prisma25ST"`. So this sample identifies
-correctly out of the box, while the 20A sample (`DeviceType=10`) falls through to the
-"Unknown Model" fallback. The 20A is a candidate for the tested-models table once
-end-to-end loader behaviour has been verified against an actual 20A card.
+The loader already maps `"23"` to `"prisma25ST"`, so this sample identifies correctly out
+of the box. The 20A sample (`DeviceType=10`) used to fall through to the "Unknown Model"
+fallback; it was added to the tested-models table in 2026-09 after end-to-end verification
+against an actual 20A card.
 
 ### Data volume scales with device capability
 
@@ -3619,7 +3622,7 @@ Open questions from the 20A entry, now answered or refined:
 
 | 20A entry question | Status after 25ST sample |
 |---|---|
-| `DeviceType=10` not in `s_PrismaTestedModels` | Still open — file says it's a Prisma 20A. Candidate pending end-to-end loader verification. |
+| `DeviceType=10` not in `s_PrismaTestedModels` | **Resolved 2026-09** — verified end to end against a prismaTS report and added to the table as `prisma20A`. |
 | `Eyra` firmware codename — shared across models? | **Confirmed shared** — 20A and 25ST run byte-identical firmware. |
 | `DeviceBranding=2` decoding | **Refined** — same value on two different models from the same OEM (Löwenstein), so it encodes brand not model. A Weinmann-branded sample would clarify the mapping. |
 | Does OSCAR need to coordinate with cloud upload state? | Still open. This sample has no `Upload_*.pcloud` staged at all — either no pending upload, or cloud upload was disabled. Cloud-pruning interaction needs a Prisma user who uses both PrismaTS and OSCAR to confirm. |
@@ -3874,7 +3877,7 @@ logger is reorganised.
 | DCM version | `2.18.3` | **`6.3.0`** |
 | Cloud upload staging | `Upload_<sn>.pcloud` ZIP at root | Not observed on this card |
 | Device class | Sleep CPAP / Auto / Bilevel | **Clinical home ventilator** (HFT, multi-profile, life-safety alarms) |
-| Loader status | Supported (model name lookup needs `DeviceType=10` for 20A) | **Unsupported — needs new detector + parser** |
+| Loader status | Supported (`DeviceType=10` maps to `prisma20A` since 2026-09) | **Unsupported — needs new detector + parser** |
 
 ### What it would take to support this in OSCAR
 
@@ -4155,7 +4158,7 @@ This section is the running list to revisit when verification work is planned.
 | `0x92` (hex string) | Firefly | Prisma SMART line | *(no sample yet)* | In loader's table — no sample in catalogue to confirm. |
 | `22` (decimal string) | Eyra | Prisma LINE / 25S | "tolnaiz-221009-prismaline-25S" | In loader's table — already verified. |
 | `23` (decimal string) | Eyra | Prisma LINE / 25ST | "chamomile6-Prisma-25ST" | In loader's table — already verified. |
-| `10` (decimal string) | Eyra | Prisma LINE / 20A | "DJC9-Lowenstein-Prisma20A" | **Candidate.** Detects on Eyra path, reports "Unknown Model". End-to-end loader behaviour not yet verified. |
+| `10` (decimal string) | Eyra | Prisma LINE / 20A | "DJC9-Lowenstein-Prisma20A" | In loader's table — verified end to end against a prismaTS clinical report (2026-09). |
 | `27` (decimal string) | Eyra | Prisma LINE / 30ST | "Prisma30ST Macka" | **Candidate.** Detects on Eyra path, reports "Unknown Model". End-to-end loader behaviour not yet verified. |
 | `5` (with `_str=V50-C`) | P34A11 | Prisma VENT / V50-C | "AKLERK Lowenstein Prisma Vent V50C" | **Different firmware platform.** Loader doesn't detect at all. Sentinel and config schema differ — would need separate loader work, not a table entry. |
 
@@ -4397,6 +4400,7 @@ extraction from the bundled `MCC.*.dll`).
 static const PrismaTestedModel s_PrismaTestedModels[] = {
     { "0x92", "Prisma Smart" },     // hex string, Firefly platform
     { "0x91", "Prisma Soft"  },     // hex string, Firefly platform  ← this sample
+    { "10"  , "prisma20A"    },     // decimal string, Eyra platform
     { "22"  , "prisma25S"    },     // decimal string, Eyra platform
     { "23"  , "prisma25ST"   },     // decimal string, Eyra platform
     { ""    , ""             }
@@ -4407,7 +4411,7 @@ The hex-vs-decimal split correlates with platform:
 
 - **`Firefly` (SMART) devices** write `devid` as a **hex string** (`"0x91"`, `"0x92"`)
   in JSON config.
-- **`Eyra` (LINE) devices** write `DeviceType` as a **decimal integer** (`22`, `23`)
+- **`Eyra` (LINE) devices** write `DeviceType` as a **decimal integer** (`10`, `22`, `23`)
   in XML config.
 
 The loader stores both as strings and looks them up byte-for-byte against the device's

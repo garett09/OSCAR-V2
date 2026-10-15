@@ -19,8 +19,17 @@
 
 const QString STR_ext_XML = ".xml";
 
-extern QString GetAppData(); //returns app data path plus trailing path separator.
-extern void SetAppData(const QString& path); //sets app data path in memory cache and QSettings.
+extern QString GetAppData(); //returns app data path (no trailing path separator).
+
+/*!
+ * \brief Set the data folder path.
+ * \param path    The data folder.
+ * \param persist When true (the default) the path is also written to QSettings as the
+ *                folder to use on the next launch. Pass false to change only the in-memory
+ *                path — used for --datadir until the folder is known to exist, so that a
+ *                cancelled setup leaves the recorded folder untouched.
+ */
+extern void SetAppData(const QString& path, bool persist = true);
 
 inline QString PrefMacro(QString s)
 {

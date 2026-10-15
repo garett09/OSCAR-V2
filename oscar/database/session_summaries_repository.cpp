@@ -13,8 +13,30 @@
 #include "database_manager.h"
 #include <QSqlQuery>
 #include <QSqlError>
+#include <QStringList>
 #include <QVariant>
 #include <QDebug>
+
+namespace {
+//! \brief Bind an optional metric: SQL NULL when it is absent, the value otherwise.
+template <class T>
+QVariant bindOptional(const std::optional<T> & v)
+{
+    return v ? QVariant::fromValue(*v) : QVariant();
+}
+
+//! \brief Read a REAL column that may be NULL.
+std::optional<double> optionalDouble(const QVariant & v)
+{
+    return v.isNull() ? std::nullopt : std::optional<double>(v.toDouble());
+}
+
+//! \brief Read an INTEGER column that may be NULL.
+std::optional<int> optionalInt(const QVariant & v)
+{
+    return v.isNull() ? std::nullopt : std::optional<int>(v.toInt());
+}
+} // namespace
 
 SessionSummariesRepository::SessionSummariesRepository()
 {
@@ -46,27 +68,27 @@ qint64 SessionSummariesRepository::create(const SessionSummaryData& data)
     query.addBindValue(data.sessionId);
     query.addBindValue(data.profileId);
     query.addBindValue(data.ahi);
-    query.addBindValue(data.rdi);
-    query.addBindValue(data.oahi);
-    query.addBindValue(data.cahi);
-    query.addBindValue(data.obstructiveCount);
-    query.addBindValue(data.unclassifiedCount);
-    query.addBindValue(data.hypopneaCount);
-    query.addBindValue(data.reraCount);
-    query.addBindValue(data.clearAirwayCount);
-    query.addBindValue(data.obstructiveHypopneaCount);
-    query.addBindValue(data.centralHypopneaCount);
-    query.addBindValue(data.allApneaCount);
-    query.addBindValue(data.pressureAvg);
-    query.addBindValue(data.pressureMin);
-    query.addBindValue(data.pressureMax);
-    query.addBindValue(data.pressure95th);
-    query.addBindValue(data.leakTotalAvg);
-    query.addBindValue(data.leakTotal95th);
-    query.addBindValue(data.leakTotalMax);
-    query.addBindValue(data.spo2Avg);
-    query.addBindValue(data.spo2Min);
-    query.addBindValue(data.pulseAvg);
+    query.addBindValue(bindOptional(data.rdi));
+    query.addBindValue(bindOptional(data.oahi));
+    query.addBindValue(bindOptional(data.cahi));
+    query.addBindValue(bindOptional(data.obstructiveCount));
+    query.addBindValue(bindOptional(data.unclassifiedCount));
+    query.addBindValue(bindOptional(data.hypopneaCount));
+    query.addBindValue(bindOptional(data.reraCount));
+    query.addBindValue(bindOptional(data.clearAirwayCount));
+    query.addBindValue(bindOptional(data.obstructiveHypopneaCount));
+    query.addBindValue(bindOptional(data.centralHypopneaCount));
+    query.addBindValue(bindOptional(data.allApneaCount));
+    query.addBindValue(bindOptional(data.pressureAvg));
+    query.addBindValue(bindOptional(data.pressureMin));
+    query.addBindValue(bindOptional(data.pressureMax));
+    query.addBindValue(bindOptional(data.pressure95th));
+    query.addBindValue(bindOptional(data.leakTotalAvg));
+    query.addBindValue(bindOptional(data.leakTotal95th));
+    query.addBindValue(bindOptional(data.leakTotalMax));
+    query.addBindValue(bindOptional(data.spo2Avg));
+    query.addBindValue(bindOptional(data.spo2Min));
+    query.addBindValue(bindOptional(data.pulseAvg));
     query.addBindValue(data.hoursUsed);
     query.addBindValue(data.maskOnHours);
 
@@ -101,27 +123,27 @@ bool SessionSummariesRepository::update(const SessionSummaryData& data)
     );
 
     query.addBindValue(data.ahi);
-    query.addBindValue(data.rdi);
-    query.addBindValue(data.oahi);
-    query.addBindValue(data.cahi);
-    query.addBindValue(data.obstructiveCount);
-    query.addBindValue(data.unclassifiedCount);
-    query.addBindValue(data.hypopneaCount);
-    query.addBindValue(data.reraCount);
-    query.addBindValue(data.clearAirwayCount);
-    query.addBindValue(data.obstructiveHypopneaCount);
-    query.addBindValue(data.centralHypopneaCount);
-    query.addBindValue(data.allApneaCount);
-    query.addBindValue(data.pressureAvg);
-    query.addBindValue(data.pressureMin);
-    query.addBindValue(data.pressureMax);
-    query.addBindValue(data.pressure95th);
-    query.addBindValue(data.leakTotalAvg);
-    query.addBindValue(data.leakTotal95th);
-    query.addBindValue(data.leakTotalMax);
-    query.addBindValue(data.spo2Avg);
-    query.addBindValue(data.spo2Min);
-    query.addBindValue(data.pulseAvg);
+    query.addBindValue(bindOptional(data.rdi));
+    query.addBindValue(bindOptional(data.oahi));
+    query.addBindValue(bindOptional(data.cahi));
+    query.addBindValue(bindOptional(data.obstructiveCount));
+    query.addBindValue(bindOptional(data.unclassifiedCount));
+    query.addBindValue(bindOptional(data.hypopneaCount));
+    query.addBindValue(bindOptional(data.reraCount));
+    query.addBindValue(bindOptional(data.clearAirwayCount));
+    query.addBindValue(bindOptional(data.obstructiveHypopneaCount));
+    query.addBindValue(bindOptional(data.centralHypopneaCount));
+    query.addBindValue(bindOptional(data.allApneaCount));
+    query.addBindValue(bindOptional(data.pressureAvg));
+    query.addBindValue(bindOptional(data.pressureMin));
+    query.addBindValue(bindOptional(data.pressureMax));
+    query.addBindValue(bindOptional(data.pressure95th));
+    query.addBindValue(bindOptional(data.leakTotalAvg));
+    query.addBindValue(bindOptional(data.leakTotal95th));
+    query.addBindValue(bindOptional(data.leakTotalMax));
+    query.addBindValue(bindOptional(data.spo2Avg));
+    query.addBindValue(bindOptional(data.spo2Min));
+    query.addBindValue(bindOptional(data.pulseAvg));
     query.addBindValue(data.hoursUsed);
     query.addBindValue(data.maskOnHours);
     query.addBindValue(data.id);
@@ -169,27 +191,27 @@ SessionSummaryData SessionSummariesRepository::findBySession(qint64 sessionId)
         data.id = query.value("id").toLongLong();
         data.sessionId = query.value("session_id").toLongLong();
         data.ahi = query.value("ahi").toDouble();
-        data.rdi = query.value("rdi").toDouble();
-        data.oahi = query.value("oahi").toDouble();
-        data.cahi = query.value("cahi").toDouble();
-        data.obstructiveCount = query.value("obstructive_count").toInt();
-        data.unclassifiedCount = query.value("unclassified_count").toInt();
-        data.hypopneaCount = query.value("hypopnea_count").toInt();
-        data.reraCount = query.value("rera_count").toInt();
-        data.clearAirwayCount = query.value("clear_airway_count").toInt();
-        data.obstructiveHypopneaCount = query.value("obstructive_hypopnea_count").toInt();
-        data.centralHypopneaCount = query.value("central_hypopnea_count").toInt();
-        data.allApneaCount = query.value("all_apnea_count").toInt();
-        data.pressureAvg = query.value("pressure_avg").toDouble();
-        data.pressureMin = query.value("pressure_min").toDouble();
-        data.pressureMax = query.value("pressure_max").toDouble();
-        data.pressure95th = query.value("pressure_95th").toDouble();
-        data.leakTotalAvg = query.value("leak_total_avg").toDouble();
-        data.leakTotal95th = query.value("leak_total_95th").toDouble();
-        data.leakTotalMax = query.value("leak_total_max").toDouble();
-        data.spo2Avg = query.value("spo2_avg").toDouble();
-        data.spo2Min = query.value("spo2_min").toDouble();
-        data.pulseAvg = query.value("pulse_avg").toDouble();
+        data.rdi = optionalDouble(query.value("rdi"));
+        data.oahi = optionalDouble(query.value("oahi"));
+        data.cahi = optionalDouble(query.value("cahi"));
+        data.obstructiveCount = optionalInt(query.value("obstructive_count"));
+        data.unclassifiedCount = optionalInt(query.value("unclassified_count"));
+        data.hypopneaCount = optionalInt(query.value("hypopnea_count"));
+        data.reraCount = optionalInt(query.value("rera_count"));
+        data.clearAirwayCount = optionalInt(query.value("clear_airway_count"));
+        data.obstructiveHypopneaCount = optionalInt(query.value("obstructive_hypopnea_count"));
+        data.centralHypopneaCount = optionalInt(query.value("central_hypopnea_count"));
+        data.allApneaCount = optionalInt(query.value("all_apnea_count"));
+        data.pressureAvg = optionalDouble(query.value("pressure_avg"));
+        data.pressureMin = optionalDouble(query.value("pressure_min"));
+        data.pressureMax = optionalDouble(query.value("pressure_max"));
+        data.pressure95th = optionalDouble(query.value("pressure_95th"));
+        data.leakTotalAvg = optionalDouble(query.value("leak_total_avg"));
+        data.leakTotal95th = optionalDouble(query.value("leak_total_95th"));
+        data.leakTotalMax = optionalDouble(query.value("leak_total_max"));
+        data.spo2Avg = optionalDouble(query.value("spo2_avg"));
+        data.spo2Min = optionalDouble(query.value("spo2_min"));
+        data.pulseAvg = optionalDouble(query.value("pulse_avg"));
         data.hoursUsed = query.value("hours_used").toDouble();
         data.maskOnHours = query.value("mask_on_hours").toDouble();
         data.createdAt = query.value("created_at").toDateTime();
@@ -286,4 +308,109 @@ bool SessionSummariesRepository::createOrUpdate(const SessionSummaryData& data)
         qint64 newId = create(data);
         return newId > 0;
     }
+}
+
+bool SessionSummariesRepository::rebuildFromChannels(QSqlDatabase& db, qint64 machineId)
+{
+    // Every statement is scoped by this predicate on the session's machine. With
+    // machineId == 0 it is empty, so one statement text serves both callers.
+    const QString scope = machineId > 0
+        ? QString(" AND s.machine_id = %1").arg(machineId)
+        : QString();
+    const QString scopedSessions = QString("(SELECT s.id FROM sessions s WHERE 1=1%1)").arg(scope);
+
+    // Which channels each machine has ever reported (count > 0 on some session). A temp
+    // table keeps the per-row CASEs below to an indexed lookup.
+    QStringList sql;
+    sql << "DROP TABLE IF EXISTS temp.machine_reported"
+        << "CREATE TEMP TABLE machine_reported AS"
+           " SELECT DISTINCT s.machine_id, sc.channel_id"
+           " FROM session_channels sc JOIN sessions s ON s.id = sc.session_id"
+           " WHERE sc.count > 0" + scope
+        << "CREATE INDEX temp.idx_machine_reported ON machine_reported(machine_id, channel_id)";
+
+    // "The row's machine has reported one of these channels."
+    const QString reported =
+        "EXISTS (SELECT 1 FROM sessions s JOIN machine_reported mr ON mr.machine_id = s.machine_id"
+        " WHERE s.id = session_summaries.session_id AND mr.channel_id IN (%1))";
+
+    // Count columns: NULL if the machine never reported the channel, else the row's
+    // count or 0. Channel ids follow schema.cpp: ClearAirway 4097, Obstructive 4098,
+    // Hypopnea 4099, Apnea 4100, RERA 4102, AllApnea 4112, ObstructiveHypopnea 4113,
+    // CentralHypopnea 4114.
+    struct CountCol { const char * column; int channel; };
+    static const CountCol countCols[] = {
+        { "clear_airway_count",         4097 }, { "obstructive_count",      4098 },
+        { "hypopnea_count",             4099 }, { "unclassified_count",     4100 },
+        { "rera_count",                 4102 }, { "all_apnea_count",        4112 },
+        { "obstructive_hypopnea_count", 4113 }, { "central_hypopnea_count", 4114 },
+    };
+    for (const CountCol & c : countCols) {
+        sql << QString("UPDATE session_summaries SET %1 = CASE WHEN %2"
+                       " THEN COALESCE((SELECT sc.count FROM session_channels sc"
+                       "   WHERE sc.session_id = session_summaries.session_id AND sc.channel_id = %3), 0)"
+                       " ELSE NULL END"
+                       " WHERE session_id IN %4")
+               .arg(QString::fromLatin1(c.column))
+               .arg(reported.arg(c.channel))
+               .arg(c.channel)
+               .arg(scopedSessions);
+    }
+
+    // Indices from cph (events per mask-on hour as a REAL): the INTEGER counts truncate
+    // ResMed summary-only sessions' fractional counts (#285, see the v18 migration note).
+    // Groups follow ahiChannels / oahiChannels / cahiChannels in schema.cpp. A session
+    // with no rows in a group sums to NULL, hence the COALESCE to 0.
+    const QString sumCph = "COALESCE((SELECT SUM(sc.cph) FROM session_channels sc"
+                           " WHERE sc.session_id = session_summaries.session_id"
+                           " AND sc.channel_id IN (%1)), 0)";
+    sql << QString("UPDATE session_summaries SET"
+                   " ahi = %1,"
+                   " rdi = CASE WHEN %2 THEN %3 ELSE NULL END,"
+                   " oahi = CASE WHEN %4 THEN %5 ELSE NULL END,"
+                   " cahi = CASE WHEN %4 THEN %6 ELSE NULL END"
+                   " WHERE session_id IN %7")
+           .arg(sumCph.arg("4097, 4098, 4099, 4100, 4112, 4113, 4114"))
+           .arg(reported.arg("4102"))
+           .arg(sumCph.arg("4097, 4098, 4099, 4100, 4102, 4112, 4113, 4114"))
+           .arg(reported.arg("4113, 4114"))
+           .arg(sumCph.arg("4098, 4099, 4100, 4112, 4113"))
+           .arg(sumCph.arg("4097, 4114"))
+           .arg(scopedSessions);
+
+    // Continuous statistics: NULL when the session has no row for the source channel
+    // (Pressure 0x110C, LeakTotal 0x1117, OXI_SPO2 0x1801, OXI_Pulse 0x1800).
+    struct StatCols { const char * assignments; int channel; };
+    static const StatCols statCols[] = {
+        { "pressure_avg = NULL, pressure_min = NULL, pressure_max = NULL, pressure_95th = NULL", 4364 },
+        { "leak_total_avg = NULL, leak_total_95th = NULL, leak_total_max = NULL",                4375 },
+        { "spo2_avg = NULL, spo2_min = NULL",                                                    6145 },
+        { "pulse_avg = NULL",                                                                    6144 },
+    };
+    for (const StatCols & c : statCols) {
+        sql << QString("UPDATE session_summaries SET %1"
+                       " WHERE NOT EXISTS (SELECT 1 FROM session_channels sc"
+                       "   WHERE sc.session_id = session_summaries.session_id AND sc.channel_id = %2)"
+                       " AND session_id IN %3")
+               .arg(QString::fromLatin1(c.assignments))
+               .arg(c.channel)
+               .arg(scopedSessions);
+    }
+    // A stored 0 with pressure present means the percentile was never computed (events
+    // were not loaded when the row was written); therapy pressure itself is never 0.
+    sql << QString("UPDATE session_summaries SET pressure_95th = NULL"
+                   " WHERE pressure_95th = 0 AND pressure_avg IS NOT NULL"
+                   " AND session_id IN %1").arg(scopedSessions)
+        << "DROP TABLE IF EXISTS temp.machine_reported";
+
+    QSqlQuery q(db);
+    for (const QString & statement : sql) {
+        if (!q.exec(statement)) {
+            qCritical() << "SessionSummariesRepository::rebuildFromChannels failed:"
+                        << q.lastError().text() << "in" << statement.left(80);
+            DatabaseManager::instance().checkQueryError("SessionSummariesRepository::rebuildFromChannels", q);
+            return false;
+        }
+    }
+    return true;
 }

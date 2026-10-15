@@ -309,12 +309,16 @@ detected off-span (2 OA, 1 CA, 4 snore) and they sit at the detection
 boundaries; dropping them would disturb event counts validated against the
 manufacturer's report to within one event.
 
-**A session that is entirely blower-off gets no slices at all**, and a warning.
-An empty slice list silently means "no slice information", so `hours()` falls
-back to the full span — the opposite of the intent — but the alternative is
-worse: `Day::cph()` divides by `hours()` with no guard (`day.cpp:1109`, and
-`sph()` likewise), so a zero-usage day would produce inf/nan. One session on the
-validated card is in this state and overstates usage by 7 minutes out of 158 h.
+**A session that is entirely blower-off is kept with zero usage** (since
+2026-09-29, GitLab #290), which is how the vendor software shows it. It gets only
+MaskOff slices, so `hours()` is zero. An empty slice list would not do: it means
+"no slice information", so `hours()` falls back to the full span and overstates
+usage — 7 minutes out of 158 h on the validated card before 2026-09-13. From
+2026-09-13 to 2026-09-29 such sessions were skipped, because `Session::cph()` and
+`Day::cph()` divided by `hours()` with no guard and would have stored NaN in
+`session_channels`. Those functions, and the Overview, print-report, Welcome and
+CSV paths that divided by day or session hours, now treat zero hours as 0 or as
+no index.
 
 Two things this does **not** fix. The vendor's `Mask disconnected` column is a
 different measurement — it is non-zero on sessions where the blower never

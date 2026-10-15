@@ -80,9 +80,11 @@ QString GetAppData()
     return path;
 }
 
-void SetAppData(const QString& path)
+void SetAppData(const QString& path, bool persist)
 {
     g_appDataPath = path;
+    if (!persist)
+        return;
     QSettings settings;
     settings.setValue("Settings/AppData", path);
 }

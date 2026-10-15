@@ -182,7 +182,7 @@ static QByteArray fixtureXml(int firstNightStageShiftSeconds = 0)
   <Record type="HKQuantityTypeIdentifierHeartRate" sourceName="test’s Apple Watch" unit="count/min" value="99" startDate="2025-07-04 22:45:00 -0400" endDate="2025-07-04 22:45:00 -0400"/>
   <Record type="HKQuantityTypeIdentifierHeartRate" sourceName="test’s Apple Watch" unit="count/min" value="99" startDate="2025-07-01 21:00:00 -0400" endDate="malformed-date"/>
   <Record type="HKQuantityTypeIdentifierOxygenSaturation" sourceName="test’s Apple Watch" unit="%" value="0.97" startDate="2025-07-01 22:12:00 -0400" endDate="2025-07-01 22:12:00 -0400"/>
-  <Record type="HKQuantityTypeIdentifierOxygenSaturation" sourceName="test’s Apple Watch" unit="%" value="0.96" startDate="2025-07-01 22:42:00 -0400" endDate="2025-07-01 22:42:00 -0400"/>
+  <Record type="HKQuantityTypeIdentifierOxygenSaturation" sourceName="iPhone" unit="%" value="0.96" startDate="2025-07-01 22:42:00 -0400" endDate="2025-07-01 22:42:00 -0400"/>
   <Record type="HKQuantityTypeIdentifierOxygenSaturation" sourceName="test’s Apple Watch" unit="%" value="0.93" startDate="2025-07-02 01:30:00 -0400" endDate="2025-07-02 01:30:00 -0400"/>
   <Record type="HKQuantityTypeIdentifierOxygenSaturation" sourceName="test’s Apple Watch" unit="%" value="0.95" startDate="2025-07-02 22:12:00 -0400" endDate="2025-07-02 22:12:00 -0400"/>
   <Record type="HKQuantityTypeIdentifierOxygenSaturation" sourceName="test’s Apple Watch" unit="%" value="0.94" startDate="2025-07-02 22:42:00 -0400" endDate="2025-07-02 22:42:00 -0400"/>
@@ -199,6 +199,10 @@ static QByteArray fixtureXml(int firstNightStageShiftSeconds = 0)
   <Record type="HKQuantityTypeIdentifierBodyMass" sourceName="Test Scale" unit="lb" value="181" startDate="2025-07-02 08:00:00 -0400" endDate="2025-07-02 08:00:00 -0400"/>
   <Record type="HKQuantityTypeIdentifierBodyMass" sourceName="Test Scale" unit="kg" value="0" startDate="2025-07-02 09:00:00 -0400" endDate="2025-07-02 09:00:00 -0400"/>
   <Record type="HKQuantityTypeIdentifierBodyMass" sourceName="Test Scale" unit="lb" value="175" startDate="2025-07-04 20:00:00 -0400" endDate="2025-07-04 20:00:00 -0400"/>
+  <Record type="HKQuantityTypeIdentifierHeartRate" sourceName="Third Party Oximeter" unit="count/min" value="120" startDate="2025-07-01 22:07:00 -0400" endDate="2025-07-01 22:07:00 -0400"/>
+  <Record type="HKQuantityTypeIdentifierHeartRate" sourceName="Third Party Oximeter" unit="count/min" value="125" startDate="2025-07-01 22:13:00 -0400" endDate="2025-07-01 22:13:00 -0400"/>
+  <Record type="HKQuantityTypeIdentifierOxygenSaturation" sourceName="Third Party Oximeter" unit="%" value="80" startDate="2025-07-01 22:14:00 -0400" endDate="2025-07-01 22:14:00 -0400"/>
+  <Record type="HKQuantityTypeIdentifierRespiratoryRate" sourceName="Third Party Oximeter" unit="count/min" value="30" startDate="2025-07-01 22:16:00 -0400" endDate="2025-07-01 22:16:00 -0400"/>
   <Correlation type="HKCorrelationTypeIdentifierBloodPressure">
     <Record type="HKQuantityTypeIdentifierOxygenSaturation" sourceName="Nested Test" unit="%" value="0.50" startDate="2025-07-01 22:30:00 -0400" endDate="2025-07-01 22:30:00 -0400"/>
   </Correlation>
@@ -341,21 +345,45 @@ void AppleHealthTests::testParser()
     AppleHealthData data;
     QVERIFY2(parser.parse(m_exportPath, data), qPrintable(parser.errorString()));
 
-    QCOMPARE(data.recordsSeen, 69LL);
+    QCOMPARE(data.recordsSeen, 73LL);
     QCOMPARE(data.sleepStages.size(), 13);
-    QCOMPARE(data.heartRate.size(), 35);
-    QCOMPARE(data.spo2.size(), 5);
-    QCOMPARE(data.respRate.size(), 2);
+    QCOMPARE(data.heartRate.size(), 37);
+    QCOMPARE(data.spo2.size(), 6);
+    QCOMPARE(data.respRate.size(), 3);
     QCOMPARE(data.hrv.size(), 2);
     QCOMPARE(data.breathingDisturbances.size(), 2);
     QCOMPARE(data.wristTemp.size(), 2);
     QCOMPARE(data.weights.size(), 3);
+    QCOMPARE(data.sourceNames.size(), 3);
+    QCOMPARE(data.vitalsSourceCounts.size(), 3);
+    QCOMPARE(data.vitalsSourceCounts.value(kAppleSource), 47);
+    QCOMPARE(data.vitalsSourceCounts.value(QStringLiteral("iPhone")), 1);
+    QCOMPARE(data.vitalsSourceCounts.value(QStringLiteral("Third Party Oximeter")), 4);
+    const auto validSourceIds = [&data](const auto &samples) {
+        return std::all_of(samples.cbegin(), samples.cend(), [&data](const auto &sample) {
+            return sample.sourceId >= 0 && sample.sourceId < data.sourceNames.size();
+        });
+    };
+    QVERIFY(validSourceIds(data.heartRate));
+    QVERIFY(validSourceIds(data.spo2));
+    QVERIFY(validSourceIds(data.respRate));
+    QVERIFY(validSourceIds(data.hrv));
+    QVERIFY(validSourceIds(data.breathingDisturbances));
+    QVERIFY(validSourceIds(data.wristTemp));
+    int thirdPartyHeartRateCount = 0;
+    for (const AppleHealthSample &sample : data.heartRate) {
+        if (sample.value == 120.0F || sample.value == 125.0F) {
+            QCOMPARE(data.sourceNames.at(sample.sourceId), QStringLiteral("Third Party Oximeter"));
+            ++thirdPartyHeartRateCount;
+        }
+    }
+    QCOMPARE(thirdPartyHeartRateCount, 2);
 
     QCOMPARE(data.typeCounts.size(), 8);
     QCOMPARE(data.typeCounts.value(QStringLiteral("SleepAnalysis")), 13LL);
-    QCOMPARE(data.typeCounts.value(QStringLiteral("HeartRate")), 35LL);
-    QCOMPARE(data.typeCounts.value(QStringLiteral("OxygenSaturation")), 5LL);
-    QCOMPARE(data.typeCounts.value(QStringLiteral("RespiratoryRate")), 2LL);
+    QCOMPARE(data.typeCounts.value(QStringLiteral("HeartRate")), 37LL);
+    QCOMPARE(data.typeCounts.value(QStringLiteral("OxygenSaturation")), 6LL);
+    QCOMPARE(data.typeCounts.value(QStringLiteral("RespiratoryRate")), 3LL);
     QCOMPARE(data.typeCounts.value(QStringLiteral("HeartRateVariabilitySDNN")), 2LL);
     QCOMPARE(data.typeCounts.value(QStringLiteral("AppleSleepingBreathingDisturbances")), 2LL);
     QCOMPARE(data.typeCounts.value(QStringLiteral("AppleSleepingWristTemperature")), 2LL);
@@ -463,6 +491,23 @@ void AppleHealthTests::testParserCutoff()
     QVERIFY(data.weights.constFirst().timeMs >= cutoff);
 }
 
+void AppleHealthTests::testVitalsSourcePolicy()
+{
+    QVERIFY(isAppleFirstPartySource(kAppleSource));
+    QVERIFY(isAppleFirstPartySource(QStringLiteral("Chris\u2019s iPhone")));
+    QVERIFY(isAppleFirstPartySource(QStringLiteral("iPhone")));
+    QVERIFY(!isAppleFirstPartySource(QStringLiteral("Sleep Cycle")));
+    QVERIFY(!isAppleFirstPartySource(QStringLiteral("Oura")));
+    QVERIFY(!isAppleFirstPartySource(QStringLiteral("Third Party Oximeter")));
+    QVERIFY(isAllowedVitalsSource(kAppleSource, QString()));
+    QVERIFY(isAllowedVitalsSource(QStringLiteral("iPhone"), kAppleSource));
+    QVERIFY(isAllowedVitalsSource(QStringLiteral("Sleep Cycle"), QStringLiteral("Sleep Cycle")));
+    QVERIFY(!isAllowedVitalsSource(QStringLiteral("Oura"), QStringLiteral("Sleep Cycle")));
+    QVERIFY(!isAllowedVitalsSource(QStringLiteral("Oura"), QString()));
+    QVERIFY(!isAllowedVitalsSource(QString(), QString()));
+    QVERIFY(!isAllowedVitalsSource(QStringLiteral("Third Party Oximeter"), kAppleSource));
+}
+
 void AppleHealthTests::testLoaderImport()
 {
     bool chooserCalled = false;
@@ -481,6 +526,10 @@ void AppleHealthTests::testLoaderImport()
     QCOMPARE(s_loader->lastImportSummary().oxiSessions, 2);
     QCOMPARE(s_loader->lastImportSummary().weightDays, 2);
     QCOMPARE(s_loader->lastImportSummary().chosenSleepSource, kAppleSource);
+    QVERIFY(s_loader->lastImportSummary().importedVitalsSources.contains(kAppleSource));
+    QVERIFY(s_loader->lastImportSummary().importedVitalsSources.contains(QStringLiteral("iPhone")));
+    QVERIFY(!s_loader->lastImportSummary().importedVitalsSources.contains(QStringLiteral("Third Party Oximeter")));
+    QCOMPARE(s_loader->lastImportSummary().ignoredVitalsCounts.value(QStringLiteral("Third Party Oximeter")), 4);
 
     const QList<Machine *> sleepMachines = p_profile->GetMachines(MT_SLEEPSTAGE);
     const QList<Machine *> oxiMachines = p_profile->GetMachines(MT_OXIMETER);
@@ -577,10 +626,16 @@ void AppleHealthTests::testLoaderImport()
     for (EventList *eventList : oxiSessions.at(0)->eventlist.value(OXI_Pulse)) {
         for (quint32 i = 0; i < eventList->count(); ++i) {
             QVERIFY(eventList->time(i) >= epochMs(QStringLiteral("2025-07-01 22:00:00")));
+            QVERIFY(eventList->data(i) < 120.0F);
         }
     }
     QCOMPARE(oxiSessions.at(0)->eventlist.value(OXI_SPO2).size(), 1);
     QCOMPARE(oxiSessions.at(0)->eventlist.value(OXI_SPO2).constFirst()->count(), 2U);
+    for (EventList *eventList : oxiSessions.at(0)->eventlist.value(OXI_SPO2)) {
+        for (quint32 i = 0; i < eventList->count(); ++i) {
+            QVERIFY(eventList->data(i) > 80.0F);
+        }
+    }
     QCOMPARE(oxiSessions.at(1)->eventlist.value(OXI_Pulse).size(), 1);
 }
 
@@ -636,7 +691,6 @@ void AppleHealthTests::testLoaderImportsWeight()
     july1Journal->settings[Journal_BMI] = manualBmi;
     july1Journal->SetChanged(true);
     journalMachine->Save();
-    journalMachine->SaveSummaryCache();
 
     QCOMPARE(s_loader->OpenFile(m_exportPath), 0);
     QVERIFY(qAbs(july1Journal->settings.value(Journal_Weight).toDouble() - manualKg) < 0.0001);
@@ -809,7 +863,7 @@ void AppleHealthTests::testLoaderSkipsNonAppleOximeterNight()
     const QByteArray xml = toLocalStamps(QByteArray(R"XML(<?xml version="1.0" encoding="UTF-8"?>
 <HealthData locale="en_US">
   <Record type="HKCategoryTypeIdentifierSleepAnalysis" sourceName="Sleep Cycle" unit="" value="HKCategoryValueSleepAnalysisAsleepCore" startDate="2025-08-02 22:00:00 -0400" endDate="2025-08-02 23:00:00 -0400"/>
-  <Record type="HKQuantityTypeIdentifierHeartRate" sourceName="Test Oximeter" unit="count/min" value="65" startDate="2025-08-02 22:30:00 -0400" endDate="2025-08-02 22:30:00 -0400"/>
+  <Record type="HKQuantityTypeIdentifierHeartRate" sourceName="test’s Apple Watch" unit="count/min" value="65" startDate="2025-08-02 22:30:00 -0400" endDate="2025-08-02 22:30:00 -0400"/>
   <Record type="HKQuantityTypeIdentifierRespiratoryRate" sourceName="test’s Apple Watch" unit="count/min" value="15" startDate="2025-08-02 22:15:00 -0400" endDate="2025-08-02 22:15:00 -0400"/>
   <Record type="HKQuantityTypeIdentifierHeartRateVariabilitySDNN" sourceName="test’s Apple Watch" unit="ms" value="50" startDate="2025-08-02 22:20:00 -0400" endDate="2025-08-02 22:20:00 -0400"/>
 </HealthData>
@@ -843,6 +897,74 @@ void AppleHealthTests::testLoaderSkipsNonAppleOximeterNight()
     QCOMPARE(sleepSession->Max(AW_HRV), 50.0F);
 }
 
+void AppleHealthTests::testLoaderKeepsChosenSleepSourceVitals()
+{
+    const QString exportPath = m_tempDir->path() + QStringLiteral("/oura-vitals.xml");
+    QFile exportFile(exportPath);
+    QVERIFY(exportFile.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    const QByteArray xml = toLocalStamps(QByteArray(R"XML(<?xml version="1.0" encoding="UTF-8"?>
+<HealthData locale="en_US">
+  <Record type="HKCategoryTypeIdentifierSleepAnalysis" sourceName="Oura" unit="" value="HKCategoryValueSleepAnalysisAsleepCore" startDate="2025-08-05 22:00:00 -0400" endDate="2025-08-05 23:00:00 -0400"/>
+  <Record type="HKQuantityTypeIdentifierHeartRate" sourceName="Oura" unit="count/min" value="55" startDate="2025-08-05 22:15:00 -0400" endDate="2025-08-05 22:15:00 -0400"/>
+  <Record type="HKQuantityTypeIdentifierHeartRate" sourceName="Oura" unit="count/min" value="56" startDate="2025-08-05 22:20:00 -0400" endDate="2025-08-05 22:20:00 -0400"/>
+  <Record type="HKQuantityTypeIdentifierOxygenSaturation" sourceName="Oura" unit="%" value="0.95" startDate="2025-08-05 22:18:00 -0400" endDate="2025-08-05 22:18:00 -0400"/>
+  <Record type="HKQuantityTypeIdentifierHeartRate" sourceName="Third Party Oximeter" unit="count/min" value="130" startDate="2025-08-05 22:17:00 -0400" endDate="2025-08-05 22:17:00 -0400"/>
+</HealthData>
+)XML"));
+    QCOMPARE(exportFile.write(xml), static_cast<qint64>(xml.size()));
+    exportFile.close();
+
+    Machine *sleepMachine = nullptr;
+    for (Machine *machine : p_profile->GetMachines(MT_SLEEPSTAGE)) {
+        if (machine->loaderName() == applehealth_class_name) {
+            sleepMachine = machine;
+            break;
+        }
+    }
+    Machine *oxiMachine = nullptr;
+    for (Machine *machine : p_profile->GetMachines(MT_OXIMETER)) {
+        if (machine->loaderName() == applehealth_class_name) {
+            oxiMachine = machine;
+            break;
+        }
+    }
+    QVERIFY(sleepMachine != nullptr);
+    QVERIFY(oxiMachine != nullptr);
+    const int sleepCount = sleepMachine->sessionlist.size();
+    const int oxiCount = oxiMachine->sessionlist.size();
+
+    QCOMPARE(s_loader->OpenFile(exportPath), 2);
+    const AppleHealthImportSummary &summary = s_loader->lastImportSummary();
+    QCOMPARE(summary.sleepSessions, 1);
+    QCOMPARE(summary.oxiSessions, 1);
+    QCOMPARE(summary.chosenSleepSource, QStringLiteral("Oura"));
+    QCOMPARE(summary.importedVitalsSources, QStringList{QStringLiteral("Oura")});
+    QCOMPARE(summary.ignoredVitalsCounts.size(), 1);
+    QCOMPARE(summary.ignoredVitalsCounts.value(QStringLiteral("Third Party Oximeter")), 1);
+    QCOMPARE(sleepMachine->sessionlist.size(), sleepCount + 1);
+    QCOMPARE(oxiMachine->sessionlist.size(), oxiCount + 1);
+    QVERIFY(sleepMachine->SessionExists(
+        static_cast<SessionID>(epochMs(QStringLiteral("2025-08-05 22:00:00")) / 1000L)) != nullptr);
+    Session *session = oxiMachine->SessionExists(
+        static_cast<SessionID>(epochMs(QStringLiteral("2025-08-05 22:15:00")) / 1000L));
+    QVERIFY(session != nullptr);
+    QVERIFY(session->OpenEvents());
+    QVector<EventDataType> pulseValues;
+    for (EventList *eventList : session->eventlist.value(OXI_Pulse)) {
+        for (quint32 i = 0; i < eventList->count(); ++i) {
+            pulseValues.append(eventList->data(i));
+        }
+    }
+    QCOMPARE(pulseValues, (QVector<EventDataType>{55.0F, 56.0F}));
+    QVector<EventDataType> spo2Values;
+    for (EventList *eventList : session->eventlist.value(OXI_SPO2)) {
+        for (quint32 i = 0; i < eventList->count(); ++i) {
+            spo2Values.append(eventList->data(i));
+        }
+    }
+    QCOMPARE(spo2Values, QVector<EventDataType>{95.0F});
+}
+
 void AppleHealthTests::testLoaderSummarizesMultipleFiles()
 {
     const QString firstPath = m_tempDir->path() + QStringLiteral("/multi-export-1.xml");
@@ -853,6 +975,7 @@ void AppleHealthTests::testLoaderSummarizesMultipleFiles()
   <Record type="HKCategoryTypeIdentifierSleepAnalysis" sourceName="test’s Apple Watch" unit="" value="HKCategoryValueSleepAnalysisAsleepCore" startDate="2025-09-01 22:00:00 -0400" endDate="2025-09-01 23:00:00 -0400"/>
   <Record type="HKQuantityTypeIdentifierHeartRate" sourceName="test’s Apple Watch" unit="count/min" value="65" startDate="2025-09-01 22:15:00 -0400" endDate="2025-09-01 22:15:00 -0400"/>
   <Record type="HKQuantityTypeIdentifierHeartRate" sourceName="test’s Apple Watch" unit="count/min" value="66" startDate="2025-09-01 22:45:00 -0400" endDate="2025-09-01 22:45:00 -0400"/>
+  <Record type="HKQuantityTypeIdentifierHeartRate" sourceName="Sleep Cycle" unit="count/min" value="70" startDate="2025-09-01 22:20:00 -0400" endDate="2025-09-01 22:20:00 -0400"/>
   <Record type="HKQuantityTypeIdentifierBodyMass" sourceName="Test Scale" unit="kg" value="75" startDate="2025-09-01 20:00:00 -0400" endDate="2025-09-01 20:00:00 -0400"/>
 </HealthData>
 )XML"));
@@ -867,6 +990,7 @@ void AppleHealthTests::testLoaderSummarizesMultipleFiles()
   <Record type="HKCategoryTypeIdentifierSleepAnalysis" sourceName="Sleep Cycle" unit="" value="HKCategoryValueSleepAnalysisAsleepCore" startDate="2025-09-02 22:00:00 -0400" endDate="2025-09-02 23:00:00 -0400"/>
   <Record type="HKQuantityTypeIdentifierOxygenSaturation" sourceName="Sleep Cycle" unit="%" value="0.97" startDate="2025-09-02 22:15:00 -0400" endDate="2025-09-02 22:15:00 -0400"/>
   <Record type="HKQuantityTypeIdentifierOxygenSaturation" sourceName="Sleep Cycle" unit="%" value="0.96" startDate="2025-09-02 22:45:00 -0400" endDate="2025-09-02 22:45:00 -0400"/>
+  <Record type="HKQuantityTypeIdentifierHeartRate" sourceName="test’s Apple Watch" unit="count/min" value="65" startDate="2025-09-02 22:30:00 -0400" endDate="2025-09-02 22:30:00 -0400"/>
   <Record type="HKQuantityTypeIdentifierBodyMass" sourceName="Test Scale" unit="kg" value="74" startDate="2025-09-02 20:00:00 -0400" endDate="2025-09-02 20:00:00 -0400"/>
 </HealthData>
 )XML"));
@@ -882,6 +1006,10 @@ void AppleHealthTests::testLoaderSummarizesMultipleFiles()
     QCOMPARE(summary.skippedExisting, 0);
     QCOMPARE(summary.sleepSourceCounts.value(kAppleSource), 1);
     QCOMPARE(summary.sleepSourceCounts.value(QStringLiteral("Sleep Cycle")), 1);
+    QCOMPARE(summary.importedVitalsSources, (QStringList{kAppleSource, QStringLiteral("Sleep Cycle")}));
+    // Also ignored: in the first file, Apple Watch was the chosen sleep source.
+    QCOMPARE(summary.ignoredVitalsCounts.size(), 1);
+    QCOMPARE(summary.ignoredVitalsCounts.value(QStringLiteral("Sleep Cycle")), 1);
     QCOMPARE(summary.chosenSleepSource,
              kAppleSource + QStringLiteral(", Sleep Cycle"));
 }

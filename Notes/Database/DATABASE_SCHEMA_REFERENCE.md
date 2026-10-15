@@ -45,6 +45,7 @@ The OSCAR database uses SQLite to store user profiles, machine configurations, s
 | 16 | 2026 Q2 | 🔧 **DESIGN FIX**: Dropped `machine_id` column, its FK to `machines`, and `idx_daily_summaries_profile_machine` from `daily_summaries`. Natural key is now `(profile_id, date)`. Each row is a profile-day rollup that already aggregates across all machines for that date — the per-machine dimension was a design mistake never used by callers. |
 | 17 | 2026 Q3 | 🕐 **NEW FEATURE**: Added `device_time_corrections` table for per-device per-night time corrections (timezone, travel, dst, reset, offset, drift). |
 | 18 | 2026 Q3 | 📊 **NEW FEATURE**: Central / Obstructive hypopnea split. Added `obstructive_hypopnea_count`, `central_hypopnea_count`, `all_apnea_count` (INTEGER) and `oahi`, `cahi` (REAL) to both `session_summaries` and `daily_summaries`. `all_apnea_count` closes a pre-existing gap — `CPAP_AllApnea` contributes to AHI but was never stored, so SQL sums could not reproduce the app's AHI for devices reporting an undifferentiated apnea. Purely additive; pre-v18 rows read 0 in all five columns and are **not** backfilled. |
+| 19 | 2026 Q3 | 🔧 **SEMANTICS**: Summary metrics that do not apply are now `NULL`, not `0`, in `session_summaries` and `daily_summaries`: event counts for channels the device has never reported, `oahi`/`cahi` unless the device splits hypopneas by mechanism, `rdi` unless it reports RERA, and pressure/leak/oximetry statistics a row has no data for. No column changes. The #285 index recompute moved here from v18. Zero-count OH/CH `session_channels` rows of devices that never scored either are removed. `daily_summaries` rows of profiles whose CPAP devices disagree on some channel are regenerated on next open. A v18 backup restored into v19 keeps its `0`s. |
 
 ---
 
@@ -796,23 +797,25 @@ Re-import is required to repair pre-fix rows; the discontinuity is accepted.
 
 ### session_summaries
 
+**NULL vs 0 (v19).** `0` means measured and none; `NULL` means not applicable or not measured. Aggregate with `COALESCE(SUM(col), 0)` when adding columns together — `SUM()` over an all-NULL group is `NULL` and `NULL + x` is `NULL`.
+
 | Field | Type | Key | Null | Description |
 |-------|------|-----|------|-------------|
 | id | INTEGER | PK | NO | Auto-increment ID |
 | session_id | INTEGER | FK,UNIQUE | NO | → sessions(id) |
 | profile_id | INTEGER | FK | NO | → profiles(id) (denormalized, NEW IN v12) |
 | ahi | REAL | | NO | Apnea-Hypopnea Index |
-| rdi | REAL | | NO | Respiratory Disturbance Index |
-| oahi | REAL | | NO | Obstructive AHI (added in v18); oahi + cahi = ahi |
-| cahi | REAL | | NO | Central AHI (added in v18) |
-| obstructive_count | INTEGER | | NO | OA count |
-| unclassified_count | INTEGER | | NO | UA count (renamed from central_count in v10) |
-| hypopnea_count | INTEGER | | NO | H Hypopnea count (unclassified by mechanism) |
-| rera_count | INTEGER | | NO | RERA count |
-| clear_airway_count | INTEGER | | NO | CA count (added in v10) |
-| obstructive_hypopnea_count | INTEGER | | NO | OH count (added in v18) |
-| central_hypopnea_count | INTEGER | | NO | CH count (added in v18) |
-| all_apnea_count | INTEGER | | NO | A count — undifferentiated apnea (added in v18) |
+| rdi | REAL | | YES | Respiratory Disturbance Index; NULL unless the device reports RERA (v19) |
+| oahi | REAL | | YES | Obstructive AHI (added in v18); oahi + cahi = ahi; NULL unless the device splits hypopneas by mechanism (v19) |
+| cahi | REAL | | YES | Central AHI (added in v18); NULL unless the device splits hypopneas by mechanism (v19) |
+| obstructive_count | INTEGER | | YES | OA count; NULL when the device never reports it (v19) |
+| unclassified_count | INTEGER | | YES | UA count (renamed from central_count in v10); NULL when the device never reports it (v19) |
+| hypopnea_count | INTEGER | | YES | H Hypopnea count (unclassified by mechanism); NULL when the device never reports it (v19) |
+| rera_count | INTEGER | | YES | RERA count; NULL when the device never reports it (v19) |
+| clear_airway_count | INTEGER | | YES | CA count (added in v10); NULL when the device never reports it (v19) |
+| obstructive_hypopnea_count | INTEGER | | YES | OH count (added in v18); NULL when the device never reports it (v19) |
+| central_hypopnea_count | INTEGER | | YES | CH count (added in v18); NULL when the device never reports it (v19) |
+| all_apnea_count | INTEGER | | YES | A count — undifferentiated apnea (added in v18); NULL when the device never reports it (v19) |
 | pressure_avg | REAL | | YES | Average pressure (cmH₂O) |
 | pressure_min | REAL | | YES | Min pressure |
 | pressure_max | REAL | | YES | Max pressure |
@@ -874,6 +877,8 @@ Re-import is required to repair pre-fix rows; the discontinuity is accepted.
 
 ### daily_summaries ⭐ NEW (per-machine dimension dropped in v16)
 
+**NULL vs 0 (v19).** `0` means measured and none; `NULL` means not applicable or not measured. Aggregate with `COALESCE(SUM(col), 0)` when adding columns together — `SUM()` over an all-NULL group is `NULL` and `NULL + x` is `NULL`.
+
 | Field | Type | Key | Null | Description |
 |-------|------|-----|------|-------------|
 | id | INTEGER | PK | NO | Auto-increment ID |
@@ -884,17 +889,17 @@ Re-import is required to repair pre-fix rows; the discontinuity is accepted.
 | total_hours | REAL | | NO | Total CPAP hours |
 | mask_on_hours | REAL | | NO | Mask-on hours |
 | ahi | REAL | | NO | Apnea-Hypopnea Index |
-| rdi | REAL | | NO | Respiratory Disturbance Index |
-| oahi | REAL | | NO | Obstructive AHI (added in v18); oahi + cahi = ahi |
-| cahi | REAL | | NO | Central AHI (added in v18) |
-| obstructive_count | INTEGER | | NO | OA count |
-| central_count | INTEGER | | NO | UA count |
-| hypopnea_count | INTEGER | | NO | Hypopnea count (unclassified by mechanism) |
-| rera_count | INTEGER | | NO | RERA count |
-| clear_airway_count | INTEGER | | NO | CA Clear airway count |
-| obstructive_hypopnea_count | INTEGER | | NO | OH count (added in v18) |
-| central_hypopnea_count | INTEGER | | NO | CH count (added in v18) |
-| all_apnea_count | INTEGER | | NO | A count — undifferentiated apnea (added in v18) |
+| rdi | REAL | | YES | Respiratory Disturbance Index; NULL unless the device reports RERA (v19) |
+| oahi | REAL | | YES | Obstructive AHI (added in v18); oahi + cahi = ahi; NULL unless the device splits hypopneas by mechanism (v19) |
+| cahi | REAL | | YES | Central AHI (added in v18); NULL unless the device splits hypopneas by mechanism (v19) |
+| obstructive_count | INTEGER | | YES | OA count; NULL when the device never reports it (v19) |
+| unclassified_count | INTEGER | | YES | UA count (renamed from central_count in v10); NULL when the device never reports it (v19) |
+| hypopnea_count | INTEGER | | YES | Hypopnea count (unclassified by mechanism); NULL when the device never reports it (v19) |
+| rera_count | INTEGER | | YES | RERA count; NULL when the device never reports it (v19) |
+| clear_airway_count | INTEGER | | YES | CA Clear airway count; NULL when the device never reports it (v19) |
+| obstructive_hypopnea_count | INTEGER | | YES | OH count (added in v18); NULL when the device never reports it (v19) |
+| central_hypopnea_count | INTEGER | | YES | CH count (added in v18); NULL when the device never reports it (v19) |
+| all_apnea_count | INTEGER | | YES | A count — undifferentiated apnea (added in v18); NULL when the device never reports it (v19) |
 | pressure_avg | REAL | | YES | Average pressure (cmH₂O) |
 | pressure_min | REAL | | YES | Min pressure |
 | pressure_max | REAL | | YES | Max pressure |

@@ -600,7 +600,7 @@ Supported services: Dropbox, Google Drive, OneDrive, Box, 0x0.st, or any direct 
         <translation>Показати всі події</translation>
     </message>
     <message>
-        <location filename="../oscar/daily.cpp" line="2340"/>
+        <location filename="../oscar/daily.cpp" line="2343"/>
         <source>No CPAP data is available for this day</source>
         <translation>За цей день немає даних CPAP</translation>
     </message>
@@ -610,17 +610,17 @@ Supported services: Dropbox, Google Drive, OneDrive, Box, 0x0.st, or any direct 
         <translation>Показати всі графіки</translation>
     </message>
     <message>
-        <location filename="../oscar/daily.cpp" line="2716"/>
+        <location filename="../oscar/daily.cpp" line="2719"/>
         <source>Pick a Colour</source>
         <translation>Виберіть колір</translation>
     </message>
     <message>
-        <location filename="../oscar/daily.cpp" line="2359"/>
+        <location filename="../oscar/daily.cpp" line="2362"/>
         <source>No data is available for this day.</source>
         <translation>За цей день немає даних.</translation>
     </message>
     <message>
-        <location filename="../oscar/daily.cpp" line="2319"/>
+        <location filename="../oscar/daily.cpp" line="2322"/>
         <source>Complain to your Equipment Provider!</source>
         <translation>Поскаржтеся своєму постачальнику обладнання!</translation>
     </message>
@@ -630,7 +630,7 @@ Supported services: Dropbox, Google Drive, OneDrive, Box, 0x0.st, or any direct 
         <translation>Інформація про сеанс</translation>
     </message>
     <message>
-        <location filename="../oscar/daily.cpp" line="2308"/>
+        <location filename="../oscar/daily.cpp" line="2311"/>
         <source>Sessions all off!</source>
         <translation>Усі сеанси вимкнено!</translation>
     </message>
@@ -736,7 +736,7 @@ Supported services: Dropbox, Google Drive, OneDrive, Box, 0x0.st, or any direct 
         <translation>Час завершення сеансів</translation>
     </message>
     <message>
-        <location filename="../oscar/daily.cpp" line="3061"/>
+        <location filename="../oscar/daily.cpp" line="3064"/>
         <source>This bookmark is in a currently disabled area..</source>
         <translation>Ця закладка перебуває в наразі вимкненій ділянці..</translation>
     </message>
@@ -756,7 +756,7 @@ Supported services: Dropbox, Google Drive, OneDrive, Box, 0x0.st, or any direct 
         <translation>події</translation>
     </message>
     <message>
-        <location filename="../oscar/daily.cpp" line="2062"/>
+        <location filename="../oscar/daily.cpp" line="2065"/>
         <source>Event Breakdown</source>
         <translation>Розподіл подій</translation>
     </message>
@@ -806,32 +806,32 @@ Supported services: Dropbox, Google Drive, OneDrive, Box, 0x0.st, or any direct 
         <translation type="unfinished">Дані разових вимірювань; виявлення десатурації недоступне</translation>
     </message>
     <message>
-        <location filename="../oscar/daily.cpp" line="1823"/>
+        <location filename="../oscar/daily.cpp" line="1826"/>
         <source>Obstructive and Central shares of the %1</source>
         <translation type="unfinished">Частки обструктивних та центральних епізодів у %1</translation>
     </message>
     <message>
-        <location filename="../oscar/daily.cpp" line="1902"/>
+        <location filename="../oscar/daily.cpp" line="1905"/>
         <source>Breathing Disturbances (Apple)</source>
         <translation type="unfinished">Порушення дихання (Apple)</translation>
     </message>
     <message>
-        <location filename="../oscar/daily.cpp" line="1914"/>
+        <location filename="../oscar/daily.cpp" line="1917"/>
         <source>Wrist Temperature</source>
         <translation type="unfinished">Температура зап&apos;ястя</translation>
     </message>
     <message>
-        <location filename="../oscar/daily.cpp" line="1995"/>
+        <location filename="../oscar/daily.cpp" line="1998"/>
         <source>Time within the watch&apos;s sleep session spent without the CPAP mask on, and its share of that session</source>
         <translation type="unfinished">Час у межах сеансу сну годинника, проведений без маски CPAP, та його частка від цього сеансу</translation>
     </message>
     <message>
-        <location filename="../oscar/daily.cpp" line="2000"/>
+        <location filename="../oscar/daily.cpp" line="2003"/>
         <source>Unmasked Sleep</source>
         <translation type="unfinished">Сон без маски</translation>
     </message>
     <message>
-        <location filename="../oscar/daily.cpp" line="2318"/>
+        <location filename="../oscar/daily.cpp" line="2321"/>
         <source>Sorry, this device only provides compliance data.</source>
         <translation>На жаль, цей пристрій надає лише дані про дотримання режиму.</translation>
     </message>
@@ -841,7 +841,7 @@ Supported services: Dropbox, Google Drive, OneDrive, Box, 0x0.st, or any direct 
         <translation>Десатурації SpO2</translation>
     </message>
     <message>
-        <location filename="../oscar/daily.cpp" line="2356"/>
+        <location filename="../oscar/daily.cpp" line="2359"/>
         <source>&quot;Nothing&apos;s here!&quot;</source>
         <translation>«Тут нічого немає!»</translation>
     </message>
@@ -861,7 +861,7 @@ Supported services: Dropbox, Google Drive, OneDrive, Box, 0x0.st, or any direct 
         <translation>Використана базова лінія SpO2</translation>
     </message>
     <message>
-        <location filename="../oscar/daily.cpp" line="2314"/>
+        <location filename="../oscar/daily.cpp" line="2317"/>
         <source>Zero hours??</source>
         <translation>Нуль годин??</translation>
     </message>
@@ -876,7 +876,7 @@ Supported services: Dropbox, Google Drive, OneDrive, Box, 0x0.st, or any direct 
         <translation>Довідка з графіків</translation>
     </message>
     <message>
-        <location filename="../oscar/daily.cpp" line="2317"/>
+        <location filename="../oscar/daily.cpp" line="2320"/>
         <source>no data :(</source>
         <translation>немає даних :(</translation>
     </message>
@@ -901,7 +901,7 @@ Supported services: Dropbox, Google Drive, OneDrive, Box, 0x0.st, or any direct 
         <translation>вимкнути</translation>
     </message>
     <message>
-        <location filename="../oscar/daily.cpp" line="3012"/>
+        <location filename="../oscar/daily.cpp" line="3015"/>
         <source>Bookmark at %1</source>
         <translation>Закладка о %1</translation>
     </message>
@@ -931,7 +931,7 @@ Supported services: Dropbox, Google Drive, OneDrive, Box, 0x0.st, or any direct 
         <translation>Самопочуття</translation>
     </message>
     <message>
-        <location filename="../oscar/daily.cpp" line="2310"/>
+        <location filename="../oscar/daily.cpp" line="2313"/>
         <source>Sessions exist for this day but are switched off.</source>
         <translation>Сеанси за цей день існують, але вимкнені.</translation>
     </message>
@@ -972,7 +972,7 @@ Supported services: Dropbox, Google Drive, OneDrive, Box, 0x0.st, or any direct 
         <translation>Зберегти та відновити компонування графіків</translation>
     </message>
     <message>
-        <location filename="../oscar/daily.cpp" line="2313"/>
+        <location filename="../oscar/daily.cpp" line="2316"/>
         <source>Impossibly short session</source>
         <translation>Неможливо короткий сеанс</translation>
     </message>
@@ -1007,7 +1007,7 @@ Supported services: Dropbox, Google Drive, OneDrive, Box, 0x0.st, or any direct 
         <translation>Час поза рампою</translation>
     </message>
     <message>
-        <location filename="../oscar/daily.cpp" line="2092"/>
+        <location filename="../oscar/daily.cpp" line="2095"/>
         <source>Unable to display Pie Chart on this system</source>
         <translation>Не вдається показати кругову діаграму в цій системі</translation>
     </message>
@@ -1440,6 +1440,205 @@ Jumps to Date&apos;s Details</source>
     </message>
 </context>
 <context>
+    <name>DataFolderCreateDialog</name>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="274"/>
+        <source>OSCAR 2 Initial Setup</source>
+        <translation type="unfinished">Початкове налаштування OSCAR 2</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="275"/>
+        <source>New Database</source>
+        <translation type="unfinished">Нова база даних</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="279"/>
+        <source>OSCAR requires a folder to store data and control information.</source>
+        <translation type="unfinished">OSCAR потребує папку для зберігання даних та керуючої інформації.</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="280"/>
+        <source>We recommend you accept the default name provided.</source>
+        <translation type="unfinished">Рекомендуємо погодитися з назвою за замовчуванням.</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="281"/>
+        <source>OSCAR&apos;s data folder can be located anywhere on your computer, with the default being your Documents folder.</source>
+        <translation type="unfinished">Папка даних OSCAR може бути розташована будь-де на вашому комп&apos;ютері, за замовчуванням це папка &quot;Документи&quot;.</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="282"/>
+        <location filename="../oscar/datafolderdialog.cpp" line="287"/>
+        <source>We recommend you choose a location that is not managed by a cloud service such as Google Drive, OneDrive, and similar products.</source>
+        <translation type="unfinished">Рекомендуємо обрати розташування, яке не керується хмарним сервісом, таким як Google Drive, OneDrive та подібними продуктами.</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="283"/>
+        <source>OSCAR 1.x and 2.x cannot use the same data folder as the data structures are different.</source>
+        <translation type="unfinished">OSCAR 1.x та 2.x не можуть використовувати одну й ту саму папку даних, оскільки структури даних різні.</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="284"/>
+        <source>If you have OSCAR 1.x data, you will be able to migrate it to OSCAR 2 in the next step.</source>
+        <translation type="unfinished">Якщо у вас є дані OSCAR 1.x, ви зможете перенести їх до OSCAR 2 на наступному кроці.</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="286"/>
+        <source>OSCAR will create a new database folder with an empty database.</source>
+        <translation type="unfinished">OSCAR створить нову папку бази даних з порожньою базою даних.</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="288"/>
+        <source>OSCAR will restart using the new database.</source>
+        <translation type="unfinished">OSCAR перезапуститься з використанням нової бази даних.</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="289"/>
+        <source>You can return to your current database with File ▸ Database ▸ Open or the Recent list.</source>
+        <translation type="unfinished">Ви можете повернутися до поточної бази даних за допомогою Файл ▸ База даних ▸ Відкрити або списку останніх.</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="290"/>
+        <source>Name the data folder and select the folder location.</source>
+        <translation type="unfinished">Назвіть папку даних та оберіть розташування папки.</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="296"/>
+        <source>Data folder name:</source>
+        <translation type="unfinished">Назва папки даних:</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="300"/>
+        <source>Browse...</source>
+        <translation type="unfinished">Огляд...</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="303"/>
+        <source>Folder location:</source>
+        <translation type="unfinished">Розташування папки:</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="312"/>
+        <source>Create OSCAR folder</source>
+        <translation type="unfinished">Створити папку OSCAR</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="313"/>
+        <source>Create new database</source>
+        <translation type="unfinished">Створити нову базу даних</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="315"/>
+        <source>Cancel</source>
+        <translation type="unfinished">Скасувати</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="344"/>
+        <source>Choose the location for the OSCAR data folder</source>
+        <translation type="unfinished">Оберіть розташування для папки даних OSCAR</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="354"/>
+        <source>Choose a location for the data folder.</source>
+        <translation type="unfinished">Оберіть розташування для папки даних.</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="361"/>
+        <source>OSCAR will create:</source>
+        <translation type="unfinished">OSCAR створить:</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="376"/>
+        <source>The folder location does not exist.</source>
+        <translation type="unfinished">Розташування папки не існує.</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="378"/>
+        <source>Use Browse to choose an existing folder for the location.</source>
+        <translation type="unfinished">Скористайтеся кнопкою &quot;Огляд&quot;, щоб обрати наявну папку для розташування.</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="388"/>
+        <source>This folder contains OSCAR 1.x data. OSCAR 2 cannot use an OSCAR 1.x data folder.</source>
+        <translation type="unfinished">Ця папка містить дані OSCAR 1.x. OSCAR 2 не може використовувати папку даних OSCAR 1.x.</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="389"/>
+        <source>Choose a different folder name or location.</source>
+        <translation type="unfinished">Виберіть іншу назву папки або розташування.</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="392"/>
+        <source>This folder already contains an OSCAR 2 database.</source>
+        <translation type="unfinished">Ця папка вже містить базу даних OSCAR 2.</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="394"/>
+        <source>To use it, go back and choose &quot;Find my OSCAR 2 data folder&quot;.</source>
+        <translation type="unfinished">Щоб використати її, поверніться назад і виберіть &quot;Знайти мою папку даних OSCAR 2&quot;.</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="395"/>
+        <source>To use it, choose File ▸ Database ▸ Open.</source>
+        <translation type="unfinished">Щоб використати її, виберіть Файл ▸ База даних ▸ Відкрити.</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="398"/>
+        <source>Something with this name already exists in that location, and it is not an empty folder.</source>
+        <translation type="unfinished">У цьому розташуванні вже існує щось із такою назвою, і це не порожня папка.</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="399"/>
+        <source>OSCAR needs a new or empty folder. Choose a different folder name or location.</source>
+        <translation type="unfinished">OSCAR потребує нової або порожньої папки. Виберіть іншу назву папки або розташування.</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="408"/>
+        <source>Cloud-managed location</source>
+        <translation type="unfinished">Розташування, кероване хмарним сервісом</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="409"/>
+        <source>The location you chose appears to be managed by %1.</source>
+        <translation type="unfinished">Розташування, яке ви вибрали, схоже, кероване %1.</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="410"/>
+        <source>Cloud services can change or lock OSCAR&apos;s database while OSCAR is using it, which can corrupt your data.</source>
+        <translation type="unfinished">Хмарні сервіси можуть змінювати або блокувати базу даних OSCAR під час її використання, що може пошкодити ваші дані.</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="411"/>
+        <source>We recommend a folder that is not synchronised with a cloud service.</source>
+        <translation type="unfinished">Ми рекомендуємо папку, яка не синхронізується з хмарним сервісом.</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="412"/>
+        <source>Use this location anyway?</source>
+        <translation type="unfinished">Все одно використати це розташування?</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="420"/>
+        <source>OSCAR was unable to create the folder.</source>
+        <translation type="unfinished">OSCAR не вдалося створити папку.</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="421"/>
+        <source>Check that you have permission to create folders in this location.</source>
+        <translation type="unfinished">Перевірте, чи маєте ви дозвіл на створення папок у цьому розташуванні.</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="431"/>
+        <source>OSCAR is unable to write to the folder.</source>
+        <translation type="unfinished">OSCAR не може виконати запис у папку.</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="432"/>
+        <source>Error</source>
+        <translation type="unfinished">Помилка</translation>
+    </message>
+</context>
+<context>
     <name>DatabaseDeleteDialog</name>
     <message>
         <location filename="../oscar/database/database_delete_dialog.cpp" line="37"/>
@@ -1574,7 +1773,22 @@ Some files may still be present.</source>
 <context>
     <name>DatabaseManager</name>
     <message>
-        <location filename="../oscar/database/database_manager.cpp" line="411"/>
+        <location filename="../oscar/database/database_manager.cpp" line="205"/>
+        <source>No database is open.</source>
+        <translation type="unfinished">Жодна база даних не відкрита.</translation>
+    </message>
+    <message>
+        <location filename="../oscar/database/database_manager.cpp" line="208"/>
+        <source>The file %1 already exists.</source>
+        <translation type="unfinished">Файл %1 вже існує.</translation>
+    </message>
+    <message>
+        <location filename="../oscar/database/database_manager.cpp" line="214"/>
+        <source>Not enough free space: the copy needs about %1 MB but only %2 MB is available.</source>
+        <translation type="unfinished">Недостатньо вільного місця: для копіювання потрібно приблизно %1 МБ, але доступно лише %2 МБ.</translation>
+    </message>
+    <message>
+        <location filename="../oscar/database/database_manager.cpp" line="576"/>
         <source>A database corruption or I/O error was detected in %1.
 
 Error: %2
@@ -2832,7 +3046,7 @@ Please wait...</source>
     </message>
     <message>
         <location filename="../oscar/mainwindow.ui" line="2777"/>
-        <location filename="../oscar/mainwindow.cpp" line="2451"/>
+        <location filename="../oscar/mainwindow.cpp" line="2539"/>
         <source>CPAP</source>
         <translation>CPAP</translation>
     </message>
@@ -2843,7 +3057,7 @@ Please wait...</source>
     </message>
     <message>
         <location filename="../oscar/mainwindow.ui" line="2302"/>
-        <location filename="../oscar/mainwindow.cpp" line="184"/>
+        <location filename="../oscar/mainwindow.cpp" line="208"/>
         <source>Exit</source>
         <translation>Вихід</translation>
     </message>
@@ -2864,18 +3078,18 @@ Please wait...</source>
         <translation>Вигляд</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="1228"/>
+        <location filename="../oscar/mainwindow.cpp" line="1271"/>
         <source>Please insert your CPAP data card...</source>
         <translation>Вставте картку з даними CPAP...</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="4037"/>
-        <location filename="../oscar/mainwindow.cpp" line="4052"/>
-        <location filename="../oscar/mainwindow.cpp" line="4083"/>
-        <location filename="../oscar/mainwindow.cpp" line="4129"/>
-        <location filename="../oscar/mainwindow.cpp" line="4164"/>
+        <location filename="../oscar/mainwindow.cpp" line="4159"/>
         <location filename="../oscar/mainwindow.cpp" line="4174"/>
-        <location filename="../oscar/mainwindow.cpp" line="4202"/>
+        <location filename="../oscar/mainwindow.cpp" line="4205"/>
+        <location filename="../oscar/mainwindow.cpp" line="4251"/>
+        <location filename="../oscar/mainwindow.cpp" line="4286"/>
+        <location filename="../oscar/mainwindow.cpp" line="4296"/>
+        <location filename="../oscar/mainwindow.cpp" line="4324"/>
         <source>Compress Database</source>
         <translation>Стиснути базу даних</translation>
     </message>
@@ -2890,7 +3104,7 @@ Please wait...</source>
         <translation>Показати огляд</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="181"/>
+        <location filename="../oscar/mainwindow.cpp" line="205"/>
         <source>About</source>
         <translation>Про програму</translation>
     </message>
@@ -2906,7 +3120,7 @@ Please wait...</source>
     </message>
     <message>
         <location filename="../oscar/mainwindow.ui" line="2797"/>
-        <location filename="../oscar/mainwindow.cpp" line="2455"/>
+        <location filename="../oscar/mainwindow.cpp" line="2543"/>
         <source>All except Notes</source>
         <translation>Усе, крім нотаток</translation>
     </message>
@@ -2921,34 +3135,34 @@ Please wait...</source>
         <translation>Імпорт даних Viatom/Wellue</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="3055"/>
+        <location filename="../oscar/mainwindow.cpp" line="3181"/>
         <source>MSeries Import complete</source>
         <translation>Імпорт MSeries завершено</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="2049"/>
+        <location filename="../oscar/mainwindow.cpp" line="2142"/>
         <source>There was an error saving screenshot to file &quot;%1&quot;</source>
         <translation>Сталася помилка під час збереження знімка екрана у файл &quot;%1&quot;</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="700"/>
+        <location filename="../oscar/mainwindow.cpp" line="724"/>
         <source>Opening %1</source>
         <translation>Відкривається %1</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="817"/>
+        <location filename="../oscar/mainwindow.cpp" line="841"/>
         <source>%1 (Profile: %2)%3</source>
         <translation>%1 (Профіль: %2)%3</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="992"/>
-        <location filename="../oscar/mainwindow.cpp" line="3332"/>
+        <location filename="../oscar/mainwindow.cpp" line="1016"/>
+        <location filename="../oscar/mainwindow.cpp" line="3459"/>
         <source>Database Locked</source>
         <translation>Базу даних заблоковано</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="993"/>
-        <location filename="../oscar/mainwindow.cpp" line="3333"/>
+        <location filename="../oscar/mainwindow.cpp" line="1017"/>
+        <location filename="../oscar/mainwindow.cpp" line="3460"/>
         <source>Cannot import data: the OSCAR database is locked by another application.
 
 If you have the database open in a SQLite viewer or editor, please close it and try again.
@@ -2961,8 +3175,8 @@ Error: %1</source>
 Помилка: %1</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="1056"/>
-        <location filename="../oscar/mainwindow.cpp" line="3381"/>
+        <location filename="../oscar/mainwindow.cpp" line="1099"/>
+        <location filename="../oscar/mainwindow.cpp" line="3508"/>
         <source>The imported data could not be saved to the database. No data was stored.
 
 If you have the OSCAR database open in another application (e.g., a SQLite viewer or editor), please close it and try again.
@@ -2975,17 +3189,17 @@ Error: %1</source>
 Помилка: %1</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="1235"/>
+        <location filename="../oscar/mainwindow.cpp" line="1278"/>
         <source>Choose a folder</source>
         <translation>Виберіть теку</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="1476"/>
+        <location filename="../oscar/mainwindow.cpp" line="1519"/>
         <source>Different CPAP Machine Detected</source>
         <translation>Виявлено інший апарат CPAP</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="1477"/>
+        <location filename="../oscar/mainwindow.cpp" line="1520"/>
         <source>This SD card is from a different machine than the last one imported into this profile.
 
 Last imported: %1
@@ -3000,69 +3214,70 @@ Are you sure you want to import from this card into this profile?</source>
 Справді імпортувати дані з цієї карти в цей профіль?</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="1482"/>
+        <location filename="../oscar/mainwindow.cpp" line="1525"/>
         <source>Continue</source>
         <translation>Продовжити</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="1499"/>
+        <location filename="../oscar/mainwindow.cpp" line="1542"/>
         <source>Yes</source>
         <translation>Так</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="1483"/>
-        <location filename="../oscar/mainwindow.cpp" line="1500"/>
-        <location filename="../oscar/mainwindow.cpp" line="2477"/>
+        <location filename="../oscar/mainwindow.cpp" line="1526"/>
+        <location filename="../oscar/mainwindow.cpp" line="1543"/>
+        <location filename="../oscar/mainwindow.cpp" line="2565"/>
         <source>Cancel</source>
         <translation>Скасувати</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="2940"/>
+        <location filename="../oscar/mainwindow.cpp" line="3049"/>
         <source>Apple Health Import</source>
         <translation type="unfinished">Імпорт з Apple Health</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="2941"/>
+        <location filename="../oscar/mainwindow.cpp" line="3050"/>
         <source>How much of your Apple Health history should be imported?</source>
         <translation type="unfinished">Яку частину історії Apple Health слід імпортувати?</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="2944"/>
+        <location filename="../oscar/mainwindow.cpp" line="3053"/>
         <source>Overlapping CPAP history (recommended)</source>
         <translation type="unfinished">Історія, що перетинається з CPAP (рекомендовано)</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="2946"/>
+        <location filename="../oscar/mainwindow.cpp" line="3055"/>
         <source>Full history</source>
         <translation type="unfinished">Повна історія</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="2968"/>
+        <location filename="../oscar/mainwindow.cpp" line="3077"/>
+        <location filename="../oscar/mainwindow.cpp" line="3146"/>
         <source>%1 (%2 records)</source>
         <translation type="unfinished">%1 (%2 записів)</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="2978"/>
+        <location filename="../oscar/mainwindow.cpp" line="3087"/>
         <source>Apple Health Sleep Source</source>
         <translation type="unfinished">Джерело даних про сон Apple Health</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="2978"/>
+        <location filename="../oscar/mainwindow.cpp" line="3087"/>
         <source>Choose the source for sleep stages:</source>
         <translation type="unfinished">Оберіть джерело для стадій сну:</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="2988"/>
+        <location filename="../oscar/mainwindow.cpp" line="3097"/>
         <source>Reading Apple Health export...</source>
         <translation type="unfinished">Читання експорту Apple Health...</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="3019"/>
+        <location filename="../oscar/mainwindow.cpp" line="3128"/>
         <source>No matching Apple Watch source</source>
         <translation type="unfinished">Немає відповідного джерела Apple Watch</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="3021"/>
+        <location filename="../oscar/mainwindow.cpp" line="3130"/>
         <source>Imported %1 sleep session(s) and %2 vitals session(s).
 Skipped %3 already-imported night(s).
 Sleep source: %4</source>
@@ -3071,71 +3286,79 @@ Sleep source: %4</source>
 Джерело сну: %4</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="3029"/>
+        <location filename="../oscar/mainwindow.cpp" line="3155"/>
         <source>Imported weight for %1 day(s).</source>
         <translation type="unfinished">Імпортовано вагу за %1 день(днів).</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="3032"/>
+        <location filename="../oscar/mainwindow.cpp" line="3158"/>
         <source>Apple Health Import Summary</source>
         <translation type="unfinished">Підсумок імпорту Apple Health</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="3125"/>
+        <location filename="../oscar/mainwindow.cpp" line="3251"/>
         <source>Failed to restart OSCAR. Please restart it manually.</source>
         <translation>Не вдалося перезапустити OSCAR. Перезапустіть його вручну.</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="3149"/>
+        <location filename="../oscar/mainwindow.cpp" line="3275"/>
         <source> (active)</source>
         <translation> (активна)</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="3159"/>
+        <location filename="../oscar/mainwindow.cpp" line="3285"/>
         <source>(none)</source>
         <translation>(немає)</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="3168"/>
         <source>Select or Create an Empty Folder for New Database</source>
-        <translation>Виберіть або створіть порожню теку для нової бази даних</translation>
+        <translation type="vanished">Виберіть або створіть порожню теку для нової бази даних</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="3175"/>
         <source>New Database</source>
-        <translation>Нова база даних</translation>
+        <translation type="vanished">Нова база даних</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="3176"/>
         <source>The selected folder already contains an OSCAR database.
 Use File ▸ Database ▸ Open to open an existing database.</source>
-        <translation>Вибрана тека вже містить базу даних OSCAR.
+        <translation type="vanished">Вибрана тека вже містить базу даних OSCAR.
 Щоб відкрити наявну базу даних, скористайтеся «Файл ▸ База даних ▸ Відкрити».</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="3187"/>
+        <location filename="../oscar/mainwindow.cpp" line="3307"/>
         <source>Select OSCAR Database Folder</source>
         <translation>Виберіть теку бази даних OSCAR</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="3194"/>
+        <location filename="../oscar/mainwindow.cpp" line="3315"/>
+        <location filename="../oscar/mainwindow.cpp" line="3321"/>
         <source>Open Database</source>
         <translation>Відкрити базу даних</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="3195"/>
+        <location filename="../oscar/mainwindow.cpp" line="3316"/>
+        <source>The selected folder contains OSCAR 1.x data, which OSCAR 2 cannot open directly.</source>
+        <translation type="unfinished">Вибрана папка містить дані OSCAR 1.x, які OSCAR 2 не може відкрити безпосередньо.</translation>
+    </message>
+    <message>
+        <location filename="../oscar/mainwindow.cpp" line="3317"/>
+        <source>To bring that data into OSCAR 2, use File ▸ Profiles ▸ Import from OSCAR...</source>
+        <translation type="unfinished">Щоб перенести ці дані в OSCAR 2, скористайтеся Файл ▸ Профілі ▸ Імпортувати з OSCAR...</translation>
+    </message>
+    <message>
+        <location filename="../oscar/mainwindow.cpp" line="3322"/>
         <source>The selected folder does not contain an OSCAR database.
 Please select a folder that contains an oscar.db file.</source>
         <translation>Вибрана тека не містить бази даних OSCAR.
 Виберіть теку, у якій є файл oscar.db.</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="3218"/>
+        <location filename="../oscar/mainwindow.cpp" line="3345"/>
         <source>Delete Database</source>
         <translation>Видалити базу даних</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="3219"/>
+        <location filename="../oscar/mainwindow.cpp" line="3346"/>
         <source>There are no inactive databases in the recent list to delete.
 
 Open databases with File ▸ Database ▸ Open first to add them to the recent list.</source>
@@ -3144,46 +3367,46 @@ Open databases with File ▸ Database ▸ Open first to add them to the recent l
 Спершу відкрийте бази даних через «Файл ▸ База даних ▸ Відкрити», щоб додати їх до списку нещодавніх.</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="3391"/>
+        <location filename="../oscar/mainwindow.cpp" line="3518"/>
         <source>Import aborted: %1 file(s) already imported were kept</source>
         <translation type="unfinished">Імпорт скасовано: %1 файл(и), уже імпортовані раніше, було збережено</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="3718"/>
-        <location filename="../oscar/mainwindow.cpp" line="3738"/>
+        <location filename="../oscar/mainwindow.cpp" line="3837"/>
+        <location filename="../oscar/mainwindow.cpp" line="3857"/>
         <source>No profile is currently open.</source>
         <translation>Зараз не відкрито жодного профілю.</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="3738"/>
+        <location filename="../oscar/mainwindow.cpp" line="3857"/>
         <source>Export Journal</source>
         <translation>Експорт щоденника</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="3750"/>
+        <location filename="../oscar/mainwindow.cpp" line="3869"/>
         <source>%1&apos;s Journal</source>
         <translation>Щоденник: %1</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="3982"/>
-        <location filename="../oscar/mainwindow.cpp" line="4009"/>
-        <location filename="../oscar/mainwindow.cpp" line="4013"/>
+        <location filename="../oscar/mainwindow.cpp" line="4104"/>
+        <location filename="../oscar/mainwindow.cpp" line="4131"/>
+        <location filename="../oscar/mainwindow.cpp" line="4135"/>
         <source>Check Database Integrity</source>
         <translation>Перевірити цілісність бази даних</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="3986"/>
-        <location filename="../oscar/mainwindow.cpp" line="4078"/>
+        <location filename="../oscar/mainwindow.cpp" line="4108"/>
+        <location filename="../oscar/mainwindow.cpp" line="4200"/>
         <source>Checking database integrity, please wait...</source>
         <translation>Перевірка цілісності бази даних, зачекайте...</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="4010"/>
+        <location filename="../oscar/mainwindow.cpp" line="4132"/>
         <source>The database integrity check passed. No problems were found.</source>
         <translation>Перевірку цілісності бази даних пройдено. Проблем не виявлено.</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="4014"/>
+        <location filename="../oscar/mainwindow.cpp" line="4136"/>
         <source>The database integrity check found problems. Some data may be missing or corrupted.
 
 The integrity check covers the entire database, which may contain multiple profiles.
@@ -3206,7 +3429,7 @@ For advanced recovery options, see the OSCAR documentation.</source>
 Про додаткові способи відновлення читайте в документації OSCAR.</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="4038"/>
+        <location filename="../oscar/mainwindow.cpp" line="4160"/>
         <source>This will compact the database to reclaim unused disk space. It is most useful after deleting profiles.
 
 Current database size: %1
@@ -3223,7 +3446,7 @@ Continue?</source>
 Продовжити?</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="4084"/>
+        <location filename="../oscar/mainwindow.cpp" line="4206"/>
         <source>The database integrity check failed. Compression cannot proceed on a damaged database.
 
 Recommended actions:
@@ -3242,7 +3465,7 @@ For advanced recovery options, see the OSCAR documentation.</source>
 Про додаткові способи відновлення читайте в документації OSCAR.</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="4104"/>
+        <location filename="../oscar/mainwindow.cpp" line="4226"/>
         <source>Compressing database, please wait...
 
 This may take several minutes for large databases.</source>
@@ -3251,7 +3474,7 @@ This may take several minutes for large databases.</source>
 Для великих баз це може тривати кілька хвилин.</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="4165"/>
+        <location filename="../oscar/mainwindow.cpp" line="4287"/>
         <source>Compression succeeded but the database file could not be replaced.
 
 The original database is unchanged.</source>
@@ -3260,7 +3483,7 @@ The original database is unchanged.</source>
 Початкова база даних лишилася без змін.</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="4175"/>
+        <location filename="../oscar/mainwindow.cpp" line="4297"/>
         <source>Compression succeeded but the new file could not be put in place.
 
 The original database has been restored.</source>
@@ -3269,7 +3492,7 @@ The original database has been restored.</source>
 Початкову базу даних відновлено.</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="4187"/>
+        <location filename="../oscar/mainwindow.cpp" line="4309"/>
         <source>Database compressed successfully.
 
 Before:    %1
@@ -3286,7 +3509,7 @@ OSCAR will restart when you press OK.</source>
 Після натискання «OK» OSCAR перезапуститься.</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="4196"/>
+        <location filename="../oscar/mainwindow.cpp" line="4318"/>
         <source>Database compressed successfully.
 
 Size: %1
@@ -3303,24 +3526,24 @@ OSCAR will restart when you press OK.</source>
 Після натискання «OK» OSCAR перезапуститься.</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="4319"/>
+        <location filename="../oscar/mainwindow.cpp" line="4441"/>
         <source>Copy to Clipboard</source>
         <translation>Копіювати в буфер обміну</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="4130"/>
+        <location filename="../oscar/mainwindow.cpp" line="4252"/>
         <source>Database compression failed:
 %1</source>
         <translation>Не вдалося стиснути базу даних:
 %1</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="1437"/>
+        <location filename="../oscar/mainwindow.cpp" line="1480"/>
         <source>A %1 file structure for a %2 was located at:</source>
         <translation>Структуру файлів %1 для %2 знайдено за шляхом:</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="1608"/>
+        <location filename="../oscar/mainwindow.cpp" line="1651"/>
         <source>Importing Data</source>
         <translation>Імпорт даних</translation>
     </message>
@@ -3345,7 +3568,7 @@ OSCAR will restart when you press OK.</source>
         <translation>Скинути графіки</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="2562"/>
+        <location filename="../oscar/mainwindow.cpp" line="2650"/>
         <source>Are you sure you want to rebuild all CPAP data for the following device:
 
 </source>
@@ -3364,7 +3587,7 @@ OSCAR will restart when you press OK.</source>
         <translation>Показувати інформацію про швидкодію</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="3051"/>
+        <location filename="../oscar/mainwindow.cpp" line="3177"/>
         <source>There was a problem opening MSeries block File: </source>
         <translation>Не вдалося відкрити файл блоку MSeries: </translation>
     </message>
@@ -3375,7 +3598,7 @@ OSCAR will restart when you press OK.</source>
     </message>
     <message>
         <location filename="../oscar/mainwindow.ui" line="2787"/>
-        <location filename="../oscar/mainwindow.cpp" line="2453"/>
+        <location filename="../oscar/mainwindow.cpp" line="2541"/>
         <source>Sleep Stage</source>
         <translation>Стадія сну</translation>
     </message>
@@ -3385,7 +3608,7 @@ OSCAR will restart when you press OK.</source>
         <translation>Експорт щоденника...</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="1044"/>
+        <location filename="../oscar/mainwindow.cpp" line="1087"/>
         <source>Couldn&apos;t find any valid Device Data at
 
 %1</source>
@@ -3394,7 +3617,7 @@ OSCAR will restart when you press OK.</source>
 %1</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="3840"/>
+        <location filename="../oscar/mainwindow.cpp" line="3962"/>
         <source>Would you like to zip this card?</source>
         <translation>Запакувати цю карту в ZIP?</translation>
     </message>
@@ -3414,17 +3637,17 @@ OSCAR will restart when you press OK.</source>
         <translation>Створити резервну копію поточного профілю у файлі .oscar</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="1551"/>
+        <location filename="../oscar/mainwindow.cpp" line="1594"/>
         <source>Find your CPAP data card</source>
         <translation>Знайдіть свою картку з даними CPAP</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="1392"/>
+        <location filename="../oscar/mainwindow.cpp" line="1435"/>
         <source>Import Complete</source>
         <translation>Імпорт завершено</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="1827"/>
+        <location filename="../oscar/mainwindow.cpp" line="1870"/>
         <source>Access to Preferences has been blocked until recalculation completes.</source>
         <translation>Доступ до налаштувань заблоковано до завершення перерахунку.</translation>
     </message>
@@ -3439,22 +3662,22 @@ OSCAR will restart when you press OK.</source>
         <translation>Бічна панель щоденника</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="2640"/>
+        <location filename="../oscar/mainwindow.cpp" line="2728"/>
         <source>Note as a precaution, the backup folder will be left in place.</source>
         <translation>Зверніть увагу: задля безпеки теку з резервними копіями буде залишено на місці.</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="1585"/>
+        <location filename="../oscar/mainwindow.cpp" line="1628"/>
         <source>No supported data was found</source>
         <translation>Підтримуваних даних не знайдено</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="1044"/>
+        <location filename="../oscar/mainwindow.cpp" line="1087"/>
         <source>Import Problem</source>
         <translation>Проблема імпорту</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="3620"/>
+        <location filename="../oscar/mainwindow.cpp" line="3747"/>
         <source>&lt;b&gt;Please be aware you can not undo this operation!&lt;/b&gt;</source>
         <translation>&lt;b&gt;Зверніть увагу: цю дію не можна скасувати!&lt;/b&gt;</translation>
     </message>
@@ -3469,9 +3692,9 @@ OSCAR will restart when you press OK.</source>
         <translation>Щомісяця</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="1055"/>
-        <location filename="../oscar/mainwindow.cpp" line="1406"/>
-        <location filename="../oscar/mainwindow.cpp" line="3380"/>
+        <location filename="../oscar/mainwindow.cpp" line="1098"/>
+        <location filename="../oscar/mainwindow.cpp" line="1449"/>
+        <location filename="../oscar/mainwindow.cpp" line="3507"/>
         <source>Import Failed</source>
         <translation>Не вдалося імпортувати</translation>
     </message>
@@ -3481,7 +3704,7 @@ OSCAR will restart when you press OK.</source>
         <translation>Створити ZIP з картки даних CPAP</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="2114"/>
+        <location filename="../oscar/mainwindow.cpp" line="2207"/>
         <source>The User&apos;s Guide will open in your default browser</source>
         <translation>Посібник користувача відкриється у вашому браузері за замовчуванням</translation>
     </message>
@@ -3502,7 +3725,7 @@ OSCAR will restart when you press OK.</source>
     </message>
     <message>
         <location filename="../oscar/mainwindow.ui" line="2603"/>
-        <location filename="../oscar/mainwindow.cpp" line="3718"/>
+        <location filename="../oscar/mainwindow.cpp" line="3837"/>
         <source>Import Journal</source>
         <translation>Імпорт щоденника</translation>
     </message>
@@ -3517,56 +3740,56 @@ OSCAR will restart when you press OK.</source>
         <translation>Глосарій термінів розладів сну</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="2590"/>
+        <location filename="../oscar/mainwindow.cpp" line="2678"/>
         <source>Because there are no internal backups to rebuild from, you will have to restore from your own.</source>
         <translation>Оскільки внутрішніх резервних копій для перебудови немає, доведеться відновлювати з власної копії.</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="752"/>
+        <location filename="../oscar/mainwindow.cpp" line="776"/>
         <source>Finishing profile &quot;%1&quot;</source>
         <translation>Завершення профілю &quot;%1&quot;</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="1114"/>
-        <location filename="../oscar/mainwindow.cpp" line="2587"/>
+        <location filename="../oscar/mainwindow.cpp" line="1157"/>
+        <location filename="../oscar/mainwindow.cpp" line="2675"/>
         <source>Please wait, importing from backup folder(s)...</source>
         <translation>Зачекайте, триває імпорт із теки (тек) резервних копій...</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="1317"/>
-        <location filename="../oscar/mainwindow.cpp" line="3273"/>
+        <location filename="../oscar/mainwindow.cpp" line="1360"/>
+        <location filename="../oscar/mainwindow.cpp" line="3400"/>
         <source>Please open or create a profile before importing data.</source>
         <translation>Перед імпортом даних відкрийте або створіть профіль.</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="1372"/>
+        <location filename="../oscar/mainwindow.cpp" line="1415"/>
         <source>Import Cancelled</source>
         <translation>Імпорт скасовано</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="1373"/>
+        <location filename="../oscar/mainwindow.cpp" line="1416"/>
         <source>Profile import was cancelled. Any partial data has been removed.</source>
         <translation>Імпорт профілю скасовано. Частково завантажені дані видалено.</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="1822"/>
-        <location filename="../oscar/mainwindow.cpp" line="1870"/>
-        <location filename="../oscar/mainwindow.cpp" line="1899"/>
+        <location filename="../oscar/mainwindow.cpp" line="1865"/>
+        <location filename="../oscar/mainwindow.cpp" line="1913"/>
+        <location filename="../oscar/mainwindow.cpp" line="1942"/>
         <source>Please open or create a profile first.</source>
         <translation>Спершу відкрийте або створіть профіль.</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="1870"/>
+        <location filename="../oscar/mainwindow.cpp" line="1913"/>
         <source>Time Corrections</source>
         <translation>Корекції часу</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="1899"/>
+        <location filename="../oscar/mainwindow.cpp" line="1942"/>
         <source>Drift Analysis</source>
         <translation>Аналіз дрейфу</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="1924"/>
+        <location filename="../oscar/mainwindow.cpp" line="1967"/>
         <source>This will permanently delete all time corrections for every device in this profile.
 
 Are you sure?</source>
@@ -3575,47 +3798,62 @@ Are you sure?</source>
 Продовжити?</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="2457"/>
+        <location filename="../oscar/mainwindow.cpp" line="2545"/>
         <source>Unknown</source>
         <translation>Невідомо</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="2462"/>
+        <location filename="../oscar/mainwindow.cpp" line="2550"/>
         <source>Confirm Purge</source>
         <translation>Підтвердьте видалення</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="2463"/>
+        <location filename="../oscar/mainwindow.cpp" line="2551"/>
         <source>&lt;p&gt;Purge &lt;b&gt;%1&lt;/b&gt; data from &lt;b&gt;%2&lt;/b&gt; to &lt;b&gt;%3&lt;/b&gt; (%4 day(s)).&lt;/p&gt;&lt;p&gt;Are you &lt;b&gt;absolutely sure&lt;/b&gt; you want to proceed?&lt;/p&gt;</source>
         <translation>&lt;p&gt;Видалити дані &lt;b&gt;%1&lt;/b&gt; з &lt;b&gt;%2&lt;/b&gt; по &lt;b&gt;%3&lt;/b&gt; (днів: %4).&lt;/p&gt;&lt;p&gt;Ви &lt;b&gt;цілком упевнені&lt;/b&gt;, що хочете продовжити?&lt;/p&gt;</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="2477"/>
+        <location filename="../oscar/mainwindow.cpp" line="2565"/>
         <source>Purging data...</source>
         <translation>Видалення даних...</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="2489"/>
+        <location filename="../oscar/mainwindow.cpp" line="2577"/>
         <source>Purging %1...</source>
         <translation>Видалення %1...</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="2502"/>
+        <location filename="../oscar/mainwindow.cpp" line="2590"/>
         <source>Purge Range of Days</source>
         <translation>Видалити діапазон днів</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="2503"/>
+        <location filename="../oscar/mainwindow.cpp" line="2591"/>
         <source>No data was found in the selected date range.</source>
         <translation>У вибраному діапазоні дат даних не знайдено.</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="2565"/>
+        <location filename="../oscar/mainwindow.cpp" line="2653"/>
         <source>Please note, that this could result in loss of data if OSCAR&apos;s backups have been disabled.</source>
         <translation>Зверніть увагу: це може призвести до втрати даних, якщо резервне копіювання OSCAR вимкнено.</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="3611"/>
+        <location filename="../oscar/mainwindow.cpp" line="3139"/>
+        <source>Vitals sources: %1</source>
+        <translation type="unfinished">Джерела показників: %1</translation>
+    </message>
+    <message>
+        <location filename="../oscar/mainwindow.cpp" line="3140"/>
+        <source>none</source>
+        <translation type="unfinished">немає</translation>
+    </message>
+    <message>
+        <location filename="../oscar/mainwindow.cpp" line="3151"/>
+        <source>Ignored vitals from: %1</source>
+        <translation type="unfinished">Ігноровані показники з: %1</translation>
+    </message>
+    <message>
+        <location filename="../oscar/mainwindow.cpp" line="3738"/>
         <source>Are you sure you want to delete oximetry data for %1</source>
         <translation>Справді видалити дані оксиметрії за %1</translation>
     </message>
@@ -3630,7 +3868,7 @@ Are you sure?</source>
         <translation>Про OSCAR</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="2039"/>
+        <location filename="../oscar/mainwindow.cpp" line="2132"/>
         <source>Image files (*.png)</source>
         <translation>Файли зображень (*.png)</translation>
     </message>
@@ -3640,7 +3878,7 @@ Are you sure?</source>
         <translation>Закладки</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="965"/>
+        <location filename="../oscar/mainwindow.cpp" line="989"/>
         <source>Importing CPAP data</source>
         <translation>Імпорт даних CPAP</translation>
     </message>
@@ -3665,20 +3903,20 @@ Are you sure?</source>
         <translation>Використовувати згладжування</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="3862"/>
-        <location filename="../oscar/mainwindow.cpp" line="3935"/>
-        <location filename="../oscar/mainwindow.cpp" line="4227"/>
+        <location filename="../oscar/mainwindow.cpp" line="3984"/>
+        <location filename="../oscar/mainwindow.cpp" line="4057"/>
+        <location filename="../oscar/mainwindow.cpp" line="4349"/>
         <source>ZIP files (*.zip)</source>
         <translation>Файли ZIP (*.zip)</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="3725"/>
-        <location filename="../oscar/mainwindow.cpp" line="3752"/>
+        <location filename="../oscar/mainwindow.cpp" line="3844"/>
+        <location filename="../oscar/mainwindow.cpp" line="3871"/>
         <source>XML Files (*.xml)</source>
         <translation>Файли XML (*.xml)</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="2121"/>
+        <location filename="../oscar/mainwindow.cpp" line="2214"/>
         <source>The FAQ is not yet implemented</source>
         <translation>Розділ поширених запитань ще не реалізовано</translation>
     </message>
@@ -3693,7 +3931,7 @@ Are you sure?</source>
         <translation>Імпорт профілю з файлової версії OSCAR</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="3830"/>
+        <location filename="../oscar/mainwindow.cpp" line="3952"/>
         <source>Export review is not yet implemented</source>
         <translation>Експорт для перегляду ще не реалізовано</translation>
     </message>
@@ -3708,7 +3946,7 @@ Are you sure?</source>
         <translation>Діапазон дат</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="3397"/>
+        <location filename="../oscar/mainwindow.cpp" line="3524"/>
         <source>There was a problem parsing %1 
 Data File: %2</source>
         <translation>Не вдалося розібрати %1 
@@ -3726,12 +3964,12 @@ Data File: %2</source>
         <translation>Показати статистику</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="1496"/>
+        <location filename="../oscar/mainwindow.cpp" line="1539"/>
         <source>CPAP Data Located</source>
         <translation>Знайдено дані CPAP</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="1321"/>
+        <location filename="../oscar/mainwindow.cpp" line="1364"/>
         <source>Access to Import has been blocked while recalculations are in progress.</source>
         <translation>Доступ до імпорту заблоковано, доки триває перерахунок.</translation>
     </message>
@@ -3751,17 +3989,17 @@ Data File: %2</source>
         <translation>Показувати ліву бічну панель щоденника</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="2575"/>
+        <location filename="../oscar/mainwindow.cpp" line="2663"/>
         <source>Are you really sure you want to do this?</source>
         <translation>Ви справді впевнені, що хочете це зробити?</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="3662"/>
+        <location filename="../oscar/mainwindow.cpp" line="3781"/>
         <source>Select the day with valid oximetry data in daily view first.</source>
         <translation>Спершу виберіть у вигляді «Щоденно» день із коректними даними оксиметрії.</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="2642"/>
+        <location filename="../oscar/mainwindow.cpp" line="2730"/>
         <source>OSCAR does not have any backups for this device!</source>
         <translation>OSCAR не має жодних резервних копій для цього пристрою!</translation>
     </message>
@@ -3786,7 +4024,7 @@ Data File: %2</source>
         <translation>Розгорнути вікно</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="1333"/>
+        <location filename="../oscar/mainwindow.cpp" line="1376"/>
         <source>Would you like to import from this location?</source>
         <translation>Імпортувати дані з цього розташування?</translation>
     </message>
@@ -3796,7 +4034,7 @@ Data File: %2</source>
         <translation>Скинути висоту графіків</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="1393"/>
+        <location filename="../oscar/mainwindow.cpp" line="1436"/>
         <source>Profile &apos;%1&apos; has been successfully imported.
 
 You can now select it from the profile selector.</source>
@@ -3820,7 +4058,7 @@ You can now select it from the profile selector.</source>
         <translation>Режим звіту</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="3894"/>
+        <location filename="../oscar/mainwindow.cpp" line="4016"/>
         <source>Calculating size...</source>
         <translation>Обчислення розміру...</translation>
     </message>
@@ -3830,12 +4068,12 @@ You can now select it from the profile selector.</source>
         <translation>Показати «Щоденно»</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="3709"/>
+        <location filename="../oscar/mainwindow.cpp" line="3828"/>
         <source>You must select and open the profile you wish to modify</source>
         <translation>Потрібно вибрати й відкрити профіль, який ви хочете змінити</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="1355"/>
+        <location filename="../oscar/mainwindow.cpp" line="1398"/>
         <source>Importing Profile </source>
         <translation>Імпорт профілю </translation>
     </message>
@@ -3847,7 +4085,7 @@ You can now select it from the profile selector.</source>
         <translation>Профілі</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="1961"/>
+        <location filename="../oscar/mainwindow.cpp" line="2004"/>
         <source>Check for updates not implemented</source>
         <translation>Перевірку оновлень не реалізовано</translation>
     </message>
@@ -3862,7 +4100,7 @@ You can now select it from the profile selector.</source>
         <translation>Майстер експорту в CSV</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="3406"/>
+        <location filename="../oscar/mainwindow.cpp" line="3533"/>
         <source>%1 Data Import of %2 file(s) complete</source>
         <translation>Імпорт даних %1 з файлів (%2) завершено</translation>
     </message>
@@ -3877,7 +4115,7 @@ You can now select it from the profile selector.</source>
         <translation>Автоматичне очищення даних оксиметрії</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="1325"/>
+        <location filename="../oscar/mainwindow.cpp" line="1368"/>
         <source>Import is already running in the background.</source>
         <translation>Імпорт уже виконується у фоновому режимі.</translation>
     </message>
@@ -3892,12 +4130,12 @@ You can now select it from the profile selector.</source>
         <translation>Показувати календар щоденника</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="1501"/>
+        <location filename="../oscar/mainwindow.cpp" line="1544"/>
         <source>Specify</source>
         <translation>Вказати</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="2745"/>
+        <location filename="../oscar/mainwindow.cpp" line="2849"/>
         <source>No help is available.</source>
         <translation>Довідка недоступна.</translation>
     </message>
@@ -3923,12 +4161,12 @@ You can now select it from the profile selector.</source>
         <translation>Статистика</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="1042"/>
+        <location filename="../oscar/mainwindow.cpp" line="1085"/>
         <source>Up to date</source>
         <translation>Дані актуальні</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="1040"/>
+        <location filename="../oscar/mainwindow.cpp" line="1083"/>
         <source>Imported %1 CPAP session(s) from
 
 %2</source>
@@ -3937,28 +4175,28 @@ You can now select it from the profile selector.</source>
 %2</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="4243"/>
+        <location filename="../oscar/mainwindow.cpp" line="4365"/>
         <source>Unable to create zip: the database is locked by another process.</source>
         <translation>Не вдається створити ZIP: базу даних заблоковано іншим процесом.</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="4252"/>
+        <location filename="../oscar/mainwindow.cpp" line="4374"/>
         <source>Creating %1.zip...</source>
         <translation>Створення %1.zip...</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="4289"/>
+        <location filename="../oscar/mainwindow.cpp" line="4411"/>
         <source>Reporting issues is not yet implemented</source>
         <translation>Надсилання повідомлень про проблеми ще не реалізовано</translation>
     </message>
     <message>
         <location filename="../oscar/mainwindow.ui" line="2802"/>
-        <location filename="../oscar/mainwindow.cpp" line="2456"/>
+        <location filename="../oscar/mainwindow.cpp" line="2544"/>
         <source>All including Notes</source>
         <translation>Усе, включно з нотатками</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="2574"/>
+        <location filename="../oscar/mainwindow.cpp" line="2662"/>
         <source>Provided you have made &lt;i&gt;your &lt;b&gt;own&lt;/b&gt; backups for ALL of your CPAP data&lt;/i&gt;, you can still complete this operation, but you will have to restore from your backups manually.</source>
         <translation>Якщо ви зробили &lt;i&gt;&lt;b&gt;власні&lt;/b&gt; резервні копії ВСІХ своїх даних CPAP&lt;/i&gt;, цю дію все одно можна виконати, але відновлювати з копій доведеться вручну.</translation>
     </message>
@@ -3968,17 +4206,17 @@ You can now select it from the profile selector.</source>
         <translation>Імпорт даних з картки CPAP</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="3410"/>
+        <location filename="../oscar/mainwindow.cpp" line="3537"/>
         <source>%1 Data Import complete</source>
         <translation>Імпорт даних %1 завершено</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="2649"/>
+        <location filename="../oscar/mainwindow.cpp" line="2737"/>
         <source>You are about to &lt;font size=+2&gt;obliterate&lt;/font&gt; OSCAR&apos;s device database for the following device:&lt;/p&gt;</source>
         <translation>Ви збираєтеся &lt;font size=+2&gt;знищити&lt;/font&gt; базу даних пристрою OSCAR для такого пристрою:&lt;/p&gt;</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="1534"/>
+        <location filename="../oscar/mainwindow.cpp" line="1577"/>
         <source>Please remember to select the root folder or drive letter of your data card, and not a folder inside it.</source>
         <translation>Не забудьте вибрати кореневу теку або літеру диска картки з даними, а не теку всередині неї.</translation>
     </message>
@@ -3998,9 +4236,9 @@ You can now select it from the profile selector.</source>
         <translation>Розширений - BPAP, ASV</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="3862"/>
-        <location filename="../oscar/mainwindow.cpp" line="3935"/>
-        <location filename="../oscar/mainwindow.cpp" line="4227"/>
+        <location filename="../oscar/mainwindow.cpp" line="3984"/>
+        <location filename="../oscar/mainwindow.cpp" line="4057"/>
+        <location filename="../oscar/mainwindow.cpp" line="4349"/>
         <source>Choose where to save zip</source>
         <translation>Виберіть, куди зберегти ZIP</translation>
     </message>
@@ -4010,13 +4248,13 @@ You can now select it from the profile selector.</source>
         <translation>Керування визначеннями звітів для експорту в CSV</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="2572"/>
+        <location filename="../oscar/mainwindow.cpp" line="2660"/>
         <source>For some reason, OSCAR does not have any backups for the following device:</source>
         <translation>З певної причини OSCAR не має жодних резервних копій для такого пристрою:</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="3403"/>
-        <location filename="../oscar/mainwindow.cpp" line="3407"/>
+        <location filename="../oscar/mainwindow.cpp" line="3530"/>
+        <location filename="../oscar/mainwindow.cpp" line="3534"/>
         <source>There was a problem opening %1 Data File: %2</source>
         <translation>Не вдалося відкрити файл даних %1: %2</translation>
     </message>
@@ -4047,8 +4285,8 @@ You can now select it from the profile selector.</source>
     </message>
     <message>
         <location filename="../oscar/mainwindow.ui" line="1197"/>
-        <location filename="../oscar/mainwindow.cpp" line="1317"/>
-        <location filename="../oscar/mainwindow.cpp" line="3273"/>
+        <location filename="../oscar/mainwindow.cpp" line="1360"/>
+        <location filename="../oscar/mainwindow.cpp" line="3400"/>
         <source>Import</source>
         <translation>Імпорт</translation>
     </message>
@@ -4084,7 +4322,7 @@ You can now select it from the profile selector.</source>
     </message>
     <message>
         <location filename="../oscar/mainwindow.ui" line="2292"/>
-        <location filename="../oscar/mainwindow.cpp" line="1822"/>
+        <location filename="../oscar/mainwindow.cpp" line="1865"/>
         <source>Preferences</source>
         <translation>Налаштування</translation>
     </message>
@@ -4130,7 +4368,7 @@ You can now select it from the profile selector.</source>
     </message>
     <message>
         <location filename="../oscar/mainwindow.ui" line="2543"/>
-        <location filename="../oscar/mainwindow.cpp" line="1923"/>
+        <location filename="../oscar/mainwindow.cpp" line="1966"/>
         <source>Purge All Time Corrections</source>
         <translation>Видалити всі корекції часу</translation>
     </message>
@@ -4181,13 +4419,13 @@ You can now select it from the profile selector.</source>
     </message>
     <message>
         <location filename="../oscar/mainwindow.ui" line="2792"/>
-        <location filename="../oscar/mainwindow.cpp" line="2454"/>
+        <location filename="../oscar/mainwindow.cpp" line="2542"/>
         <source>Position</source>
         <translation>Положення</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="1585"/>
-        <location filename="../oscar/mainwindow.cpp" line="4300"/>
+        <location filename="../oscar/mainwindow.cpp" line="1628"/>
+        <location filename="../oscar/mainwindow.cpp" line="4422"/>
         <source>OSCAR Information</source>
         <translation>Інформація OSCAR</translation>
     </message>
@@ -4197,12 +4435,12 @@ You can now select it from the profile selector.</source>
         <translation>Змінити користувача</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="3064"/>
+        <location filename="../oscar/mainwindow.cpp" line="3190"/>
         <source>The Glossary will open in your default browser</source>
         <translation>Глосарій відкриється у вашому браузері за замовчуванням</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="1535"/>
+        <location filename="../oscar/mainwindow.cpp" line="1578"/>
         <source>Import Reminder</source>
         <translation>Нагадування щодо імпорту</translation>
     </message>
@@ -4212,12 +4450,12 @@ You can now select it from the profile selector.</source>
         <translation>Імпорт з OSCAR...</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="2591"/>
+        <location filename="../oscar/mainwindow.cpp" line="2679"/>
         <source>Would you like to import from your own backups now? (you will have no data visible for this device until you do)</source>
         <translation>Імпортувати з ваших власних резервних копій зараз? (доки цього не зроблено, дані цього пристрою не відображатимуться)</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="371"/>
+        <location filename="../oscar/mainwindow.cpp" line="395"/>
         <source>Help Browser</source>
         <translation>Переглядач довідки</translation>
     </message>
@@ -4227,31 +4465,31 @@ You can now select it from the profile selector.</source>
         <translation>Показати вигляд «Статистика»</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="3909"/>
-        <location filename="../oscar/mainwindow.cpp" line="3949"/>
+        <location filename="../oscar/mainwindow.cpp" line="4031"/>
+        <location filename="../oscar/mainwindow.cpp" line="4071"/>
         <source>Creating zip...</source>
         <translation>Створення ZIP...</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="2280"/>
-        <location filename="../oscar/mainwindow.cpp" line="2306"/>
+        <location filename="../oscar/mainwindow.cpp" line="2372"/>
+        <location filename="../oscar/mainwindow.cpp" line="2398"/>
         <source>If you can read this, the restart command didn&apos;t work. You will have to do it yourself manually.</source>
         <translation>Якщо ви це читаєте, команда перезапуску не спрацювала. Доведеться перезапустити програму вручну.</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="2690"/>
+        <location filename="../oscar/mainwindow.cpp" line="2794"/>
         <source>A file permission error caused the purge process to fail; you will have to delete the following folder manually:</source>
         <translation>Через помилку прав доступу до файлів видалення не вдалося; цю теку доведеться видалити вручну:</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="3392"/>
-        <location filename="../oscar/mainwindow.cpp" line="3408"/>
+        <location filename="../oscar/mainwindow.cpp" line="3519"/>
+        <location filename="../oscar/mainwindow.cpp" line="3535"/>
         <source>%1 Import Partial Success</source>
         <translation>Імпорт %1 виконано частково</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="768"/>
-        <location filename="../oscar/mainwindow.cpp" line="2902"/>
+        <location filename="../oscar/mainwindow.cpp" line="792"/>
+        <location filename="../oscar/mainwindow.cpp" line="3011"/>
         <source>Welcome</source>
         <translation>Вітаємо</translation>
     </message>
@@ -4261,29 +4499,29 @@ You can now select it from the profile selector.</source>
         <translation>Показувати лінію-курсор</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="1407"/>
+        <location filename="../oscar/mainwindow.cpp" line="1450"/>
         <source>Failed to import profile:
 %1</source>
         <translation>Не вдалося імпортувати профіль:
 %1</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="2051"/>
+        <location filename="../oscar/mainwindow.cpp" line="2144"/>
         <source>Screenshot saved to file &quot;%1&quot;</source>
         <translation>Знімок екрана збережено у файл &quot;%1&quot;</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="2039"/>
+        <location filename="../oscar/mainwindow.cpp" line="2132"/>
         <source>Choose where to save screenshot</source>
         <translation>Виберіть, куди зберегти знімок екрана</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="2643"/>
+        <location filename="../oscar/mainwindow.cpp" line="2731"/>
         <source>Unless you have made &lt;i&gt;your &lt;b&gt;own&lt;/b&gt; backups for ALL of your data for this device&lt;/i&gt;, &lt;font size=+2&gt;you will lose this device&apos;s data &lt;b&gt;permanently&lt;/b&gt;!&lt;/font&gt;</source>
         <translation>Якщо ви не зробили &lt;i&gt;&lt;b&gt;власних&lt;/b&gt; резервних копій УСІХ своїх даних для цього пристрою&lt;/i&gt;, &lt;font size=+2&gt;ви втратите дані цього пристрою &lt;b&gt;назавжди&lt;/b&gt;!&lt;/font&gt;</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="2842"/>
+        <location filename="../oscar/mainwindow.cpp" line="2951"/>
         <source>Recalculating summaries</source>
         <translation>Перерахунок зведених даних</translation>
     </message>
@@ -4293,22 +4531,22 @@ You can now select it from the profile selector.</source>
         <translation>Відновити профіль із файлу резервної копії .oscar</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="361"/>
+        <location filename="../oscar/mainwindow.cpp" line="385"/>
         <source>CSV Export Wizard...</source>
         <translation>Майстер експорту в CSV...</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="2652"/>
+        <location filename="../oscar/mainwindow.cpp" line="2740"/>
         <source>Are you &lt;b&gt;absolutely sure&lt;/b&gt; you want to proceed?</source>
         <translation>Ви &lt;b&gt;цілком упевнені&lt;/b&gt;, що хочете продовжити?</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="1040"/>
+        <location filename="../oscar/mainwindow.cpp" line="1083"/>
         <source>Import Success</source>
         <translation>Імпорт успішний</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="3752"/>
+        <location filename="../oscar/mainwindow.cpp" line="3871"/>
         <source>Choose where to save journal</source>
         <translation>Виберіть, куди зберегти щоденник</translation>
     </message>
@@ -4318,14 +4556,14 @@ You can now select it from the profile selector.</source>
         <translation>Поширені запитання</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="3723"/>
+        <location filename="../oscar/mainwindow.cpp" line="3842"/>
         <source>Choose where to read journal</source>
         <translation>Виберіть, звідки прочитати щоденник</translation>
     </message>
     <message>
         <location filename="../oscar/mainwindow.ui" line="1147"/>
         <location filename="../oscar/mainwindow.ui" line="2782"/>
-        <location filename="../oscar/mainwindow.cpp" line="2452"/>
+        <location filename="../oscar/mainwindow.cpp" line="2540"/>
         <source>Oximetry</source>
         <translation>Оксиметрія</translation>
     </message>
@@ -4336,7 +4574,7 @@ You can now select it from the profile selector.</source>
         <translation>Видалити поточний вибраний день</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="1439"/>
+        <location filename="../oscar/mainwindow.cpp" line="1482"/>
         <source>A %1 file structure was located at:</source>
         <translation>Структуру файлів %1 знайдено за шляхом:</translation>
     </message>
@@ -4356,7 +4594,7 @@ You can now select it from the profile selector.</source>
         <translation>Видалити ВСІ дані пристрою</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="1042"/>
+        <location filename="../oscar/mainwindow.cpp" line="1085"/>
         <source>Already up to date with CPAP data at
 
 %1</source>
@@ -4378,42 +4616,42 @@ You can now select it from the profile selector.</source>
 <context>
     <name>MinMaxWidget</name>
     <message>
-        <location filename="../oscar/Graphs/gGraphView.cpp" line="2278"/>
+        <location filename="../oscar/Graphs/gGraphView.cpp" line="2302"/>
         <source>Scaling Mode</source>
         <translation>Режим масштабування</translation>
     </message>
     <message>
-        <location filename="../oscar/Graphs/gGraphView.cpp" line="2243"/>
+        <location filename="../oscar/Graphs/gGraphView.cpp" line="2267"/>
         <source>The Maximum Y-Axis value.. Must be greater than Minimum to work.</source>
         <translation>Максимальне значення осі Y.. Щоб працювало, має бути більшим за мінімальне.</translation>
     </message>
     <message>
-        <location filename="../oscar/Graphs/gGraphView.cpp" line="2300"/>
+        <location filename="../oscar/Graphs/gGraphView.cpp" line="2324"/>
         <source>This button resets the Min and Max to match the Auto-Fit</source>
         <translation>Ця кнопка скидає мінімум і максимум відповідно до автопідбору</translation>
     </message>
     <message>
-        <location filename="../oscar/Graphs/gGraphView.cpp" line="2236"/>
+        <location filename="../oscar/Graphs/gGraphView.cpp" line="2260"/>
         <source>The Y-Axis scaling mode, &apos;Auto-Fit&apos; for automatic scaling, &apos;Defaults&apos; for settings according to manufacturer, and &apos;Override&apos; to choose your own.</source>
         <translation>Режим масштабування осі Y: «Автопідбір» - автоматичне масштабування, «Стандартні» - значення за налаштуваннями виробника, «Власні» - задані вами.</translation>
     </message>
     <message>
-        <location filename="../oscar/Graphs/gGraphView.cpp" line="2242"/>
+        <location filename="../oscar/Graphs/gGraphView.cpp" line="2266"/>
         <source>The Minimum Y-Axis value.. Note this can be a negative number if you wish.</source>
         <translation>Мінімальне значення осі Y.. Зверніть увагу: за бажання воно може бути від&apos;ємним.</translation>
     </message>
     <message>
-        <location filename="../oscar/Graphs/gGraphView.cpp" line="2234"/>
+        <location filename="../oscar/Graphs/gGraphView.cpp" line="2258"/>
         <source>Defaults</source>
         <translation>Стандартні</translation>
     </message>
     <message>
-        <location filename="../oscar/Graphs/gGraphView.cpp" line="2233"/>
+        <location filename="../oscar/Graphs/gGraphView.cpp" line="2257"/>
         <source>Auto-Fit</source>
         <translation>Автопідбір</translation>
     </message>
     <message>
-        <location filename="../oscar/Graphs/gGraphView.cpp" line="2235"/>
+        <location filename="../oscar/Graphs/gGraphView.cpp" line="2259"/>
         <source>Override</source>
         <translation>Власні</translation>
     </message>
@@ -5088,7 +5326,7 @@ Index</source>
         <translation>Денний запис (зазвичай) почався</translation>
     </message>
     <message>
-        <location filename="../oscar/oximeterimport.cpp" line="1202"/>
+        <location filename="../oscar/oximeterimport.cpp" line="1201"/>
         <source>It also can read from ChoiceMMed MD300W1 oximeter .dat files.</source>
         <translation>Також може читати файли .dat оксиметра ChoiceMMed MD300W1.</translation>
     </message>
@@ -5138,7 +5376,7 @@ Index</source>
         <translation>Імпорт з оксиметра завершено..</translation>
     </message>
     <message>
-        <location filename="../oscar/oximeterimport.cpp" line="1199"/>
+        <location filename="../oscar/oximeterimport.cpp" line="1198"/>
         <source>You may wish to note, other companies, such as Pulox, simply rebadge Contec CMS50&apos;s under new names, such as the Pulox PO-200, PO-300, PO-400. These should also work.</source>
         <translation>Зауважте: інші компанії, наприклад Pulox, просто перемарковують Contec CMS50 під новими назвами, як-от Pulox PO-200, PO-300, PO-400. Вони теж мають працювати.</translation>
     </message>
@@ -5158,12 +5396,12 @@ Index</source>
         <translation>За потреби тут можна скоригувати час вручну:</translation>
     </message>
     <message>
-        <location filename="../oscar/oximeterimport.cpp" line="1195"/>
+        <location filename="../oscar/oximeterimport.cpp" line="1194"/>
         <source>OSCAR gives you the ability to track Oximetry data alongside CPAP session data, which can give valuable insight into the effectiveness of CPAP treatment. It will also work standalone with your Pulse Oximeter, allowing you to store, track and review your recorded data.</source>
         <translation>OSCAR дозволяє відстежувати дані оксиметрії поряд із даними сеансів CPAP, що дає цінне уявлення про ефективність лікування CPAP. Він також працює окремо з вашим пульсоксиметром, даючи змогу зберігати, відстежувати та переглядати записані дані.</translation>
     </message>
     <message>
-        <location filename="../oscar/oximeterimport.cpp" line="1150"/>
+        <location filename="../oscar/oximeterimport.cpp" line="1149"/>
         <source>Oximeter Session %1</source>
         <translation>Сеанс оксиметра %1</translation>
     </message>
@@ -5183,7 +5421,7 @@ Index</source>
         <translation>Під&apos;єднайте свій оксиметр</translation>
     </message>
     <message>
-        <location filename="../oscar/oximeterimport.cpp" line="1208"/>
+        <location filename="../oscar/oximeterimport.cpp" line="1207"/>
         <source>Important Notes:</source>
         <translation>Важливі зауваження:</translation>
     </message>
@@ -5193,7 +5431,7 @@ Index</source>
         <translation>Запуск...</translation>
     </message>
     <message>
-        <location filename="../oscar/oximeterimport.cpp" line="1211"/>
+        <location filename="../oscar/oximeterimport.cpp" line="1210"/>
         <source>Contec CMS50D+ devices do not have an internal clock, and do not record a starting time. If you do not have a CPAP session to link a recording to, you will have to enter the start time manually after the import process is completed.</source>
         <translation>Пристрої Contec CMS50D+ не мають внутрішнього годинника і не записують час початку. Якщо немає сеансу CPAP, з яким можна пов&apos;язати запис, час початку доведеться ввести вручну після завершення імпорту.</translation>
     </message>
@@ -5213,7 +5451,7 @@ Index</source>
         <translation>Назва оксиметра відрізняється.. Якщо він у вас один і ви користуєтеся ним у кількох профілях, задайте однакову назву в обох профілях.</translation>
     </message>
     <message>
-        <location filename="../oscar/oximeterimport.cpp" line="1213"/>
+        <location filename="../oscar/oximeterimport.cpp" line="1212"/>
         <source>Even for devices with an internal clock, it is still recommended to get into the habit of starting oximeter records at the same time as CPAP sessions, because CPAP internal clocks tend to drift over time, and not all can be reset easily.</source>
         <translation>Навіть для пристроїв із внутрішнім годинником радимо взяти за звичку починати запис оксиметра одночасно із сеансом CPAP, бо внутрішні годинники CPAP з часом дрейфують, і не всі з них легко скинути.</translation>
     </message>
@@ -5243,7 +5481,7 @@ Index</source>
         <translation>Очікування запуску %1</translation>
     </message>
     <message>
-        <location filename="../oscar/oximeterimport.cpp" line="1197"/>
+        <location filename="../oscar/oximeterimport.cpp" line="1196"/>
         <source>OSCAR is currently compatible with Contec CMS50D+, CMS50E, CMS50F and CMS50I serial oximeters.&lt;br/&gt;(Note: Direct importing from bluetooth models is &lt;span style=&quot; font-weight:600;&quot;&gt;probably not&lt;/span&gt; possible yet)</source>
         <translation>Наразі OSCAR сумісний із послідовними оксиметрами Contec CMS50D+, CMS50E, CMS50F та CMS50I.&lt;br/&gt;(Зверніть увагу: прямий імпорт із Bluetooth-моделей &lt;span style=&quot; font-weight:600;&quot;&gt;поки що, найімовірніше,&lt;/span&gt; неможливий)</translation>
     </message>
@@ -5314,7 +5552,7 @@ Index</source>
         <translation>Зберегти й завершити</translation>
     </message>
     <message>
-        <location filename="../oscar/oximeterimport.cpp" line="1193"/>
+        <location filename="../oscar/oximeterimport.cpp" line="1192"/>
         <source>Pulse Oximeters are medical devices used to measure blood oxygen saturation. During extended Apnea events and abnormal breathing patterns, blood oxygen saturation levels can drop significantly, and can indicate issues that need medical attention.</source>
         <translation>Пульсоксиметри - це медичні пристрої для вимірювання насичення крові киснем. Під час тривалих епізодів апное та аномального дихання насичення крові киснем може суттєво падати, що вказує на проблеми, які потребують уваги лікаря.</translation>
     </message>
@@ -5324,7 +5562,7 @@ Index</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Тут можна ввести назву цього оксиметра завдовжки 7 символів.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../oscar/oximeterimport.cpp" line="1209"/>
+        <location filename="../oscar/oximeterimport.cpp" line="1208"/>
         <source>For OSCAR to be able to locate and read directly from your Oximeter device, you need to ensure the correct device drivers (eg. USB to Serial UART) have been installed on your computer. For more information about this, %1click here%2.</source>
         <translation>Щоб OSCAR міг знайти ваш оксиметр і читати з нього напряму, переконайтеся, що на комп&apos;ютері встановлено правильні драйвери пристрою (наприклад, USB-to-Serial UART). Докладніше про це - %1натисніть тут%2.</translation>
     </message>
@@ -5414,7 +5652,7 @@ Index</source>
         <translation>Оксиметр не виявлено</translation>
     </message>
     <message>
-        <location filename="../oscar/oximeterimport.cpp" line="1204"/>
+        <location filename="../oscar/oximeterimport.cpp" line="1203"/>
         <source>Please remember:</source>
         <translation>Пам&apos;ятайте:</translation>
     </message>
@@ -5455,7 +5693,7 @@ Index</source>
         <translation>Тривалість</translation>
     </message>
     <message>
-        <location filename="../oscar/oximeterimport.cpp" line="1191"/>
+        <location filename="../oscar/oximeterimport.cpp" line="1190"/>
         <source>Welcome to the Oximeter Import Wizard</source>
         <translation>Вітаємо в майстрі імпорту з оксиметра</translation>
     </message>
@@ -5465,7 +5703,7 @@ Index</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Якщо вас не бентежить під&apos;єднання до ввімкненого комп&apos;ютера на всю ніч, цей варіант дає корисний графік плетизмограми, який показує серцевий ритм на додачу до звичайних показників оксиметрії.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../oscar/oximeterimport.cpp" line="1206"/>
+        <location filename="../oscar/oximeterimport.cpp" line="1205"/>
         <source>If you are trying to sync oximetry and CPAP data, please make sure you imported your CPAP sessions first before proceeding!</source>
         <translation>Якщо ви хочете синхронізувати дані оксиметрії та CPAP, перед продовженням переконайтеся, що спершу імпортували сеанси CPAP!</translation>
     </message>
@@ -7677,7 +7915,7 @@ Are you sure you want to make these changes?</source>
     </message>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="995"/>
-        <location filename="../oscar/SleepLib/schema.cpp" line="173"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="186"/>
         <source>CA</source>
         <translation>CA</translation>
     </message>
@@ -7693,7 +7931,7 @@ Are you sure you want to make these changes?</source>
     </message>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="992"/>
-        <location filename="../oscar/SleepLib/schema.cpp" line="175"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="188"/>
         <source>OA</source>
         <translation>OA</translation>
     </message>
@@ -7713,13 +7951,13 @@ Are you sure you want to make these changes?</source>
         <translation>Увімк.</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="341"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="354"/>
         <source>SB</source>
         <translation>SB</translation>
     </message>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="994"/>
-        <location filename="../oscar/SleepLib/schema.cpp" line="186"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="199"/>
         <source>UA</source>
         <translation>UA</translation>
     </message>
@@ -7730,13 +7968,13 @@ Are you sure you want to make these changes?</source>
     </message>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="1016"/>
-        <location filename="../oscar/SleepLib/schema.cpp" line="296"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="309"/>
         <source>AHI</source>
         <translation>AHI</translation>
     </message>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="950"/>
-        <location filename="../oscar/SleepLib/schema.cpp" line="354"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="367"/>
         <source>BMI</source>
         <translation>ІМТ</translation>
     </message>
@@ -7753,7 +7991,7 @@ Are you sure you want to make these changes?</source>
     </message>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="1028"/>
-        <location filename="../oscar/SleepLib/schema.cpp" line="169"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="182"/>
         <source>CSR</source>
         <translation>CSR</translation>
     </message>
@@ -7782,7 +8020,7 @@ Are you sure you want to make these changes?</source>
     </message>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="1095"/>
-        <location filename="../oscar/SleepLib/schema.cpp" line="357"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="370"/>
         <source>End</source>
         <translation>Кінець</translation>
     </message>
@@ -7857,8 +8095,8 @@ Are you sure you want to make these changes?</source>
     </message>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="1097"/>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="899"/>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1109"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1030"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1241"/>
         <location filename="../oscar/SleepLib/loader_plugins/resmed_loader.cpp" line="337"/>
         <location filename="../oscar/SleepLib/loader_plugins/resmed_loader.cpp" line="343"/>
         <location filename="../oscar/SleepLib/loader_plugins/resmed_loader.cpp" line="354"/>
@@ -7867,7 +8105,7 @@ Are you sure you want to make these changes?</source>
     </message>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="1019"/>
-        <location filename="../oscar/SleepLib/schema.cpp" line="305"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="318"/>
         <source>RDI</source>
         <translation>RDI</translation>
     </message>
@@ -7883,7 +8121,7 @@ Are you sure you want to make these changes?</source>
         <translation>Так</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="369"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="382"/>
         <source>Brain Wave</source>
         <translation>Мозкові хвилі</translation>
     </message>
@@ -7973,14 +8211,14 @@ Are you sure you want to make these changes?</source>
         <translation>BND</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="840"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="846"/>
         <source>Min APAP</source>
         <translation>Min APAP</translation>
     </message>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="970"/>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="722"/>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="886"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="728"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1017"/>
         <location filename="../oscar/SleepLib/loader_plugins/prs1_loader.cpp" line="2863"/>
         <location filename="../oscar/SleepLib/loader_plugins/resmed_loader.cpp" line="153"/>
         <source>CPAP</source>
@@ -7993,7 +8231,7 @@ Are you sure you want to make these changes?</source>
     </message>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="977"/>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="898"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="904"/>
         <source>Min EPAP</source>
         <translation>Min EPAP</translation>
     </message>
@@ -8010,7 +8248,7 @@ Are you sure you want to make these changes?</source>
     </message>
     <message>
         <location filename="../oscar/SleepLib/loader_plugins/icon_loader.h" line="88"/>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.h" line="237"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.h" line="251"/>
         <location filename="../oscar/SleepLib/loader_plugins/prs1_loader.cpp" line="67"/>
         <location filename="../oscar/SleepLib/loader_plugins/weinmann_loader.h" line="118"/>
         <location filename="../oscar/notifyMessageBox.cpp" line="19"/>
@@ -8019,7 +8257,7 @@ Are you sure you want to make these changes?</source>
     </message>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="980"/>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="901"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="907"/>
         <source>Min IPAP</source>
         <translation>Min IPAP</translation>
     </message>
@@ -8034,7 +8272,7 @@ Are you sure you want to make these changes?</source>
         <translation>Витік</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="799"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="805"/>
         <location filename="../oscar/SleepLib/loader_plugins/resmed_loader.cpp" line="239"/>
         <source>Mask</source>
         <translation>Маска</translation>
@@ -8088,7 +8326,7 @@ Are you sure you want to make these changes?</source>
     <message>
         <location filename="../oscar/SleepLib/loader_plugins/resmed_loader.cpp" line="247"/>
         <location filename="../oscar/SleepLib/loader_plugins/sleepstyle_loader.cpp" line="1047"/>
-        <location filename="../oscar/SleepLib/schema.cpp" line="163"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="176"/>
         <source>Ramp</source>
         <translation>Рампа</translation>
     </message>
@@ -8268,13 +8506,13 @@ Are you sure you want to make these changes?</source>
         <translation>Зберегти</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="915"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="921"/>
         <location filename="../oscar/SleepLib/loader_plugins/resmed_loader.cpp" line="257"/>
         <source>Soft</source>
         <translation>М&apos;який</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="863"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="878"/>
         <source>Zero</source>
         <translation>Нуль</translation>
     </message>
@@ -8290,13 +8528,13 @@ Are you sure you want to make these changes?</source>
     </message>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="1036"/>
-        <location filename="../oscar/SleepLib/schema.cpp" line="284"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="297"/>
         <source>Resp. Event</source>
         <translation>Дихальна подія</translation>
     </message>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="1073"/>
-        <location filename="../oscar/SleepLib/schema.cpp" line="312"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="325"/>
         <source>Inclination</source>
         <translation>Нахил</translation>
     </message>
@@ -8321,139 +8559,154 @@ Are you sure you want to make these changes?</source>
         <translation>Діаметр шланга</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="887"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1018"/>
         <source>APAP (std)</source>
         <translation>APAP (std)</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="888"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1019"/>
         <source>APAP (dyn)</source>
         <translation>APAP (dyn)</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="889"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1020"/>
         <source>Auto S</source>
         <translation>Auto S</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="890"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1021"/>
         <source>Auto S/T</source>
         <translation>Auto S/T</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="891"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1022"/>
         <source>AcSV</source>
         <translation>AcSV</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="914"/>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="901"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="920"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1032"/>
         <location filename="../oscar/SleepLib/loader_plugins/resmed_loader.cpp" line="256"/>
         <source>Standard</source>
         <translation>Стандартний</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="907"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1038"/>
         <source>PSoft</source>
         <translation>PSoft</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="914"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1045"/>
         <source>PSoftMin</source>
         <translation>PSoftMin</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="949"/>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="950"/>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="951"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1080"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1081"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1082"/>
         <source>PMaxOA</source>
         <translation>PMaxOA</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="956"/>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="958"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1087"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1089"/>
         <source>EEPAPMin</source>
         <translation>EEPAPMin</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="963"/>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="965"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1094"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1096"/>
         <source>EEPAPMax</source>
         <translation>EEPAPMax</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1005"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1137"/>
         <source>Relative respiratory minute volume fluctuation</source>
         <translation>Відносне коливання хвилинного об&apos;єму дихання</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1013"/>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1015"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1145"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1147"/>
         <source>rRMV</source>
         <translation>rRMV</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1043"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1175"/>
         <source>Artefact</source>
         <translation>Артефакт</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1045"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1177"/>
         <source>ART</source>
         <translation>ART</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1052"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1184"/>
         <source>CL</source>
         <translation>CL</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1057"/>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1059"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1189"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1191"/>
         <source>eMO</source>
         <translation>eMO</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1065"/>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1067"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1197"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1199"/>
         <source>eSO</source>
         <translation>eSO</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1073"/>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1075"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1205"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1207"/>
         <source>eS</source>
         <translation>eS</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1081"/>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1083"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1213"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1215"/>
         <source>eFL</source>
         <translation>eFL</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1091"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1223"/>
         <source>DS</source>
         <translation>DS</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1100"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1232"/>
         <location filename="../oscar/SleepLib/loader_plugins/prs1_loader.cpp" line="3112"/>
         <source>TB</source>
         <translation>TB</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1110"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1242"/>
         <source>BiSoft 1</source>
         <translation>BiSoft 1</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1111"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1243"/>
         <source>BiSoft 2</source>
         <translation>BiSoft 2</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="145"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1248"/>
+        <source>Humidifier Empty</source>
+        <translation type="unfinished">Порожній зволожувач</translation>
+    </message>
+    <message>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1249"/>
+        <source>Humidifier water ran out during therapy</source>
+        <translation type="unfinished">Вода у зволожувачі закінчилася під час терапії</translation>
+    </message>
+    <message>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1250"/>
+        <source>HE</source>
+        <translation type="unfinished">HE</translation>
+    </message>
+    <message>
+        <location filename="../oscar/SleepLib/schema.cpp" line="158"/>
         <source>Therapy Pressure</source>
         <translation>Лікувальний тиск</translation>
     </message>
@@ -8489,7 +8742,7 @@ Are you sure you want to make these changes?</source>
         <translation>Щоденно</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="873"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="879"/>
         <source>ESens</source>
         <translation>ESens</translation>
     </message>
@@ -8515,24 +8768,24 @@ Are you sure you want to make these changes?</source>
         <translation>Фіксований</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="161"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="174"/>
         <source>Ramp Pressure</source>
         <translation>Тиск рампи</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="862"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="868"/>
         <source>ISens</source>
         <translation>ISens</translation>
     </message>
     <message>
-        <location filename="../oscar/Graphs/gSummaryChart.cpp" line="381"/>
+        <location filename="../oscar/Graphs/gSummaryChart.cpp" line="385"/>
         <location filename="../oscar/Graphs/gUsageChart.cpp" line="45"/>
         <location filename="../oscar/SleepLib/common.cpp" line="908"/>
         <source>Hours</source>
         <translation>Годин</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="909"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="915"/>
         <source>Clinician</source>
         <translation>Лікар</translation>
     </message>
@@ -8560,7 +8813,7 @@ Are you sure you want to make these changes?</source>
     </message>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="1074"/>
-        <location filename="../oscar/SleepLib/schema.cpp" line="309"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="322"/>
         <source>Orientation</source>
         <translation>Орієнтація</translation>
     </message>
@@ -8593,13 +8846,13 @@ Are you sure you want to make these changes?</source>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="1046"/>
         <location filename="../oscar/SleepLib/loader_plugins/intellipap_loader.cpp" line="2818"/>
-        <location filename="../oscar/SleepLib/schema.cpp" line="259"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="272"/>
         <source>Snore</source>
         <translation>Хропіння</translation>
     </message>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="1094"/>
-        <location filename="../oscar/SleepLib/schema.cpp" line="356"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="369"/>
         <source>Start</source>
         <translation>Початок</translation>
     </message>
@@ -8609,12 +8862,12 @@ Are you sure you want to make these changes?</source>
         <translation>Використання</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="146"/>
+        <location filename="../oscar/main.cpp" line="150"/>
         <source>Choose the OSCAR 1.x data folder to migrate</source>
         <translation>Виберіть теку даних OSCAR 1.x для перенесення</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="239"/>
+        <location filename="../oscar/main.cpp" line="243"/>
         <source>Cancelling: %1
 (%2 of %3)
 
@@ -8625,87 +8878,222 @@ Cleaning up, please wait...</source>
 Очищення, зачекайте...</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="296"/>
+        <location filename="../oscar/main.cpp" line="300"/>
         <source>Migration cancelled.</source>
         <translation>Перенесення скасовано.</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="298"/>
+        <location filename="../oscar/main.cpp" line="302"/>
         <source>The following profile(s) were fully imported before cancellation:</source>
         <translation>До скасування повністю імпортовано такі профілі:</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="301"/>
+        <location filename="../oscar/main.cpp" line="305"/>
         <source>No profiles were imported.</source>
         <translation>Жодного профілю не імпортовано.</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="304"/>
+        <location filename="../oscar/main.cpp" line="308"/>
         <source>Migration Cancelled</source>
         <translation>Перенесення скасовано</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="783"/>
+        <location filename="../oscar/main.cpp" line="553"/>
+        <source>OSCAR %1 needs to upgrade its database from version %2 to version %3.</source>
+        <translation type="unfinished">OSCAR %1 потребує оновлення своєї бази даних з версії %2 до версії %3.</translation>
+    </message>
+    <message>
+        <location filename="../oscar/main.cpp" line="557"/>
+        <source>Once upgraded, this database &lt;font size=+1&gt;cannot&lt;/font&gt; be opened by earlier versions of OSCAR, and the upgrade cannot be undone.</source>
+        <translation type="unfinished">Після оновлення цю базу даних &lt;font size=+1&gt;неможливо&lt;/font&gt; буде відкрити попередніми версіями OSCAR, і скасувати оновлення буде неможливо.</translation>
+    </message>
+    <message>
+        <location filename="../oscar/main.cpp" line="559"/>
+        <source>&lt;b&gt;Back up and upgrade&lt;/b&gt; first saves a complete copy of the current database in %1, so you can go back to it if needed.</source>
+        <translation type="unfinished">&lt;b&gt;Створити резервну копію та оновити&lt;/b&gt; спочатку зберігає повну копію поточної бази даних у %1, щоб ви могли повернутися до неї за потреби.</translation>
+    </message>
+    <message>
+        <location filename="../oscar/main.cpp" line="561"/>
+        <source>&lt;b&gt;Exit&lt;/b&gt; leaves the database unchanged, so you can back it up yourself before starting OSCAR again.</source>
+        <translation type="unfinished">&lt;b&gt;Вийти&lt;/b&gt; залишає базу даних без змін, щоб ви могли самостійно створити її резервну копію перед повторним запуском OSCAR.</translation>
+    </message>
+    <message>
+        <location filename="../oscar/main.cpp" line="563"/>
+        <source>Are you ready to upgrade?</source>
+        <translation type="unfinished">Ви готові до оновлення?</translation>
+    </message>
+    <message>
+        <location filename="../oscar/main.cpp" line="565"/>
+        <source>Database Upgrade Required</source>
+        <translation type="unfinished">Потрібне оновлення бази даних</translation>
+    </message>
+    <message>
+        <location filename="../oscar/main.cpp" line="566"/>
+        <source>Back up and upgrade</source>
+        <translation type="unfinished">Створити резервну копію та оновити</translation>
+    </message>
+    <message>
+        <location filename="../oscar/main.cpp" line="567"/>
+        <source>Upgrade</source>
+        <translation type="unfinished">Оновити</translation>
+    </message>
+    <message>
+        <location filename="../oscar/main.cpp" line="568"/>
+        <location filename="../oscar/main.cpp" line="620"/>
+        <source>Exit</source>
+        <translation type="unfinished">Вихід</translation>
+    </message>
+    <message>
+        <location filename="../oscar/main.cpp" line="583"/>
+        <source>Upgrading Database</source>
+        <translation type="unfinished">Оновлення бази даних</translation>
+    </message>
+    <message>
+        <location filename="../oscar/main.cpp" line="604"/>
+        <source>Backing up the database to %1...</source>
+        <translation type="unfinished">Створення резервної копії бази даних у %1...</translation>
+    </message>
+    <message>
+        <location filename="../oscar/main.cpp" line="616"/>
+        <source>Database Backup Failed</source>
+        <translation type="unfinished">Помилка резервного копіювання бази даних</translation>
+    </message>
+    <message>
+        <location filename="../oscar/main.cpp" line="617"/>
+        <source>OSCAR could not save a copy of the database:</source>
+        <translation type="unfinished">OSCAR не вдалося зберегти копію бази даних:</translation>
+    </message>
+    <message>
+        <location filename="../oscar/main.cpp" line="618"/>
+        <source>You can upgrade without a backup, or exit and back up the database yourself first.</source>
+        <translation type="unfinished">Ви можете оновити без резервного копіювання, або вийти та спочатку самостійно створити резервну копію бази даних.</translation>
+    </message>
+    <message>
+        <location filename="../oscar/main.cpp" line="619"/>
+        <source>Upgrade without backup</source>
+        <translation type="unfinished">Оновити без резервного копіювання</translation>
+    </message>
+    <message>
+        <location filename="../oscar/main.cpp" line="633"/>
+        <source>Upgrading database from version %1 to version %2...</source>
+        <translation type="unfinished">Оновлення бази даних з версії %1 до версії %2...</translation>
+    </message>
+    <message>
+        <location filename="../oscar/main.cpp" line="640"/>
+        <source>Upgrading database from version %1 to version %2 (step %3 of %4)...</source>
+        <translation type="unfinished">Оновлення бази даних з версії %1 до версії %2 (крок %3 з %4)...</translation>
+    </message>
+    <message>
+        <location filename="../oscar/main.cpp" line="651"/>
+        <source>OSCAR could not upgrade your database from version %1 to version %2.</source>
+        <translation type="unfinished">OSCAR не вдалося оновити вашу базу даних з версії %1 до версії %2.</translation>
+    </message>
+    <message>
+        <location filename="../oscar/main.cpp" line="654"/>
+        <source>The copy made before the upgrade is unchanged:</source>
+        <translation type="unfinished">Копія, зроблена перед оновленням, залишається незмінною:</translation>
+    </message>
+    <message>
+        <location filename="../oscar/main.cpp" line="657"/>
+        <source>Each completed step has been kept, and OSCAR will try the remaining steps the next time it starts. If the problem persists, restore the database from a backup or delete oscar.db and re-import your CPAP data.</source>
+        <translation type="unfinished">Кожен виконаний крок було збережено, і OSCAR спробує виконати решту кроків під час наступного запуску. Якщо проблема не зникає, відновіть базу даних з резервної копії або видаліть oscar.db і повторно імпортуйте дані CPAP.</translation>
+    </message>
+    <message>
+        <location filename="../oscar/main.cpp" line="659"/>
+        <source>OSCAR will now close.</source>
+        <translation type="unfinished">Зараз OSCAR закриється.</translation>
+    </message>
+    <message>
+        <location filename="../oscar/main.cpp" line="660"/>
+        <source>Database Upgrade Failed</source>
+        <translation type="unfinished">Не вдалося оновити базу даних</translation>
+    </message>
+    <message>
+        <location filename="../oscar/main.cpp" line="965"/>
         <source>Your graphics hardware does not support the version of OpenGL that OSCAR needs.</source>
         <translation type="unfinished">Ваше графічне обладнання не підтримує версію OpenGL, яка потрібна OSCAR.</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="784"/>
+        <location filename="../oscar/main.cpp" line="966"/>
         <source>OSCAR will restart using a slower but more compatible method of drawing.</source>
         <translation type="unfinished">OSCAR перезапуститься, використовуючи повільніший, але більш сумісний метод малювання.</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="796"/>
+        <location filename="../oscar/main.cpp" line="978"/>
         <source>OSCAR was unable to restart itself. Please start OSCAR again.</source>
         <translation type="unfinished">OSCAR не вдалося перезапустити самостійно. Будь ласка, запустіть OSCAR знову.</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="822"/>
-        <source>If you have been using an older version of OSCAR 1.x,</source>
-        <translation>Якщо ви користувалися старішою версією OSCAR 1.x,</translation>
+        <location filename="../oscar/main.cpp" line="1036"/>
+        <source>Locate your OSCAR 2 data folder</source>
+        <translation type="unfinished">Знайдіть свою теку даних OSCAR 2</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="884"/>
+        <location filename="../oscar/main.cpp" line="1047"/>
+        <source>This folder contains OSCAR 1.x data, not OSCAR 2 data.</source>
+        <translation type="unfinished">Ця тека містить дані OSCAR 1.x, а не дані OSCAR 2.</translation>
+    </message>
+    <message>
+        <location filename="../oscar/main.cpp" line="1048"/>
+        <source>This folder does not contain an OSCAR 2 database.</source>
+        <translation type="unfinished">Ця тека не містить бази даних OSCAR 2.</translation>
+    </message>
+    <message>
+        <location filename="../oscar/main.cpp" line="1049"/>
+        <source>Not an OSCAR 2 data folder</source>
+        <translation type="unfinished">Це не тека даних OSCAR 2</translation>
+    </message>
+    <message>
+        <location filename="../oscar/main.cpp" line="1051"/>
+        <source>Choose another folder, or Cancel to return to the previous screen.</source>
+        <translation type="unfinished">Виберіть іншу теку або натисніть &quot;Скасувати&quot;, щоб повернутися до попереднього екрана.</translation>
+    </message>
+    <message>
+        <source>If you have been using an older version of OSCAR 1.x,</source>
+        <translation type="vanished">Якщо ви користувалися старішою версією OSCAR 1.x,</translation>
+    </message>
+    <message>
+        <location filename="../oscar/main.cpp" line="1068"/>
         <source>Database schema:</source>
         <translation>Схема бази даних:</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="922"/>
+        <location filename="../oscar/main.cpp" line="1106"/>
         <source>This OSCAR database folder is already open in another instance of OSCAR.</source>
         <translation>Цю теку бази даних OSCAR уже відкрито в іншому екземплярі OSCAR.</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="923"/>
+        <location filename="../oscar/main.cpp" line="1107"/>
         <source>Folder:</source>
         <translation>Тека:</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="924"/>
+        <location filename="../oscar/main.cpp" line="1108"/>
         <source>Close the other OSCAR instance before opening this database.</source>
         <translation>Закрийте інший екземпляр OSCAR, перш ніж відкривати цю базу даних.</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="926"/>
+        <location filename="../oscar/main.cpp" line="1110"/>
         <source>(Other instance process ID: %1)</source>
         <translation>(ID процесу іншого екземпляра: %1)</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="980"/>
+        <location filename="../oscar/main.cpp" line="1177"/>
         <source>Check Database Integrity</source>
         <translation>Перевірити цілісність бази даних</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="984"/>
+        <location filename="../oscar/main.cpp" line="1181"/>
         <source>Checking database integrity, please wait...</source>
         <translation>Перевірка цілісності бази даних, зачекайте...</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="1010"/>
+        <location filename="../oscar/main.cpp" line="1201"/>
         <source>Database Integrity Warning</source>
         <translation>Попередження про цілісність бази даних</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="1011"/>
+        <location filename="../oscar/main.cpp" line="1202"/>
         <source>OSCAR detected that the previous session ended unexpectedly, and the database integrity check found problems.
 
 Some data may be missing or corrupted.
@@ -8742,7 +9130,7 @@ You may continue, but some data may be incomplete or incorrect.</source>
         <translation>cmH2O</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="155"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="168"/>
         <source>Pressure Support</source>
         <translation>Підтримка тиску</translation>
     </message>
@@ -8757,52 +9145,53 @@ You may continue, but some data may be incomplete or incorrect.</source>
         <translation>Час відходу до сну: %1</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="787"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="793"/>
         <source>Air Tube Type</source>
         <translation>Тип повітряної трубки</translation>
     </message>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="1044"/>
-        <location filename="../oscar/SleepLib/schema.cpp" line="256"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="269"/>
         <source>Tidal Volume</source>
         <translation>Дихальний об&apos;єм</translation>
     </message>
     <message>
         <location filename="../oscar/SleepLib/loader_plugins/intellipap_loader.cpp" line="2705"/>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="590"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="674"/>
         <location filename="../oscar/SleepLib/loader_plugins/prs1_loader.cpp" line="889"/>
         <location filename="../oscar/SleepLib/loader_plugins/sleepstyle_loader.cpp" line="227"/>
         <location filename="../oscar/SleepLib/loader_plugins/vrem_loader.cpp" line="179"/>
-        <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.cpp" line="159"/>
-        <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.cpp" line="512"/>
-        <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.cpp" line="929"/>
-        <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.cpp" line="1317"/>
-        <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.cpp" line="1815"/>
+        <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.cpp" line="160"/>
+        <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.cpp" line="513"/>
+        <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.cpp" line="930"/>
+        <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.cpp" line="1318"/>
+        <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.cpp" line="1816"/>
+        <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.cpp" line="2323"/>
         <source>Getting Ready...</source>
         <translation>Підготовка...</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="186"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="199"/>
         <source>An apnea that couldn&apos;t be determined as Central or Obstructive.</source>
         <translation>Апное, яке не вдалося визначити як центральне чи обструктивне.</translation>
     </message>
     <message>
-        <location filename="../oscar/reports.cpp" line="293"/>
+        <location filename="../oscar/reports.cpp" line="298"/>
         <source>OHI=%1 CHI=%2 </source>
         <translation type="unfinished">OHI=%1 CHI=%2 </translation>
     </message>
     <message>
-        <location filename="../oscar/reports.cpp" line="295"/>
+        <location filename="../oscar/reports.cpp" line="299"/>
         <source>OAHI=%1 CAHI=%2 </source>
         <translation type="unfinished">OAHI=%1 CAHI=%2 </translation>
     </message>
     <message>
-        <location filename="../oscar/reports.cpp" line="306"/>
+        <location filename="../oscar/reports.cpp" line="311"/>
         <source>NRI=%1 LKI=%2 EPI=%3</source>
         <translation>NRI=%1 LKI=%2 EPI=%3</translation>
     </message>
     <message>
-        <location filename="../oscar/reports.cpp" line="463"/>
+        <location filename="../oscar/reports.cpp" line="468"/>
         <source>Entire Day</source>
         <translation>Весь день</translation>
     </message>
@@ -8828,12 +9217,12 @@ You may continue, but some data may be incomplete or incorrect.</source>
         <translation> (%3 с)</translation>
     </message>
     <message>
-        <location filename="../oscar/Graphs/gGraphView.cpp" line="1663"/>
+        <location filename="../oscar/Graphs/gGraphView.cpp" line="1705"/>
         <source>Your machine doesn&apos;t record data to graph in Daily View</source>
         <translation>Ваш апарат не записує даних для графіків у вигляді «Щоденно»</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/profiles.cpp" line="1524"/>
+        <location filename="../oscar/SleepLib/profiles.cpp" line="1521"/>
         <source>You cannot create a new profile with this name.</source>
         <translation>Не можна створити новий профіль з такою назвою.</translation>
     </message>
@@ -8853,22 +9242,22 @@ You may continue, but some data may be incomplete or incorrect.</source>
         <translation>Zeo Sleep Manager</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="884"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="890"/>
         <source>RiseTime</source>
         <translation>RiseTime</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/importcontext.cpp" line="219"/>
+        <location filename="../oscar/SleepLib/importcontext.cpp" line="258"/>
         <source>Your %1 %2 (%3) generated data that OSCAR has never seen before.</source>
         <translation>Ваш %1 %2 (%3) створив дані, яких OSCAR ще ніколи не бачив.</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1082"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1214"/>
         <source>Epoch (2 mins) with Flow Limitation</source>
         <translation>Епоха (2 хв) з обмеженням потоку</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="831"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="837"/>
         <source>Initial P</source>
         <translation>Початковий P</translation>
     </message>
@@ -8883,17 +9272,16 @@ You may continue, but some data may be incomplete or incorrect.</source>
         <translation>Спробуйте перейти на 64-бітну версію OSCAR або налаштувати ігнорування старіших сеансів.</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/machine.cpp" line="812"/>
         <source>Scanning Files</source>
-        <translation>Сканування файлів</translation>
+        <translation type="vanished">Сканування файлів</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/importcontext.cpp" line="244"/>
+        <location filename="../oscar/SleepLib/importcontext.cpp" line="283"/>
         <source>Your %1 CPAP Device (Model %2) has not been tested yet.</source>
         <translation>Ваш пристрій CPAP %1 (модель %2) ще не перевірявся.</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="1156"/>
+        <location filename="../oscar/main.cpp" line="1379"/>
         <source>The version of OSCAR you are running (%1) is OLDER than the one used to create this data (%2).</source>
         <translation>Версія OSCAR, яку ви запустили (%1), СТАРІША за ту, якою створено ці дані (%2).</translation>
     </message>
@@ -8903,17 +9291,22 @@ You may continue, but some data may be incomplete or incorrect.</source>
         <translation>Тривалість найдовшого вимкненого сеансу: %1 хв, загальна тривалість усіх вимкнених сеансів: %2 хв.</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="1266"/>
+        <location filename="../oscar/statistics.cpp" line="2195"/>
+        <source>Not available for all devices in this period</source>
+        <translation type="unfinished">Недоступно для всіх пристроїв за цей період</translation>
+    </message>
+    <message>
+        <location filename="../oscar/mainwindow.cpp" line="1309"/>
         <source>You must share your SD card with Linux using the ChromeOS Files program</source>
         <translation>Потрібно надати Linux доступ до вашої SD-карти через програму «Файли» ChromeOS</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/journal.cpp" line="232"/>
+        <location filename="../oscar/SleepLib/journal.cpp" line="236"/>
         <source>%1 days Journal Data was saved in file %2</source>
         <translation>Дані щоденника за %1 дн. збережено у файл %2</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="846"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="852"/>
         <source>Sensitivity</source>
         <translation>Чутливість</translation>
     </message>
@@ -8923,12 +9316,12 @@ You may continue, but some data may be incomplete or incorrect.</source>
         <translation>Сповіщення зникне через %1 с.</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="225"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="238"/>
         <source>Heart rate in beats per minute</source>
         <translation>Частота серцевих скорочень за хвилину</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="172"/>
+        <location filename="../oscar/main.cpp" line="176"/>
         <source>The folder you chose does not contain any OSCAR profiles.</source>
         <translation>Вибрана вами тека не містить жодного профілю OSCAR.</translation>
     </message>
@@ -8943,17 +9336,17 @@ You may continue, but some data may be incomplete or incorrect.</source>
         <translation>Somnopose</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="372"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="385"/>
         <source>Time spent awake</source>
         <translation>Час неспання</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/resmed_loader.cpp" line="1586"/>
+        <location filename="../oscar/SleepLib/loader_plugins/resmed_loader.cpp" line="1593"/>
         <source>Parsing STR.edf records...</source>
         <translation>Розбір записів STR.edf...</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/importcontext.cpp" line="255"/>
+        <location filename="../oscar/SleepLib/importcontext.cpp" line="294"/>
         <source>The developers need a .zip copy of this device&apos;s SD card and matching clinician .pdf reports to make it work with OSCAR.</source>
         <translation>Щоб цей пристрій запрацював з OSCAR, розробникам потрібна копія його SD-карти у форматі .zip і відповідні клінічні звіти .pdf.</translation>
     </message>
@@ -8973,27 +9366,27 @@ You may continue, but some data may be incomplete or incorrect.</source>
         <translation>Винести графік в окреме вікно</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/preferences.cpp" line="238"/>
+        <location filename="../oscar/SleepLib/preferences.cpp" line="240"/>
         <source>You must run the OSCAR Migration Tool</source>
         <translation>Потрібно запустити інструмент міграції OSCAR</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="318"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="331"/>
         <source>Mask On Time</source>
         <translation>Час із надітою маскою</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="1160"/>
+        <location filename="../oscar/main.cpp" line="1383"/>
         <source>It is likely that doing this will cause data corruption, are you sure you want to do this?</source>
         <translation>Найімовірніше, це призведе до пошкодження даних. Ви впевнені, що хочете це зробити?</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="720"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="726"/>
         <source>BMC Mode</source>
         <translation>Режим BMC</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="702"/>
+        <location filename="../oscar/mainwindow.cpp" line="726"/>
         <source>Loading profile &quot;%1&quot;...</source>
         <translation>Завантаження профілю &quot;%1&quot;...</translation>
     </message>
@@ -9024,17 +9417,16 @@ You may continue, but some data may be incomplete or incorrect.</source>
         <translation>Дихання не виявлено</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="821"/>
         <source>OSCAR will set up a folder for your data.</source>
-        <translation>OSCAR створить теку для ваших даних.</translation>
+        <translation type="vanished">OSCAR створить теку для ваших даних.</translation>
     </message>
     <message>
-        <location filename="../oscar/Graphs/gGraphView.cpp" line="1666"/>
+        <location filename="../oscar/Graphs/gGraphView.cpp" line="1708"/>
         <source>There is no data to graph</source>
         <translation>Немає даних для графіка</translation>
     </message>
     <message>
-        <location filename="../oscar/daily.cpp" line="3381"/>
+        <location filename="../oscar/daily.cpp" line="3384"/>
         <source>%1 of %2 Event Types</source>
         <translation>%1 з %2 типів подій</translation>
     </message>
@@ -9049,8 +9441,8 @@ You may continue, but some data may be incomplete or incorrect.</source>
         <translation>Ініційований пацієнтом вдих</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="919"/>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="921"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1050"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1052"/>
         <source>Auto start</source>
         <translation>Автозапуск</translation>
     </message>
@@ -9060,12 +9452,12 @@ You may continue, but some data may be incomplete or incorrect.</source>
         <translation>(лише зведення)</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="160"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="173"/>
         <source>Ramp Delay Period</source>
         <translation>Період затримки рампи</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="883"/>
+        <location filename="../oscar/main.cpp" line="1067"/>
         <source>Data directory:</source>
         <translation>Тека даних:</translation>
     </message>
@@ -9080,12 +9472,12 @@ You may continue, but some data may be incomplete or incorrect.</source>
         <translation>Ціль. час звол.</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/profiles.cpp" line="1050"/>
+        <location filename="../oscar/SleepLib/profiles.cpp" line="1047"/>
         <source>Migrating Journal Data to Database</source>
         <translation>Перенесення даних щоденника до бази даних</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="177"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="190"/>
         <source>Hypopnea (H)</source>
         <translation>Гіпопное (H)</translation>
     </message>
@@ -9095,7 +9487,7 @@ You may continue, but some data may be incomplete or incorrect.</source>
         <translation>Сеанси вимкнено</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="370"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="383"/>
         <source>Awakenings</source>
         <translation>Пробудження</translation>
     </message>
@@ -9105,7 +9497,7 @@ You may continue, but some data may be incomplete or incorrect.</source>
         <translation>Наразі ця тека розташована тут:</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="371"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="384"/>
         <source>Morning Feel</source>
         <translation>Самопочуття зранку</translation>
     </message>
@@ -9120,12 +9512,12 @@ You may continue, but some data may be incomplete or incorrect.</source>
         <translation>iPR</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="196"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="209"/>
         <source>A vibratory snore as detected by a System One device</source>
         <translation>Вібраційне хропіння, виявлене пристроєм System One</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="896"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1027"/>
         <source>Pressure relief during exhalation</source>
         <translation>Полегшення тиску на видиху</translation>
     </message>
@@ -9136,7 +9528,7 @@ You may continue, but some data may be incomplete or incorrect.</source>
     </message>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="1055"/>
-        <location filename="../oscar/SleepLib/schema.cpp" line="367"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="380"/>
         <source>Sleep Stage</source>
         <translation>Стадія сну</translation>
     </message>
@@ -9147,7 +9539,7 @@ You may continue, but some data may be incomplete or incorrect.</source>
     </message>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="1043"/>
-        <location filename="../oscar/SleepLib/schema.cpp" line="262"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="275"/>
         <source>Minute Vent.</source>
         <translation>Хвилинна вент.</translation>
     </message>
@@ -9163,12 +9555,12 @@ You may continue, but some data may be incomplete or incorrect.</source>
         <translation>Вивільнення місця в базі даних...</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="163"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="176"/>
         <source>Ramp Event</source>
         <translation>Подія рампи</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="212"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="225"/>
         <source>SensAwake feature will reduce pressure when waking is detected.</source>
         <translation>Функція SensAwake знижує тиск, коли виявлено пробудження.</translation>
     </message>
@@ -9178,18 +9570,18 @@ You may continue, but some data may be incomplete or incorrect.</source>
         <translation>Ваш пристрій ResMed CPAP (модель %1) ще не перевірявся.</translation>
     </message>
     <message>
-        <location filename="../oscar/Graphs/gGraphView.cpp" line="2502"/>
+        <location filename="../oscar/Graphs/gGraphView.cpp" line="2526"/>
         <source>Show All Events</source>
         <translation>Показати всі події</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1089"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1221"/>
         <source>Deep Sleep</source>
         <translation>Глибокий сон</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="818"/>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="826"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="824"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="832"/>
         <source>Ramp Time </source>
         <translation>Час рампи </translation>
     </message>
@@ -9199,25 +9591,25 @@ You may continue, but some data may be incomplete or incorrect.</source>
         <translation>Тип резервної частоти дихання: немає (вимкнено), автоматична або фіксована</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="312"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="325"/>
         <source>Upright angle in degrees</source>
         <translation>Кут нахилу тіла у градусах</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="395"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="408"/>
         <source>Flow Abnormality</source>
         <translation>Аномалія потоку</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="695"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="789"/>
         <location filename="../oscar/SleepLib/loader_plugins/prs1_loader.cpp" line="922"/>
         <location filename="../oscar/SleepLib/loader_plugins/resmed_loader.cpp" line="1075"/>
-        <location filename="../oscar/mainwindow.cpp" line="3300"/>
+        <location filename="../oscar/mainwindow.cpp" line="3427"/>
         <source>Importing Sessions...</source>
         <translation>Імпорт сеансів...</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="891"/>
+        <location filename="../oscar/main.cpp" line="1075"/>
         <source>Unable to create the OSCAR data folder at</source>
         <translation>Не вдається створити теку даних OSCAR за шляхом</translation>
     </message>
@@ -9232,7 +9624,7 @@ You may continue, but some data may be incomplete or incorrect.</source>
         <translation>Мінімальна кількість вдихів за хвилину (BPM), нижче якої ініціюється часовий вдих</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="151"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="164"/>
         <source>Higher Expiratory Pressure</source>
         <translation>Вищий тиск видиху</translation>
     </message>
@@ -9242,7 +9634,7 @@ You may continue, but some data may be incomplete or incorrect.</source>
         <translation>Фіксована резервна частота вдихів (BPM)</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="802"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="808"/>
         <source>Nasal Pillows</source>
         <translation>Носові канюлі</translation>
     </message>
@@ -9257,17 +9649,17 @@ You may continue, but some data may be incomplete or incorrect.</source>
         <translation>Налаштування зволожувача PRS1</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="655"/>
+        <location filename="../oscar/main.cpp" line="830"/>
         <source>To resolve this, OSCAR has reverted to a slower but more compatible method of drawing.</source>
         <translation>Щоб це виправити, OSCAR повернувся до повільнішого, але суміснішого способу малювання.</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="194"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="207"/>
         <source>A vibratory snore</source>
         <translation>Вібраційне хропіння</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="190"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="203"/>
         <source>A restriction in breathing from normal, causing a flattening of the flow waveform.</source>
         <translation>Обмеження дихання порівняно з нормою, що спричиняє сплощення кривої потоку.</translation>
     </message>
@@ -9288,12 +9680,12 @@ You may continue, but some data may be incomplete or incorrect.</source>
         <translation>Усього вимкнених сеансів: %1</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="835"/>
+        <location filename="../oscar/main.cpp" line="1019"/>
         <source>As you did not select a data folder, OSCAR will exit.</source>
         <translation>Оскільки ви не вибрали теку даних, OSCAR завершить роботу.</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="147"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="160"/>
         <source>Lower Inspiratory Pressure</source>
         <translation>Нижчий тиск вдиху</translation>
     </message>
@@ -9303,7 +9695,7 @@ You may continue, but some data may be incomplete or incorrect.</source>
         <translation>Стан увімкнення зволожувача</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="800"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="806"/>
         <location filename="../oscar/SleepLib/loader_plugins/resmed_loader.cpp" line="242"/>
         <source>Full Face</source>
         <translation>Повнолицева</translation>
@@ -9315,15 +9707,15 @@ You may continue, but some data may be incomplete or incorrect.</source>
         <translation>Постійно</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1027"/>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1028"/>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1029"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1159"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1160"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1161"/>
         <source>Full flow</source>
         <translation>Повний потік</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/profiles.cpp" line="1066"/>
-        <location filename="../oscar/SleepLib/profiles.cpp" line="1101"/>
+        <location filename="../oscar/SleepLib/profiles.cpp" line="1063"/>
+        <location filename="../oscar/SleepLib/profiles.cpp" line="1098"/>
         <source>Calculating Daily Summaries</source>
         <translation>Обчислення денних зведень</translation>
     </message>
@@ -9341,24 +9733,24 @@ You may continue, but some data may be incomplete or incorrect.</source>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="1045"/>
         <location filename="../oscar/SleepLib/loader_plugins/resmed_loader.cpp" line="362"/>
-        <location filename="../oscar/SleepLib/schema.cpp" line="265"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="278"/>
         <source>Resp. Rate</source>
         <translation>Част. дихання</translation>
     </message>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="1034"/>
-        <location filename="../oscar/SleepLib/schema.cpp" line="281"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="294"/>
         <source>Insp. Time</source>
         <translation>Час вдиху</translation>
     </message>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="1035"/>
-        <location filename="../oscar/SleepLib/schema.cpp" line="278"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="291"/>
         <source>Exp. Time</source>
         <translation>Час видиху</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="240"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="253"/>
         <source>SpO2 Drop (SD)</source>
         <translation>Падіння SpO2 (SD)</translation>
     </message>
@@ -9375,14 +9767,15 @@ You may continue, but some data may be incomplete or incorrect.</source>
     <message>
         <location filename="../oscar/SleepLib/loader_plugins/intellipap_loader.cpp" line="2735"/>
         <location filename="../oscar/SleepLib/loader_plugins/sleepstyle_loader.cpp" line="251"/>
-        <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.cpp" line="180"/>
-        <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.cpp" line="535"/>
-        <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.cpp" line="950"/>
+        <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.cpp" line="181"/>
+        <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.cpp" line="536"/>
+        <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.cpp" line="951"/>
+        <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.cpp" line="2347"/>
         <source>Reading data files...</source>
         <translation>Читання файлів даних...</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1098"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1230"/>
         <source>Timed breath</source>
         <translation>Часовий вдих</translation>
     </message>
@@ -9402,28 +9795,28 @@ You may continue, but some data may be incomplete or incorrect.</source>
         <translation>Видалення даних кривих (%1 з %2 сеансів)...</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1066"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1198"/>
         <source>Epoch (2 mins) with Severe Obstruction</source>
         <translation>Епоха (2 хв) з тяжкою обструкцією</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="164"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="177"/>
         <source>Pressure Setting</source>
         <translation>Налаштування тиску</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="234"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="247"/>
         <source>A relative assessment of the pulse strength at the monitoring site</source>
         <translation>Відносна оцінка сили пульсу в місці вимірювання</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="895"/>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="897"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1026"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1028"/>
         <source>SoftPAP Mode</source>
         <translation>Режим SoftPAP</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="837"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="843"/>
         <source>ManualP</source>
         <translation>ManualP</translation>
     </message>
@@ -9438,7 +9831,7 @@ You may continue, but some data may be incomplete or incorrect.</source>
         <translation>Макс: %1</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="904"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="910"/>
         <source>MaxIPAP</source>
         <translation>MaxIPAP</translation>
     </message>
@@ -9448,22 +9841,21 @@ You may continue, but some data may be incomplete or incorrect.</source>
         <translation>На жаль, операція видалення не вдалася, тому ця версія OSCAR не може запуститися.</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="1101"/>
         <source>Migrate Data from OSCAR 1.x?</source>
-        <translation>Перенести дані з OSCAR 1.x?</translation>
+        <translation type="vanished">Перенести дані з OSCAR 1.x?</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="240"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="253"/>
         <source>A sudden (user definable) drop in blood oxygen saturation</source>
         <translation>Раптове (задане користувачем) падіння насичення крові киснем</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="315"/>
+        <location filename="../oscar/main.cpp" line="319"/>
         <source>Migrated %1 profile(s) successfully, but %2 profile(s) failed in %3 seconds.</source>
         <translation>Успішно перенесено профілів: %1, не вдалося: %2. Витрачено часу: %3 с.</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="375"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="388"/>
         <source>Time spent in deep sleep</source>
         <translation>Час глибокого сну</translation>
     </message>
@@ -9473,19 +9865,19 @@ You may continue, but some data may be incomplete or incorrect.</source>
         <translation>Подія хропіння.</translation>
     </message>
     <message>
-        <location filename="../oscar/daily.cpp" line="3340"/>
+        <location filename="../oscar/daily.cpp" line="3343"/>
         <location filename="../oscar/overview.cpp" line="497"/>
         <source>%1 of %2 Graphs</source>
         <translation>%1 з %2 графіків</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/viatom_loader.cpp" line="97"/>
+        <location filename="../oscar/SleepLib/loader_plugins/viatom_loader.cpp" line="96"/>
         <source>Your Viatom device generated data that OSCAR has never seen before.</source>
         <translation>Ваш пристрій Viatom створив дані, яких OSCAR ще ніколи не бачив.</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="906"/>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="943"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1037"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1074"/>
         <source>Pressure during soft start period</source>
         <translation>Тиск під час періоду м&apos;якого старту</translation>
     </message>
@@ -9500,7 +9892,7 @@ You may continue, but some data may be incomplete or incorrect.</source>
         <translation>Немає видимих графіків для друку</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/profiles.cpp" line="1534"/>
+        <location filename="../oscar/SleepLib/profiles.cpp" line="1531"/>
         <source>A profile named &apos;%1&apos; already exists and is active.</source>
         <translation>Профіль з назвою &apos;%1&apos; уже існує та є активним.</translation>
     </message>
@@ -9515,18 +9907,18 @@ You may continue, but some data may be incomplete or incorrect.</source>
         <translation>Операційна система:</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="329"/>
+        <location filename="../oscar/main.cpp" line="333"/>
         <source>Failed to migrate any profiles. All %1 profile(s) failed.</source>
         <translation>Не вдалося перенести жодного профілю. Помилок: %1.</translation>
     </message>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="1042"/>
-        <location filename="../oscar/SleepLib/schema.cpp" line="290"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="303"/>
         <source>Target Vent.</source>
         <translation>Цільова вент.</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="309"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="322"/>
         <source>Sleep position in degrees</source>
         <translation>Положення тіла під час сну у градусах</translation>
     </message>
@@ -9547,106 +9939,106 @@ You may continue, but some data may be incomplete or incorrect.</source>
         <translation>Мін: %1</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="723"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="729"/>
         <location filename="../oscar/SleepLib/loader_plugins/prs1_loader.cpp" line="2864"/>
         <source>AutoCPAP</source>
         <translation>AutoCPAP</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="724"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="730"/>
         <location filename="../oscar/SleepLib/loader_plugins/prs1_loader.cpp" line="2869"/>
         <source>S</source>
         <translation>S</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="725"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="731"/>
         <location filename="../oscar/SleepLib/loader_plugins/prs1_loader.cpp" line="2870"/>
         <source>S/T</source>
         <translation>S/T</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="726"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="732"/>
         <source>T</source>
         <translation>T</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="728"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="734"/>
         <source>AutoS</source>
         <translation>AutoS</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="733"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="739"/>
         <source>Reslex</source>
         <translation>Reslex</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="735"/>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="749"/>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="809"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="741"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="755"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="815"/>
         <location filename="../oscar/SleepLib/loader_plugins/vrem_loader.cpp" line="652"/>
         <source>1</source>
         <translation>1</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="736"/>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="750"/>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="810"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="742"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="756"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="816"/>
         <location filename="../oscar/SleepLib/loader_plugins/vrem_loader.cpp" line="653"/>
         <source>2</source>
         <translation>2</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="737"/>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="751"/>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="811"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="743"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="757"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="817"/>
         <location filename="../oscar/SleepLib/loader_plugins/vrem_loader.cpp" line="654"/>
         <source>3</source>
         <translation>3</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="738"/>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="910"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="744"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="916"/>
         <source>Patient</source>
         <translation>Пацієнт</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="752"/>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="812"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="758"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="818"/>
         <location filename="../oscar/SleepLib/loader_plugins/vrem_loader.cpp" line="655"/>
         <source>4</source>
         <translation>4</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="753"/>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="813"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="759"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="819"/>
         <location filename="../oscar/SleepLib/loader_plugins/vrem_loader.cpp" line="656"/>
         <source>5</source>
         <translation>5</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="757"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="763"/>
         <source>SmartA</source>
         <translation>SmartA</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="762"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="768"/>
         <source>SmartB</source>
         <translation>SmartB</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="767"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="773"/>
         <source>SmartC</source>
         <translation>SmartC</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="772"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="778"/>
         <location filename="../oscar/SleepLib/loader_plugins/prs1_loader.cpp" line="3008"/>
         <location filename="../oscar/SleepLib/loader_plugins/prs1_loader.cpp" line="3010"/>
         <source>Auto On</source>
         <translation>Авто увімк.</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="777"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="783"/>
         <location filename="../oscar/SleepLib/loader_plugins/prs1_loader.cpp" line="3017"/>
         <location filename="../oscar/SleepLib/loader_plugins/prs1_loader.cpp" line="3019"/>
         <source>Auto Off</source>
@@ -9657,117 +10049,117 @@ You may continue, but some data may be incomplete or incorrect.</source>
         <translation type="vanished">Звичайна 22 мм</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="793"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="799"/>
         <source>Normal 15mm</source>
         <translation>Звичайна 15 мм</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="794"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="800"/>
         <source>Heated 19mm</source>
         <translation type="unfinished">Підігрівана 19 мм</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="795"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="801"/>
         <source>Heated 15mm</source>
         <translation type="unfinished">Підігрівана 15 мм</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="801"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="807"/>
         <location filename="../oscar/SleepLib/loader_plugins/resmed_loader.cpp" line="243"/>
         <source>Nasal</source>
         <translation>Носова</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="849"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="855"/>
         <source>Initial EPAP</source>
         <translation>Початковий EPAP</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="864"/>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="875"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="870"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="881"/>
         <source>Very Low</source>
         <translation type="unfinished">Дуже низький</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="865"/>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="876"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="871"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="882"/>
         <source>Low</source>
         <translation type="unfinished">Низький</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="866"/>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="877"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="872"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="883"/>
         <source>Medium Low</source>
         <translation type="unfinished">Середньо низький</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="867"/>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="878"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="873"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="884"/>
         <source>Medium</source>
         <translation type="unfinished">Середній</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="868"/>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="879"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="874"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="885"/>
         <source>Medium High</source>
         <translation type="unfinished">Середньо високий</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="869"/>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="880"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="875"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="886"/>
         <source>High</source>
         <translation type="unfinished">Високий</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="870"/>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="881"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="876"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="887"/>
         <source>Very High</source>
         <translation type="unfinished">Дуже високий</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="887"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="893"/>
         <source>TiMin</source>
         <translation>TiMin</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="887"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="893"/>
         <location filename="../oscar/SleepLib/loader_plugins/resmed_loader.cpp" line="303"/>
         <source>Ti Min</source>
         <translation>Ti Min</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="890"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="896"/>
         <source>TiMax</source>
         <translation>TiMax</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="890"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="896"/>
         <location filename="../oscar/SleepLib/loader_plugins/resmed_loader.cpp" line="299"/>
         <source>Ti Max</source>
         <translation>Ti Max</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="898"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="904"/>
         <source>MinEPAP</source>
         <translation>MinEPAP</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="901"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="907"/>
         <source>MinIPAP</source>
         <translation>MinIPAP</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="913"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="919"/>
         <source>Pres. Response</source>
         <translation type="unfinished">Реакція тиску</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="913"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="919"/>
         <source>Shape of the pressure change the device applies as it adjusts</source>
         <translation type="unfinished">Форма зміни тиску, яку застосовує апарат під час регулювання</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="916"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="922"/>
         <source>Fast</source>
         <translation type="unfinished">Швидко</translation>
     </message>
@@ -9777,15 +10169,15 @@ You may continue, but some data may be incomplete or incorrect.</source>
         <translation>Режим зволоження PRS1</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1020"/>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1021"/>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1022"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1152"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1153"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1154"/>
         <source>Measured pressure</source>
         <translation>Виміряний тиск</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="199"/>
-        <location filename="../oscar/SleepLib/schema.cpp" line="203"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="212"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="216"/>
         <source>A large mask leak affecting device performance.</source>
         <translation>Великий витік маски, що впливає на роботу пристрою.</translation>
     </message>
@@ -9795,8 +10187,8 @@ You may continue, but some data may be incomplete or incorrect.</source>
         <translation>Завантаження зведених даних</translation>
     </message>
     <message>
-        <location filename="../oscar/Graphs/gGraphView.cpp" line="2851"/>
-        <location filename="../oscar/Graphs/gGraphView.cpp" line="2934"/>
+        <location filename="../oscar/Graphs/gGraphView.cpp" line="2875"/>
+        <location filename="../oscar/Graphs/gGraphView.cpp" line="2958"/>
         <source>Popout %1 Graph</source>
         <translation>Винести графік %1 в окреме вікно</translation>
     </message>
@@ -9807,7 +10199,7 @@ You may continue, but some data may be incomplete or incorrect.</source>
         <translation>Лише рампа</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="160"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="173"/>
         <source>Ramp Time</source>
         <translation>Час рампи</translation>
     </message>
@@ -9823,7 +10215,7 @@ You may continue, but some data may be incomplete or incorrect.</source>
         <translation>Режим полегшення тиску PRS1.</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="171"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="184"/>
         <source>An abnormal period of Periodic Breathing</source>
         <translation>Аномальний період періодичного дихання</translation>
     </message>
@@ -9838,13 +10230,12 @@ You may continue, but some data may be incomplete or incorrect.</source>
         <translation>Полегшення тиску на видиху ResMed</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="825"/>
         <source>Click Ok to accept this, or No if you want to use a different folder.</source>
-        <translation>Натисніть «Ok», щоб погодитися, або «Ні», якщо хочете вибрати іншу теку.</translation>
+        <translation type="vanished">Натисніть «Ok», щоб погодитися, або «Ні», якщо хочете вибрати іншу теку.</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="410"/>
-        <location filename="../oscar/SleepLib/schema.cpp" line="411"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="423"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="424"/>
         <source>For internal use only</source>
         <translation>Лише для внутрішнього використання</translation>
     </message>
@@ -9870,7 +10261,7 @@ You may continue, but some data may be incomplete or incorrect.</source>
         <translation>Показати в цьому звіті ділянки із закладками?</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/profiles.cpp" line="1527"/>
+        <location filename="../oscar/SleepLib/profiles.cpp" line="1524"/>
         <source>2. Restore the missing profile directory</source>
         <translation>2. Відновіть відсутню теку профілю</translation>
     </message>
@@ -9880,22 +10271,22 @@ You may continue, but some data may be incomplete or incorrect.</source>
         <translation>AHI %1</translation>
     </message>
     <message>
-        <location filename="../oscar/reports.cpp" line="309"/>
+        <location filename="../oscar/reports.cpp" line="314"/>
         <source>AI=%1 </source>
         <translation>AI=%1 </translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="934"/>
+        <location filename="../oscar/main.cpp" line="1118"/>
         <source>Unable to write to debug log. You can still use the debug pane (Help/Troubleshooting/Show Debug Pane) but the debug log will not be written to disk.</source>
         <translation>Не вдається писати в журнал налагодження. Панеллю налагодження («Довідка/Усунення несправностей/Показувати панель налагодження») користуватися можна, але журнал не записуватиметься на диск.</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="165"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="178"/>
         <source>IPAP Set</source>
         <translation>Задано IPAP</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="166"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="179"/>
         <source>EPAP Set</source>
         <translation>Задано EPAP</translation>
     </message>
@@ -9910,19 +10301,18 @@ You may continue, but some data may be incomplete or incorrect.</source>
         <translation>Компілятор:</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="351"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="364"/>
         <source>Physical Height</source>
         <translation>Зріст</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="873"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="879"/>
         <source>E Sens</source>
         <translation>E Sens</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="824"/>
         <source>We suggest you use this folder: </source>
-        <translation>Радимо використати цю теку: </translation>
+        <translation type="vanished">Радимо використати цю теку: </translation>
     </message>
     <message>
         <location filename="../oscar/SleepLib/loader_plugins/resmed_loader.cpp" line="227"/>
@@ -9930,18 +10320,20 @@ You may continue, but some data may be incomplete or incorrect.</source>
         <translation>Доступ пацієнта</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="332"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="345"/>
         <source>ASV (Fixed EPAP)</source>
         <translation>ASV (фіксований EPAP)</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="268"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="281"/>
         <source>Patient Triggered Breaths</source>
         <translation>Вдихи, ініційовані пацієнтом</translation>
     </message>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="946"/>
-        <location filename="../oscar/main.cpp" line="186"/>
+        <location filename="../oscar/datafolderdialog.cpp" line="233"/>
+        <location filename="../oscar/datafolderdialog.cpp" line="255"/>
+        <location filename="../oscar/main.cpp" line="190"/>
         <source>Cancel</source>
         <translation>Скасувати</translation>
     </message>
@@ -9951,17 +10343,17 @@ You may continue, but some data may be incomplete or incorrect.</source>
         <translation>Пристрій</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/importcontext.cpp" line="253"/>
+        <location filename="../oscar/SleepLib/importcontext.cpp" line="292"/>
         <source>Device Unsupported</source>
         <translation>Пристрій не підтримується</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="188"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="201"/>
         <source>Apnea (A)</source>
         <translation>Апное (A)</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="255"/>
+        <location filename="../oscar/main.cpp" line="259"/>
         <source>Migrating profile: %1
 (%2 of %3)
 
@@ -9972,7 +10364,7 @@ You may continue, but some data may be incomplete or incorrect.</source>
 %4</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="862"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="868"/>
         <source>I Sens</source>
         <translation>I Sens</translation>
     </message>
@@ -9997,19 +10389,19 @@ You may continue, but some data may be incomplete or incorrect.</source>
         <translation>Фільтр AB</translation>
     </message>
     <message>
-        <location filename="../oscar/daily.cpp" line="3336"/>
+        <location filename="../oscar/daily.cpp" line="3339"/>
         <location filename="../oscar/overview.cpp" line="493"/>
         <source>%1 Graphs</source>
         <translation>%1 графіків</translation>
     </message>
     <message>
         <location filename="../oscar/SleepLib/loader_plugins/resmed_loader.cpp" line="322"/>
-        <location filename="../oscar/SleepLib/schema.cpp" line="351"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="364"/>
         <source>Height</source>
         <translation>Зріст</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="3872"/>
+        <location filename="../oscar/mainwindow.cpp" line="3994"/>
         <source>Please select a location for your zip other than the data card itself!</source>
         <translation>Виберіть для ZIP-файлу місце, відмінне від самої картки з даними!</translation>
     </message>
@@ -10024,12 +10416,12 @@ You may continue, but some data may be incomplete or incorrect.</source>
         <translation>(% %1 у подіях)</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="831"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="837"/>
         <source>InitialP</source>
         <translation>InitialP</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="872"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="887"/>
         <source>Lower Threshold</source>
         <translation>Нижній поріг</translation>
     </message>
@@ -10040,7 +10432,7 @@ You may continue, but some data may be incomplete or incorrect.</source>
         <translation>Немає даних</translation>
     </message>
     <message>
-        <location filename="../oscar/daily.cpp" line="3377"/>
+        <location filename="../oscar/daily.cpp" line="3380"/>
         <source>%1 Event Types</source>
         <translation>%1 типів подій</translation>
     </message>
@@ -10050,17 +10442,17 @@ You may continue, but some data may be incomplete or incorrect.</source>
         <translation>Рівень полегшення на видиху</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="377"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="390"/>
         <source>Zeo sleep quality measurement</source>
         <translation>Вимірювання якості сну Zeo</translation>
     </message>
     <message>
-        <location filename="../oscar/reports.cpp" line="586"/>
+        <location filename="../oscar/reports.cpp" line="591"/>
         <source>Page %1 of %2</source>
         <translation>Сторінка %1 з %2</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="1147"/>
+        <location filename="../oscar/main.cpp" line="1370"/>
         <source>Version &quot;%1&quot; is invalid, cannot continue!</source>
         <translation>Версія &quot;%1&quot; некоректна, продовжити неможливо!</translation>
     </message>
@@ -10090,38 +10482,38 @@ You may continue, but some data may be incomplete or incorrect.</source>
         <translation>Медіана</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/day.cpp" line="1632"/>
+        <location filename="../oscar/SleepLib/day.cpp" line="1634"/>
         <source>n/a</source>
         <translation>н/д</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/day.cpp" line="1649"/>
+        <location filename="../oscar/SleepLib/day.cpp" line="1651"/>
         <source>Fixed %1 (%2)</source>
         <translation>Фіксований %1 (%2)</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/day.cpp" line="1656"/>
+        <location filename="../oscar/SleepLib/day.cpp" line="1658"/>
         <source>EPAP %1 IPAP %2 (%3)</source>
         <translation>EPAP %1 IPAP %2 (%3)</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/day.cpp" line="1670"/>
+        <location filename="../oscar/SleepLib/day.cpp" line="1672"/>
         <source>Min EEPAP %1 Max EEPAP %2 PDIFF %3-%4 (%5)</source>
         <translation>Min EEPAP %1 Max EEPAP %2 PDIFF %3-%4 (%5)</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/day.cpp" line="1675"/>
-        <location filename="../oscar/SleepLib/day.cpp" line="1696"/>
+        <location filename="../oscar/SleepLib/day.cpp" line="1677"/>
+        <location filename="../oscar/SleepLib/day.cpp" line="1698"/>
         <source>EPAP %1 PS %2-%3 (%4)</source>
         <translation>EPAP %1 PS %2-%3 (%4)</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/day.cpp" line="1689"/>
+        <location filename="../oscar/SleepLib/day.cpp" line="1691"/>
         <source>EPAP %1-%2 PS %3-%4 (%5)</source>
         <translation>EPAP %1-%2 PS %3-%4 (%5)</translation>
     </message>
     <message>
-        <location filename="../oscar/Graphs/gSummaryChart.cpp" line="387"/>
+        <location filename="../oscar/Graphs/gSummaryChart.cpp" line="391"/>
         <source>Min %1</source>
         <translation>Мін %1</translation>
     </message>
@@ -10136,7 +10528,7 @@ You may continue, but some data may be incomplete or incorrect.</source>
         <translation>Рух</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/importcontext.cpp" line="230"/>
+        <location filename="../oscar/SleepLib/importcontext.cpp" line="269"/>
         <source>Your %1 CPAP Device (Model %2) is unfortunately not a data capable model.</source>
         <translation>Ваш пристрій CPAP %1 (модель %2), на жаль, не належить до моделей, здатних записувати дані.</translation>
     </message>
@@ -10146,12 +10538,12 @@ You may continue, but some data may be incomplete or incorrect.</source>
         <translation>Під&apos;єднано</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="157"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="170"/>
         <source>PS Max</source>
         <translation>PS Max</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="156"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="169"/>
         <source>PS Min</source>
         <translation>PS Min</translation>
     </message>
@@ -10163,12 +10555,12 @@ Please Rebuild CPAP Data</source>
 Перебудуйте дані CPAP</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="190"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="203"/>
         <source>Flow Limitation (FL)</source>
         <translation>Обмеження потоку (FL)</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="287"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="300"/>
         <source>Flow Limit.</source>
         <translation>Обмеж. потоку</translation>
     </message>
@@ -10183,23 +10575,23 @@ Please Rebuild CPAP Data</source>
         <translation>Змінне дихання</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="209"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="222"/>
         <source>Expiratory Puff (EP)</source>
         <translation>Видихальний поштовх (EP)</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="299"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="312"/>
         <source>Detected mask leakage including natural Mask leakages</source>
         <translation>Виявлений витік маски, включно з природними витоками маски</translation>
     </message>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="955"/>
-        <location filename="../oscar/SleepLib/schema.cpp" line="231"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="244"/>
         <source>Plethy</source>
         <translation>Плетизмограма</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="302"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="315"/>
         <source>Median Leaks</source>
         <translation>Медіанні витоки</translation>
     </message>
@@ -10214,7 +10606,7 @@ Please Rebuild CPAP Data</source>
         <translation>Пікова швидкість потоку за 2-хвилинний інтервал</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="307"/>
+        <location filename="../oscar/main.cpp" line="311"/>
         <source>Successfully migrated %1 profile(s) in %2 seconds.</source>
         <translation>Успішно перенесено профілів: %1 за %2 с.</translation>
     </message>
@@ -10336,7 +10728,7 @@ Please Rebuild CPAP Data</source>
     </message>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="973"/>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="852"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="858"/>
         <source>EPAP</source>
         <translation>EPAP</translation>
     </message>
@@ -10347,7 +10739,7 @@ Please Rebuild CPAP Data</source>
     </message>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="979"/>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="855"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="861"/>
         <source>IPAP</source>
         <translation>IPAP</translation>
     </message>
@@ -10366,7 +10758,7 @@ Please Rebuild CPAP Data</source>
     </message>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="984"/>
-        <location filename="../oscar/SleepLib/schema.cpp" line="334"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="347"/>
         <source>AVAPS</source>
         <translation>AVAPS</translation>
     </message>
@@ -10377,37 +10769,37 @@ Please Rebuild CPAP Data</source>
     </message>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="989"/>
-        <location filename="../oscar/SleepLib/schema.cpp" line="177"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="190"/>
         <source>H</source>
         <translation>H</translation>
     </message>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="990"/>
-        <location filename="../oscar/SleepLib/schema.cpp" line="182"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="195"/>
         <source>OH</source>
         <translation type="unfinished">OH</translation>
     </message>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="991"/>
-        <location filename="../oscar/SleepLib/schema.cpp" line="184"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="197"/>
         <source>CH</source>
         <translation type="unfinished">CH</translation>
     </message>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="993"/>
-        <location filename="../oscar/SleepLib/schema.cpp" line="188"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="201"/>
         <source>A</source>
         <translation>A</translation>
     </message>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="996"/>
-        <location filename="../oscar/SleepLib/schema.cpp" line="190"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="203"/>
         <source>FL</source>
         <translation>FL</translation>
     </message>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="997"/>
-        <location filename="../oscar/SleepLib/schema.cpp" line="212"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="225"/>
         <source>SA</source>
         <translation>SA</translation>
     </message>
@@ -10418,19 +10810,19 @@ Please Rebuild CPAP Data</source>
     </message>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="999"/>
-        <location filename="../oscar/SleepLib/schema.cpp" line="209"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="222"/>
         <source>EP</source>
         <translation>EP</translation>
     </message>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="1000"/>
-        <location filename="../oscar/SleepLib/schema.cpp" line="194"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="207"/>
         <source>VS</source>
         <translation>VS</translation>
     </message>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="1002"/>
-        <location filename="../oscar/SleepLib/schema.cpp" line="196"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="209"/>
         <source>VS2</source>
         <translation>VS2</translation>
     </message>
@@ -10452,13 +10844,13 @@ Please Rebuild CPAP Data</source>
     </message>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="1006"/>
-        <location filename="../oscar/SleepLib/schema.cpp" line="192"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="205"/>
         <source>RE</source>
         <translation>RE</translation>
     </message>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="1007"/>
-        <location filename="../oscar/SleepLib/schema.cpp" line="206"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="219"/>
         <source>NR</source>
         <translation>NR</translation>
     </message>
@@ -10470,25 +10862,25 @@ Please Rebuild CPAP Data</source>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="1010"/>
         <location filename="../oscar/SleepLib/loader_plugins/prs1_loader.cpp" line="2871"/>
-        <location filename="../oscar/SleepLib/schema.cpp" line="237"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="250"/>
         <source>PC</source>
         <translation>PC</translation>
     </message>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="1011"/>
-        <location filename="../oscar/SleepLib/schema.cpp" line="215"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="228"/>
         <source>UF1</source>
         <translation>UF1</translation>
     </message>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="1012"/>
-        <location filename="../oscar/SleepLib/schema.cpp" line="218"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="231"/>
         <source>UF2</source>
         <translation>UF2</translation>
     </message>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="1013"/>
-        <location filename="../oscar/SleepLib/schema.cpp" line="221"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="234"/>
         <source>UF3</source>
         <translation>UF3</translation>
     </message>
@@ -10524,7 +10916,7 @@ Please Rebuild CPAP Data</source>
     </message>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="1029"/>
-        <location filename="../oscar/SleepLib/schema.cpp" line="171"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="184"/>
         <source>PB</source>
         <translation>PB</translation>
     </message>
@@ -10541,7 +10933,7 @@ Please Rebuild CPAP Data</source>
     </message>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="1050"/>
-        <location filename="../oscar/SleepLib/schema.cpp" line="203"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="216"/>
         <source>LL</source>
         <translation>LL</translation>
     </message>
@@ -10552,8 +10944,8 @@ Please Rebuild CPAP Data</source>
     </message>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="1064"/>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="881"/>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="883"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1012"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1014"/>
         <location filename="../oscar/SleepLib/loader_plugins/prs1_loader.cpp" line="2858"/>
         <location filename="../oscar/SleepLib/loader_plugins/prs1_loader.cpp" line="2860"/>
         <location filename="../oscar/SleepLib/loader_plugins/resmed_loader.cpp" line="149"/>
@@ -10573,7 +10965,7 @@ Please Rebuild CPAP Data</source>
         <translation>Серія</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="900"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1031"/>
         <source>Slight</source>
         <translation>Незначний</translation>
     </message>
@@ -10583,7 +10975,7 @@ Please Rebuild CPAP Data</source>
         <translation>модель %1</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="834"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="840"/>
         <source>TreatP</source>
         <translation>TreatP</translation>
     </message>
@@ -10608,20 +11000,20 @@ Please Rebuild CPAP Data</source>
         <translation>Налаштування полегшення тиску vREM.</translation>
     </message>
     <message>
-        <location filename="../oscar/reports.cpp" line="254"/>
+        <location filename="../oscar/reports.cpp" line="256"/>
         <source>AHI	%1
 </source>
         <translation>AHI	%1
 </translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/preferences.cpp" line="237"/>
+        <location filename="../oscar/SleepLib/preferences.cpp" line="239"/>
         <source>Using </source>
         <translation>Використовується </translation>
     </message>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="951"/>
-        <location filename="../oscar/SleepLib/schema.cpp" line="350"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="363"/>
         <source>Weight</source>
         <translation>Вага</translation>
     </message>
@@ -10636,12 +11028,12 @@ Please Rebuild CPAP Data</source>
         <translation>Режим полегшення тиску vREM.</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="733"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="739"/>
         <source>BMC Reslex is an exhalation pressure relief feature</source>
         <translation>BMC Reslex - це функція полегшення тиску на видиху</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/profiles.cpp" line="1522"/>
+        <location filename="../oscar/SleepLib/profiles.cpp" line="1519"/>
         <source>Profile Name Conflict</source>
         <translation>Конфлікт назв профілів</translation>
     </message>
@@ -10656,17 +11048,17 @@ Please Rebuild CPAP Data</source>
         <translation>Позначки подій</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="654"/>
+        <location filename="../oscar/main.cpp" line="829"/>
         <source>OSCAR crashed due to an incompatibility with your graphics hardware.</source>
         <translation>OSCAR аварійно завершився через несумісність з вашим графічним обладнанням.</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/profiles.cpp" line="1526"/>
+        <location filename="../oscar/SleepLib/profiles.cpp" line="1523"/>
         <source>1. Choose a different profile name</source>
         <translation>1. Виберіть іншу назву профілю</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/importcontext.cpp" line="229"/>
+        <location filename="../oscar/SleepLib/importcontext.cpp" line="268"/>
         <source>Non Data Capable Device</source>
         <translation>Пристрій без запису даних</translation>
     </message>
@@ -10681,9 +11073,9 @@ Please Rebuild CPAP Data</source>
         <translation>Закладки</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="882"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1013"/>
         <location filename="../oscar/SleepLib/loader_plugins/prs1_loader.cpp" line="2859"/>
-        <location filename="../oscar/SleepLib/schema.cpp" line="324"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="337"/>
         <source>PAP Mode</source>
         <translation>Режим PAP</translation>
     </message>
@@ -10695,7 +11087,7 @@ Please Rebuild CPAP Data</source>
         <translation>Режим CPAP</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="376"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="389"/>
         <source>Time taken to get to sleep</source>
         <translation>Час до засинання</translation>
     </message>
@@ -10715,23 +11107,23 @@ Please Rebuild CPAP Data</source>
         <translation>Блокування типу трубки</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="173"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="186"/>
         <source>An apnea where the airway is open</source>
         <translation>Апное з відкритими дихальними шляхами</translation>
     </message>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="1037"/>
-        <location filename="../oscar/SleepLib/schema.cpp" line="287"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="300"/>
         <source>Flow Limitation</source>
         <translation>Обмеження потоку</translation>
     </message>
     <message>
-        <location filename="../oscar/Graphs/gGraphView.cpp" line="2936"/>
+        <location filename="../oscar/Graphs/gGraphView.cpp" line="2960"/>
         <source>Pin %1 Graph</source>
         <translation>Закріпити графік %1</translation>
     </message>
     <message>
-        <location filename="../oscar/Graphs/gGraphView.cpp" line="2849"/>
+        <location filename="../oscar/Graphs/gGraphView.cpp" line="2873"/>
         <source>Unpin %1 Graph</source>
         <translation>Відкріпити графік %1</translation>
     </message>
@@ -10741,12 +11133,12 @@ Please Rebuild CPAP Data</source>
         <translation>Підготовка бази даних до видалення...</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="905"/>
+        <location filename="../oscar/main.cpp" line="1089"/>
         <source>Error code</source>
         <translation>Код помилки</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="284"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="297"/>
         <source>A ResMed data item: Trigger Cycle Event</source>
         <translation>Елемент даних ResMed: подія тригера циклу</translation>
     </message>
@@ -10766,12 +11158,12 @@ Please Rebuild CPAP Data</source>
         <translation>OSCAR поки не має жодної автоматичної резервної копії картки для цього пристрою.</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="430"/>
+        <location filename="../oscar/mainwindow.cpp" line="454"/>
         <source>Don&apos;t forget to place your datacard back in your CPAP device</source>
         <translation>Не забудьте повернути картку з даними у ваш пристрій CPAP</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1058"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1190"/>
         <source>Epoch (2 mins) with Mild Obstruction</source>
         <translation>Епоха (2 хв) з легкою обструкцією</translation>
     </message>
@@ -10791,12 +11183,11 @@ Start: %2</source>
 Початок: %2</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/machine.cpp" line="831"/>
         <source>Reading summary files</source>
-        <translation>Читання файлів зведених даних</translation>
+        <translation type="vanished">Читання файлів зведених даних</translation>
     </message>
     <message>
-        <location filename="../oscar/reports.cpp" line="252"/>
+        <location filename="../oscar/reports.cpp" line="254"/>
         <source>RDI	%1
 </source>
         <translation>RDI	%1
@@ -10813,23 +11204,23 @@ Start: %2</source>
         <translation>Пристрій вимикається автоматично</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/day.cpp" line="1660"/>
+        <location filename="../oscar/SleepLib/day.cpp" line="1662"/>
         <source>PS %1 over %2-%3 (%4)</source>
         <translation>PS %1 у діапазоні %2-%3 (%4)</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/viatom_loader.cpp" line="98"/>
+        <location filename="../oscar/SleepLib/loader_plugins/viatom_loader.cpp" line="97"/>
         <source>The imported data may not be entirely accurate, so the developers would like a copy of your Viatom files to make sure OSCAR is handling the data correctly.</source>
         <translation>Імпортовані дані можуть бути не цілком точними, тому розробники хотіли б отримати копію ваших файлів Viatom, щоб переконатися, що OSCAR обробляє їх правильно.</translation>
     </message>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="1054"/>
-        <location filename="../oscar/SleepLib/schema.cpp" line="247"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="260"/>
         <source>Flow Rate</source>
         <translation>Швидкість потоку</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="278"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="291"/>
         <source>Time taken to breathe out</source>
         <translation>Тривалість видиху</translation>
     </message>
@@ -10855,6 +11246,7 @@ Start: %2</source>
     </message>
     <message>
         <location filename="../oscar/SleepLib/profiles.cpp" line="883"/>
+        <location filename="../oscar/main.cpp" line="556"/>
         <source>Important:</source>
         <translation>Важливо:</translation>
     </message>
@@ -10864,12 +11256,12 @@ Start: %2</source>
         <translation>Видалення профілю (без даних сеансів)...</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/viatom_loader.cpp" line="255"/>
+        <location filename="../oscar/SleepLib/loader_plugins/viatom_loader.cpp" line="254"/>
         <source>The imported data for the session starting %1 may be incomplete or incorrect.</source>
         <translation>Імпортовані дані сеансу, що почався %1, можуть бути неповними або хибними.</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="315"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="328"/>
         <source>Movement</source>
         <translation>Рух</translation>
     </message>
@@ -10879,22 +11271,21 @@ Start: %2</source>
         <translation>Чи доступні вам налаштування Flex.</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/machine.cpp" line="868"/>
         <source>Loading Session Info</source>
-        <translation>Завантаження інформації про сеанс</translation>
+        <translation type="vanished">Завантаження інформації про сеанс</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="231"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="244"/>
         <source>An optical Photo-plethysomogram showing heart rhythm</source>
         <translation>Оптична фотоплетизмограма, що показує серцевий ритм</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/machine.cpp" line="774"/>
+        <location filename="../oscar/SleepLib/machine.cpp" line="715"/>
         <source>Loading %1 data for %2...</source>
         <translation>Завантаження даних %1 за %2...</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="904"/>
+        <location filename="../oscar/main.cpp" line="1088"/>
         <source>Unable to write to OSCAR data directory</source>
         <translation>Не вдається писати в теку даних OSCAR</translation>
     </message>
@@ -10920,8 +11311,8 @@ Start: %2
 </translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/importcontext.cpp" line="218"/>
-        <location filename="../oscar/SleepLib/loader_plugins/viatom_loader.cpp" line="96"/>
+        <location filename="../oscar/SleepLib/importcontext.cpp" line="257"/>
+        <location filename="../oscar/SleepLib/loader_plugins/viatom_loader.cpp" line="95"/>
         <source>Untested Data</source>
         <translation>Неперевірені дані</translation>
     </message>
@@ -10931,7 +11322,7 @@ Start: %2
         <translation>Режим зволоження</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="913"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1044"/>
         <source>Minimum pressure during soft start period</source>
         <translation>Мінімальний тиск під час періоду м&apos;якого старту</translation>
     </message>
@@ -10946,7 +11337,7 @@ Start: %2
         <translation>Режим зволож.</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="372"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="385"/>
         <source>Time Awake</source>
         <translation>Час неспання</translation>
     </message>
@@ -10956,7 +11347,7 @@ Start: %2
         <translation>Діам. шланга</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="341"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="354"/>
         <source>Steady breathing (SB)</source>
         <translation>Рівне дихання (SB)</translation>
     </message>
@@ -10966,7 +11357,7 @@ Start: %2
         <translation>Зміни в базі даних пристроїв</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="371"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="384"/>
         <source>How you felt in the morning</source>
         <translation>Як ви почувалися зранку</translation>
     </message>
@@ -10976,7 +11367,7 @@ Start: %2
         <translation>Не вдається перевірити оновлення. Спробуйте пізніше.</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="275"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="288"/>
         <source>I/E Value</source>
         <translation>Значення I/E</translation>
     </message>
@@ -10986,33 +11377,33 @@ Start: %2
         <translation>Темп. трубки</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="906"/>
+        <location filename="../oscar/main.cpp" line="1090"/>
         <source>OSCAR cannot continue and is exiting.</source>
         <translation>OSCAR не може продовжити роботу і завершується.</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="256"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="269"/>
         <source>Amount of air displaced per breath</source>
         <translation>Об&apos;єм повітря за один вдих</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="268"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="281"/>
         <source>Pat. Trig. Breaths</source>
         <translation>Вдихи від пацієнта</translation>
     </message>
     <message>
-        <location filename="../oscar/Graphs/gSummaryChart.cpp" line="375"/>
+        <location filename="../oscar/Graphs/gSummaryChart.cpp" line="379"/>
         <source>% in %1</source>
         <translation>% у %1</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="323"/>
+        <location filename="../oscar/main.cpp" line="327"/>
         <source>Failed profiles:</source>
         <translation>Профілі з помилками:</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="747"/>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="973"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="753"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1104"/>
         <location filename="../oscar/SleepLib/loader_plugins/prs1_loader.cpp" line="2957"/>
         <location filename="../oscar/SleepLib/loader_plugins/resmed_loader.cpp" line="197"/>
         <location filename="../oscar/SleepLib/loader_plugins/sefam_loader.cpp" line="183"/>
@@ -11026,7 +11417,7 @@ Start: %2
         <translation>Профіль</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="893"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="899"/>
         <source>BackupRR</source>
         <translation>BackupRR</translation>
     </message>
@@ -11036,17 +11427,17 @@ Start: %2
         <translation>Адреса</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/profiles.cpp" line="1525"/>
+        <location filename="../oscar/SleepLib/profiles.cpp" line="1522"/>
         <source>Options:</source>
         <translation>Варіанти:</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="398"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="411"/>
         <source>Inspiration duration compared to expiration duration expressed as a percentage</source>
         <translation>Тривалість вдиху відносно тривалості видиху у відсотках</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/day.cpp" line="1580"/>
+        <location filename="../oscar/SleepLib/day.cpp" line="1582"/>
         <source>varies</source>
         <translation>змінний</translation>
     </message>
@@ -11057,7 +11448,7 @@ Start: %2
         <translation>Піковий потік</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="271"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="284"/>
         <source>Leak Rate</source>
         <translation>Швидкість витоку</translation>
     </message>
@@ -11074,14 +11465,12 @@ popout window, delete it, then pop out this graph again.</source>
         <translation>Видалення записів сеансів...</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/machine.cpp" line="980"/>
         <source>Loading Summaries.xml.gz</source>
-        <translation>Завантаження Summaries.xml.gz</translation>
+        <translation type="vanished">Завантаження Summaries.xml.gz</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="831"/>
         <source>Choose or create a new folder for OSCAR data</source>
-        <translation>Виберіть або створіть нову теку для даних OSCAR</translation>
+        <translation type="vanished">Виберіть або створіть нову теку для даних OSCAR</translation>
     </message>
     <message>
         <location filename="../oscar/SleepLib/loader_plugins/resmed_loader.cpp" line="214"/>
@@ -11089,7 +11478,7 @@ popout window, delete it, then pop out this graph again.</source>
         <translation>Увімкнення температури ClimateLine</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="905"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1036"/>
         <source>Softstart pressure</source>
         <translation>Тиск м&apos;якого старту</translation>
     </message>
@@ -11104,7 +11493,7 @@ popout window, delete it, then pop out this graph again.</source>
         <translation>Видалення даних каналів сеансу...</translation>
     </message>
     <message>
-        <location filename="../oscar/reports.cpp" line="385"/>
+        <location filename="../oscar/reports.cpp" line="390"/>
         <source>Reporting from %1 to %2</source>
         <translation>Звіт з %1 по %2</translation>
     </message>
@@ -11114,32 +11503,32 @@ popout window, delete it, then pop out this graph again.</source>
         <translation>Справді скинути всі кольори та налаштування каналів до стандартних?</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/importcontext.cpp" line="220"/>
+        <location filename="../oscar/SleepLib/importcontext.cpp" line="259"/>
         <source>The imported data may not be entirely accurate, so the developers would like a .zip copy of this device&apos;s SD card and matching clinician .pdf reports to make sure OSCAR is handling the data correctly.</source>
         <translation>Імпортовані дані можуть бути не цілком точними, тому розробники хотіли б отримати копію SD-карти цього пристрою у форматі .zip і відповідні клінічні звіти .pdf, щоб переконатися, що OSCAR обробляє їх правильно.</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="369"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="382"/>
         <source>BrainWave</source>
         <translation>BrainWave</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="146"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="159"/>
         <source>Inspiratory Pressure</source>
         <translation>Тиск вдиху</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="818"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="824"/>
         <source>BmcRampTime</source>
         <translation>BmcRampTime</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="826"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="832"/>
         <source>BmcRampAuto</source>
         <translation>BmcRampAuto</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="370"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="383"/>
         <source>Number of Awakenings</source>
         <translation>Кількість пробуджень</translation>
     </message>
@@ -11149,8 +11538,8 @@ popout window, delete it, then pop out this graph again.</source>
         <translation>Імпульс тиску, поданий для виявлення закритих дихальних шляхів.</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="942"/>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="944"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1073"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1075"/>
         <source>Soft start pressure</source>
         <translation>Тиск м&apos;якого старту</translation>
     </message>
@@ -11165,9 +11554,8 @@ popout window, delete it, then pop out this graph again.</source>
         <translation>Фіксація змін у базі даних...</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="1103"/>
         <source>Click [OK] to go to the next screen or [No] if you do not wish to use any OSCAR 1.x data.</source>
-        <translation>Натисніть [OK], щоб перейти до наступного екрана, або [Ні], якщо не хочете використовувати дані OSCAR 1.x.</translation>
+        <translation type="vanished">Натисніть [OK], щоб перейти до наступного екрана, або [Ні], якщо не хочете використовувати дані OSCAR 1.x.</translation>
     </message>
     <message>
         <location filename="../oscar/SleepLib/loader_plugins/prs1_loader.cpp" line="3045"/>
@@ -11175,27 +11563,27 @@ popout window, delete it, then pop out this graph again.</source>
         <translation>Тип кривої рампи.</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="937"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1068"/>
         <source>Soft start max. time</source>
         <translation>Макс. час м&apos;якого старту</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="302"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="315"/>
         <source>Median Leak Rate</source>
         <translation>Медіанна швидкість витоку</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="265"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="278"/>
         <source>Rate of breaths per minute</source>
         <translation>Кількість вдихів за хвилину</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="837"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="843"/>
         <source>Manual P</source>
         <translation>Manual P</translation>
     </message>
     <message>
-        <location filename="../oscar/Graphs/gGraphView.cpp" line="1813"/>
+        <location filename="../oscar/Graphs/gGraphView.cpp" line="1837"/>
         <source>d MMM yyyy [ %1 - %2 ]</source>
         <translation>d MMM yyyy [ %1 - %2 ]</translation>
     </message>
@@ -11210,19 +11598,19 @@ popout window, delete it, then pop out this graph again.</source>
         <translation>Блокування трубки</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="978"/>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="979"/>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="980"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1110"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1111"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1112"/>
         <source>Tube type</source>
         <translation>Тип трубки</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="147"/>
+        <location filename="../oscar/main.cpp" line="151"/>
         <source>or CANCEL to skip migration.</source>
         <translation>або «Скасувати», щоб пропустити перенесення.</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="995"/>
+        <location filename="../oscar/statistics.cpp" line="1001"/>
         <source>Usage Statistics</source>
         <translation>Статистика використання</translation>
     </message>
@@ -11232,17 +11620,17 @@ popout window, delete it, then pop out this graph again.</source>
         <translation>Теку даних пристрою потрібно видалити вручну.</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="185"/>
+        <location filename="../oscar/main.cpp" line="189"/>
         <source>Migrating Profiles</source>
         <translation>Перенесення профілів</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="936"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1067"/>
         <source>Maximum lenght of soft start period</source>
         <translation>Максимальна тривалість періоду м&apos;якого старту</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="234"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="247"/>
         <source>Perfusion Index</source>
         <translation>Індекс перфузії</translation>
     </message>
@@ -11252,7 +11640,7 @@ popout window, delete it, then pop out this graph again.</source>
         <translation>SmartStop</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="259"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="272"/>
         <source>Graph displaying snore volume</source>
         <translation>Графік гучності хропіння</translation>
     </message>
@@ -11267,12 +11655,12 @@ popout window, delete it, then pop out this graph again.</source>
         <translation>Маска знята</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="186"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="199"/>
         <source>Unclassified Apnea (UA)</source>
         <translation>Некласифіковане апное (UA)</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="843"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="849"/>
         <source>Max APAP</source>
         <translation>Max APAP</translation>
     </message>
@@ -11283,7 +11671,7 @@ popout window, delete it, then pop out this graph again.</source>
     </message>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="981"/>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="904"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="910"/>
         <source>Max IPAP</source>
         <translation>Max IPAP</translation>
     </message>
@@ -11303,12 +11691,12 @@ popout window, delete it, then pop out this graph again.</source>
         <translation>реліз</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="836"/>
+        <location filename="../oscar/main.cpp" line="1020"/>
         <source>Next time you run OSCAR, you will be asked again.</source>
         <translation>Наступного разу під час запуску OSCAR запитає знову.</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="398"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="411"/>
         <source>I/E Ratio %</source>
         <translation>Співвідношення I/E %</translation>
     </message>
@@ -11330,12 +11718,12 @@ popout window, delete it, then pop out this graph again.</source>
         <translation>Середнє</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="290"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="303"/>
         <source>Target Minute Ventilation</source>
         <translation>Цільова хвилинна вентиляція</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="262"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="275"/>
         <source>Amount of air displaced per minute</source>
         <translation>Об&apos;єм повітря за хвилину</translation>
     </message>
@@ -11347,12 +11735,12 @@ TTIA: %1</source>
 TTIA: %1</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1112"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1244"/>
         <source>TriLevel</source>
         <translation>TriLevel</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="268"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="281"/>
         <source>Percentage of breaths triggered by patient</source>
         <translation>Відсоток вдихів, ініційованих пацієнтом</translation>
     </message>
@@ -11367,20 +11755,20 @@ TTIA: %1</translation>
         <translation>Днів: %1</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="231"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="244"/>
         <source>Plethysomogram</source>
         <translation>Плетизмограма</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1004"/>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1006"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1136"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1138"/>
         <source>rRMVFluctuation</source>
         <translation>rRMVFluctuation</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="215"/>
-        <location filename="../oscar/SleepLib/schema.cpp" line="218"/>
-        <location filename="../oscar/SleepLib/schema.cpp" line="221"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="228"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="231"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="234"/>
         <source>A user definable event detected by OSCAR&apos;s flow waveform processor.</source>
         <translation>Задана користувачем подія, виявлена обробником кривої потоку OSCAR.</translation>
     </message>
@@ -11390,12 +11778,12 @@ TTIA: %1</translation>
         <translation>Програмний рушій</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="330"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="343"/>
         <source>Auto Bi-Level (Fixed PS)</source>
         <translation>Auto Bi-Level (фіксований PS)</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/profiles.cpp" line="1044"/>
+        <location filename="../oscar/SleepLib/profiles.cpp" line="1041"/>
         <source>Loading Channel Information</source>
         <translation>Завантаження інформації про канали</translation>
     </message>
@@ -11405,27 +11793,27 @@ TTIA: %1</translation>
         <translation>Зверніть увагу</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="161"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="174"/>
         <source>Starting Ramp Pressure</source>
         <translation>Початковий тиск рампи</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="935"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1066"/>
         <source>Soft start maximum time</source>
         <translation>Максимальний час м&apos;якого старту</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="358"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="371"/>
         <source>Last Updated</source>
         <translation>Останнє оновлення</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="209"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="222"/>
         <source>Intellipap event where you breathe out your mouth.</source>
         <translation>Подія Intellipap, коли ви видихаєте ротом.</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="333"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="346"/>
         <source>ASV (Variable EPAP)</source>
         <translation>ASV (змінний EPAP)</translation>
     </message>
@@ -11441,7 +11829,7 @@ TTIA: %1</translation>
         <translation>Рівень полегшення тиску на видиху</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/importcontext.cpp" line="243"/>
+        <location filename="../oscar/SleepLib/importcontext.cpp" line="282"/>
         <location filename="../oscar/SleepLib/loader_plugins/resmed_loader.cpp" line="785"/>
         <source>Device Untested</source>
         <translation>Пристрій не перевірено</translation>
@@ -11452,7 +11840,7 @@ TTIA: %1</translation>
         <translation>Обмеження потоку</translation>
     </message>
     <message>
-        <location filename="../oscar/reports.cpp" line="304"/>
+        <location filename="../oscar/reports.cpp" line="309"/>
         <source>UAI=%1 </source>
         <translation>UAI=%1 </translation>
     </message>
@@ -11467,18 +11855,17 @@ TTIA: %1</translation>
         <translation>%1 з низьким використанням, %2 без використання з %3 днів (%4% відповідності.) Тривалість: %5 / %6 / %7</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/machine.cpp" line="1148"/>
         <source>Loading Summary Data</source>
-        <translation>Завантаження зведених даних</translation>
+        <translation type="vanished">Завантаження зведених даних</translation>
     </message>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="953"/>
-        <location filename="../oscar/SleepLib/schema.cpp" line="225"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="238"/>
         <source>Pulse Rate</source>
         <translation>Частота пульсу</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="884"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="890"/>
         <location filename="../oscar/SleepLib/loader_plugins/prs1_loader.cpp" line="2885"/>
         <location filename="../oscar/SleepLib/loader_plugins/prs1_loader.cpp" line="2909"/>
         <location filename="../oscar/SleepLib/loader_plugins/prs1_loader.cpp" line="2911"/>
@@ -11487,7 +11874,7 @@ TTIA: %1</translation>
         <translation>Час наростання</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="2811"/>
+        <location filename="../oscar/mainwindow.cpp" line="2920"/>
         <source>Recompressing Session Files</source>
         <translation>Повторне стиснення файлів сеансів</translation>
     </message>
@@ -11497,12 +11884,12 @@ TTIA: %1</translation>
         <translation>Пристрій автоматично зупиняється за диханням</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1051"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1183"/>
         <source>Mask leakage is above a critical treshold</source>
         <translation>Витік маски перевищує критичний поріг</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/journal.cpp" line="694"/>
+        <location filename="../oscar/SleepLib/journal.cpp" line="702"/>
         <source>Journal Migration Complete:
 %1 journal entries migrated to database
 %2 errors</source>
@@ -11511,18 +11898,18 @@ TTIA: %1</translation>
 помилок: %2</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="995"/>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="997"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1127"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1129"/>
         <source>Obstruction level</source>
         <translation>Рівень обструкції</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="296"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="309"/>
         <source>Graph showing running AHI for the past hour</source>
         <translation>Графік поточного AHI за останню годину</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="305"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="318"/>
         <source>Graph showing running RDI for the past hour</source>
         <translation>Графік поточного RDI за останню годину</translation>
     </message>
@@ -11532,7 +11919,7 @@ TTIA: %1</translation>
         <translation>Увімкнення температури</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="169"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="182"/>
         <source>Cheyne Stokes Respiration (CSR)</source>
         <translation>Дихання Чейна-Стокса (CSR)</translation>
     </message>
@@ -11547,7 +11934,7 @@ TTIA: %1</translation>
         <translation>%1 (днів: %2): </translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="215"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="228"/>
         <source>User Flag #1 (UF1)</source>
         <translation>Позначка користувача №1 (UF1)</translation>
     </message>
@@ -11557,7 +11944,7 @@ TTIA: %1</translation>
         <translation>Знімок %1</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="171"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="184"/>
         <source>Periodic Breathing (PB)</source>
         <translation>Періодичне дихання (PB)</translation>
     </message>
@@ -11567,12 +11954,12 @@ TTIA: %1</translation>
         <translation>Час у масці</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="355"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="368"/>
         <source>How you feel (1 = like crap, 10 = unstoppable)</source>
         <translation>Як ви почуваєтеся (1 = кепсько, 10 = неймовірно)</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="373"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="386"/>
         <source>Time in REM Sleep</source>
         <translation>Час у REM-сні</translation>
     </message>
@@ -11592,32 +11979,32 @@ TTIA: %1</translation>
         <translation>Початок транзакції бази даних...</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="375"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="388"/>
         <source>Time In Deep Sleep</source>
         <translation>Час у глибокому сні</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="375"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="388"/>
         <source>Time in Deep Sleep</source>
         <translation>Час у глибокому сні</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="164"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="177"/>
         <source>Pressure Set</source>
         <translation>Заданий тиск</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="159"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="172"/>
         <source>Pressure Max</source>
         <translation>Макс. тиск</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="158"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="171"/>
         <source>Pressure Min</source>
         <translation>Мін. тиск</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="1211"/>
+        <location filename="../oscar/statistics.cpp" line="1247"/>
         <source>Everything</source>
         <translation>Усе</translation>
     </message>
@@ -11627,7 +12014,7 @@ TTIA: %1</translation>
         <translation>Профіль успішно видалено</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="893"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="899"/>
         <source>Backup RR</source>
         <translation>Backup RR</translation>
     </message>
@@ -11637,12 +12024,12 @@ TTIA: %1</translation>
         <translation>Діаметр основного шланга CPAP</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="885"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1016"/>
         <source>UNKNOWN</source>
         <translation>НЕВІДОМО</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/profiles.cpp" line="1533"/>
+        <location filename="../oscar/SleepLib/profiles.cpp" line="1530"/>
         <source>Profile Already Exists</source>
         <translation>Профіль уже існує</translation>
     </message>
@@ -11657,7 +12044,7 @@ TTIA: %1</translation>
         <translation>Ви користуєтеся найновішим %1 OSCAR</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="293"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="306"/>
         <source>Max Leaks</source>
         <translation>Макс. витоки</translation>
     </message>
@@ -11670,12 +12057,12 @@ TTIA: %1</translation>
         <translation>Рівень Flex</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="996"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1128"/>
         <source>Obstruction level in percentage</source>
         <translation>Рівень обструкції у відсотках</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="376"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="389"/>
         <source>Time to Sleep</source>
         <translation>Час до засинання</translation>
     </message>
@@ -11685,12 +12072,11 @@ TTIA: %1</translation>
         <translation>Стан зволож.</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="823"/>
         <source>OSCAR can copy your old data to this folder later.</source>
-        <translation>Пізніше OSCAR зможе скопіювати ваші старі дані до цієї теки.</translation>
+        <translation type="vanished">Пізніше OSCAR зможе скопіювати ваші старі дані до цієї теки.</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="237"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="250"/>
         <source>Pulse Change (PC)</source>
         <translation>Зміна пульсу (PC)</translation>
     </message>
@@ -11705,12 +12091,12 @@ TTIA: %1</translation>
         <translation>Зібрано з Qt %1 на %2</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="305"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="318"/>
         <source>Respiratory Disturbance Index (RDI)</source>
         <translation>Індекс дихальних порушень (RDI)</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="908"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="914"/>
         <source>Reslex setting can be restricted to only clinician menu or may be made available for the user to change</source>
         <translation>Налаштування Reslex може бути обмежене лише меню лікаря або доступне для зміни користувачем</translation>
     </message>
@@ -11720,19 +12106,19 @@ TTIA: %1</translation>
         <translation>Кількість днів пробного періоду Auto-CPAP, після якого пристрій повернеться до CPAP</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="310"/>
-        <location filename="../oscar/main.cpp" line="320"/>
+        <location filename="../oscar/main.cpp" line="314"/>
+        <location filename="../oscar/main.cpp" line="324"/>
         <source>Imported profiles:</source>
         <translation>Імпортовані профілі:</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="234"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="247"/>
         <source>Perf. Index %</source>
         <translation>Індекс перф. %</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/day.cpp" line="1665"/>
-        <location filename="../oscar/SleepLib/day.cpp" line="1679"/>
+        <location filename="../oscar/SleepLib/day.cpp" line="1667"/>
+        <location filename="../oscar/SleepLib/day.cpp" line="1681"/>
         <source>Min EPAP %1 Max IPAP %2 PS %3-%4 (%5)</source>
         <translation>Min EPAP %1 Max IPAP %2 PS %3-%4 (%5)</translation>
     </message>
@@ -11752,12 +12138,12 @@ TTIA: %1</translation>
         <translation>Градуси</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="410"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="423"/>
         <source>Test #1</source>
         <translation>Тест №1</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="411"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="424"/>
         <source>Test #2</source>
         <translation>Тест №2</translation>
     </message>
@@ -11772,12 +12158,12 @@ TTIA: %1</translation>
         <translation>(%2 дн. тому)</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/machine.cpp" line="1418"/>
+        <location filename="../oscar/SleepLib/machine.cpp" line="1053"/>
         <source>Loading %1 sessions from database...</source>
         <translation>Завантаження сеансів (%1) з бази даних...</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="649"/>
+        <location filename="../oscar/mainwindow.cpp" line="673"/>
         <source>There is a lockfile already present for this profile &apos;%1&apos;, claimed on &apos;%2&apos;.</source>
         <translation>Для цього профілю &apos;%1&apos; уже є файл блокування, створений &apos;%2&apos;.</translation>
     </message>
@@ -11797,7 +12183,7 @@ TTIA: %1</translation>
         <translation>Час, протягом якого часовий вдих подає IPAP перед переходом до EPAP</translation>
     </message>
     <message>
-        <location filename="../oscar/reports.cpp" line="300"/>
+        <location filename="../oscar/reports.cpp" line="305"/>
         <source>REI=%1 VSI=%2 FLI=%3 PB/CSR=%4%%</source>
         <translation>REI=%1 VSI=%2 FLI=%3 PB/CSR=%4%%</translation>
     </message>
@@ -11811,34 +12197,34 @@ TTIA: %1</translation>
         <translation type="vanished">Нагрівна 22 мм</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="302"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="315"/>
         <source>Median rate of detected mask leakage</source>
         <translation>Медіанна швидкість виявленого витоку маски</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="352"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="365"/>
         <source>Bookmark Notes</source>
         <translation>Нотатки закладки</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="356"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="369"/>
         <source>Bookmark Start</source>
         <translation>Початок закладки</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="324"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="337"/>
         <source>PAP Device Mode</source>
         <translation>Режим PAP-пристрою</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="250"/>
-        <location filename="../oscar/SleepLib/schema.cpp" line="253"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="263"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="266"/>
         <source>Mask Pressure</source>
         <translation>Тиск у масці</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="957"/>
-        <location filename="../oscar/SleepLib/schema.cpp" line="153"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1088"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="166"/>
         <source>Lower End Expiratory Pressure</source>
         <translation>Нижній кінцевий тиск видиху</translation>
     </message>
@@ -11853,27 +12239,27 @@ TTIA: %1</translation>
         <translation>Дані оксиметрії ще не імпортовано.</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1044"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1176"/>
         <source>Irregularity in measured data, that doesn&apos;t represents a breathing event (e.g swallowing, coughing, or speaking)</source>
         <translation>Нерегулярність у виміряних даних, що не є дихальною подією (наприклад, ковтання, кашель або мовлення)</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="367"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="380"/>
         <source>1=Awake 2=REM 3=Light Sleep 4=Deep Sleep</source>
         <translation>1=Неспання 2=REM 3=Поверхневий сон 4=Глибокий сон</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="727"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="733"/>
         <source>Titration</source>
         <translation>Титрація</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="792"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="798"/>
         <source>Normal 19mm</source>
         <translation type="unfinished">Норма 19мм</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="834"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="840"/>
         <source>Treat P</source>
         <translation>Treat P</translation>
     </message>
@@ -11883,9 +12269,8 @@ TTIA: %1</translation>
         <translation>Тригер</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="853"/>
         <source>The folder you chose is for OSCAR 1.x. You must use a different folder for OSCAR 2.0.</source>
-        <translation>Вибрана вами тека належить OSCAR 1.x. Для OSCAR 2.0 потрібно використати іншу теку.</translation>
+        <translation type="vanished">Вибрана вами тека належить OSCAR 1.x. Для OSCAR 2.0 потрібно використати іншу теку.</translation>
     </message>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="314"/>
@@ -11893,22 +12278,22 @@ TTIA: %1</translation>
         <translation>Тип графічного рушія:</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="284"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="297"/>
         <source>Respiratory Event</source>
         <translation>Дихальна подія</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="312"/>
+        <location filename="../oscar/main.cpp" line="316"/>
         <source>Migration Complete</source>
         <translation>Перенесення завершено</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="169"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="182"/>
         <source>An abnormal period of Cheyne Stokes Respiration</source>
         <translation>Аномальний період дихання Чейна-Стокса</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="206"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="219"/>
         <source>A type of respiratory event that won&apos;t respond to a pressure increase.</source>
         <translation>Тип дихальної події, який не реагує на підвищення тиску.</translation>
     </message>
@@ -11933,7 +12318,7 @@ TTIA: %1</translation>
         <translation>Advanced</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="908"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="914"/>
         <source>Reslex Availability</source>
         <translation>Доступність Reslex</translation>
     </message>
@@ -11943,12 +12328,12 @@ TTIA: %1</translation>
         <translation>Ця сторінка іншими мовами:</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="374"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="387"/>
         <source>Time spent in light sleep</source>
         <translation>Час поверхневого сну</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1074"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1206"/>
         <source>Epoch (2 mins) with Snoring</source>
         <translation>Епоха (2 хв) з хропінням</translation>
     </message>
@@ -11958,14 +12343,14 @@ TTIA: %1</translation>
         <translation>Температура трубки</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="970"/>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="971"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1101"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1102"/>
         <location filename="../oscar/SleepLib/loader_plugins/sefam_loader.cpp" line="182"/>
         <source>Humidifier level</source>
         <translation>Рівень зволожувача</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/profiles.cpp" line="1523"/>
+        <location filename="../oscar/SleepLib/profiles.cpp" line="1520"/>
         <source>A profile named &apos;%1&apos; already exists in the database but its directory is missing.</source>
         <translation>Профіль з назвою &apos;%1&apos; уже є в базі даних, але його теки бракує.</translation>
     </message>
@@ -11975,7 +12360,7 @@ TTIA: %1</translation>
         <translation>Час пробудження: %1</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="373"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="386"/>
         <source>Time In REM Sleep</source>
         <translation>Час у REM-сні</translation>
     </message>
@@ -11985,12 +12370,12 @@ TTIA: %1</translation>
         <translation>Блокування опору маски</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="148"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="161"/>
         <source>Higher Inspiratory Pressure</source>
         <translation>Вищий тиск вдиху</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/preferences.cpp" line="237"/>
+        <location filename="../oscar/SleepLib/preferences.cpp" line="239"/>
         <source>, found SleepyHead -
 </source>
         <translation>, знайдено SleepyHead -
@@ -12002,29 +12387,29 @@ TTIA: %1</translation>
         <translation>Пристрій автоматично запускається за диханням</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="321"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="334"/>
         <source>Summary Only</source>
         <translation>Лише зведення</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="357"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="370"/>
         <source>Bookmark End</source>
         <translation>Кінець закладки</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/viatom_loader.cpp" line="258"/>
+        <location filename="../oscar/SleepLib/loader_plugins/viatom_loader.cpp" line="257"/>
         <source>Dead battery</source>
         <translation>Розряджена батарея</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="1265"/>
+        <location filename="../oscar/mainwindow.cpp" line="1308"/>
         <source>Chromebook file system detected, but no removable device found
 </source>
         <translation>Виявлено файлову систему Chromebook, але знімного пристрою не знайдено
 </translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="338"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="351"/>
         <source>Steady Breathing</source>
         <translation>Рівне дихання</translation>
     </message>
@@ -12049,15 +12434,15 @@ TTIA: %1</translation>
         <translation>Вологість</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="912"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1043"/>
         <source>Softstart minimum pressure</source>
         <translation>Мінімальний тиск м&apos;якого старту</translation>
     </message>
     <message>
         <location filename="../oscar/SleepLib/loader_plugins/apex_loader.cpp" line="195"/>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="1006"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="1012"/>
         <location filename="../oscar/SleepLib/loader_plugins/bmcg3x_loader.cpp" line="166"/>
-        <location filename="../oscar/SleepLib/loader_plugins/sefam_loader.cpp" line="1210"/>
+        <location filename="../oscar/SleepLib/loader_plugins/sefam_loader.cpp" line="1223"/>
         <source>Creating data backup...</source>
         <translation>Створення резервної копії даних...</translation>
     </message>
@@ -12072,24 +12457,24 @@ TTIA: %1</translation>
         <translation>невідома модель</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="410"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="423"/>
         <source>Debugging channel #1</source>
         <translation>Канал налагодження №1</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="411"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="424"/>
         <source>Debugging channel #2</source>
         <translation>Канал налагодження №2</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="332"/>
+        <location filename="../oscar/main.cpp" line="336"/>
         <source>Migration Failed</source>
         <translation>Перенесення не вдалося</translation>
     </message>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="1088"/>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="729"/>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="803"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="735"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="809"/>
         <location filename="../oscar/SleepLib/loader_plugins/resmed_loader.cpp" line="165"/>
         <location filename="../oscar/SleepLib/loader_plugins/resmed_loader.cpp" line="244"/>
         <location filename="../oscar/SleepLib/loader_plugins/weinmann_loader.h" line="126"/>
@@ -12107,7 +12492,7 @@ TTIA: %1</translation>
         <translation>Подій/год</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/importcontext.cpp" line="231"/>
+        <location filename="../oscar/SleepLib/importcontext.cpp" line="270"/>
         <source>I&apos;m sorry to report that OSCAR can only track hours of use and very basic settings for this device.</source>
         <translation>На жаль, для цього пристрою OSCAR може відстежувати лише години використання та найпростіші налаштування.</translation>
     </message>
@@ -12122,7 +12507,7 @@ TTIA: %1</translation>
         <translation>SleepStyle</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="929"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1060"/>
         <source>Lenght of soft start period</source>
         <translation>Тривалість періоду м&apos;якого старту</translation>
     </message>
@@ -12137,25 +12522,26 @@ TTIA: %1</translation>
         <translation>Режим резервного дихання</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="321"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="334"/>
         <source>CPAP Session contains summary data only</source>
         <translation>Сеанс CPAP містить лише зведені дані</translation>
     </message>
     <message>
         <location filename="../oscar/SleepLib/loader_plugins/intellipap_loader.cpp" line="2759"/>
         <location filename="../oscar/SleepLib/loader_plugins/sleepstyle_loader.cpp" line="370"/>
-        <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.cpp" line="201"/>
-        <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.cpp" line="840"/>
-        <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.cpp" line="971"/>
-        <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.cpp" line="1359"/>
-        <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.cpp" line="1851"/>
-        <location filename="../oscar/mainwindow.cpp" line="1001"/>
-        <location filename="../oscar/mainwindow.cpp" line="3341"/>
+        <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.cpp" line="202"/>
+        <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.cpp" line="841"/>
+        <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.cpp" line="972"/>
+        <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.cpp" line="1360"/>
+        <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.cpp" line="1852"/>
+        <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.cpp" line="2375"/>
+        <location filename="../oscar/mainwindow.cpp" line="1026"/>
+        <location filename="../oscar/mainwindow.cpp" line="3468"/>
         <source>Finishing up...</source>
         <translation>Завершення...</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="807"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="813"/>
         <source>Heated Tube Level</source>
         <translation>Рівень нагріву трубки</translation>
     </message>
@@ -12166,24 +12552,24 @@ TTIA: %1</translation>
         <translation>Тривалість</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="338"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="351"/>
         <source>Variation in minute ventilation</source>
         <translation>Коливання хвилинної вентиляції</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/profiles.cpp" line="1535"/>
+        <location filename="../oscar/SleepLib/profiles.cpp" line="1532"/>
         <source>Please choose a different name.</source>
         <translation>Виберіть іншу назву.</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="3921"/>
-        <location filename="../oscar/mainwindow.cpp" line="3973"/>
-        <location filename="../oscar/mainwindow.cpp" line="4278"/>
+        <location filename="../oscar/mainwindow.cpp" line="4043"/>
+        <location filename="../oscar/mainwindow.cpp" line="4095"/>
+        <location filename="../oscar/mainwindow.cpp" line="4400"/>
         <source>Unable to create zip!</source>
         <translation>Не вдається створити ZIP!</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="602"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="686"/>
         <location filename="../oscar/SleepLib/loader_plugins/prs1_loader.cpp" line="914"/>
         <source>Scanning Files...</source>
         <translation>Сканування файлів...</translation>
@@ -12218,19 +12604,19 @@ TTIA: %1</translation>
         <translation>Налаштування</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="928"/>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="930"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1059"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1061"/>
         <source>Softstart time</source>
         <translation>Час м&apos;якого старту</translation>
     </message>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="952"/>
-        <location filename="../oscar/SleepLib/schema.cpp" line="355"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="368"/>
         <source>Feeling</source>
         <translation>Самопочуття</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="173"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="186"/>
         <source>Clear Airway (CA)</source>
         <translation>Центральне апное (CA)</translation>
     </message>
@@ -12245,9 +12631,8 @@ TTIA: %1</translation>
         <translation>Огляд</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="862"/>
         <source>The folder you chose is not empty, nor does it already contain valid OSCAR data.</source>
-        <translation>Вибрана вами тека не порожня і при цьому не містить коректних даних OSCAR.</translation>
+        <translation type="vanished">Вибрана вами тека не порожня і при цьому не містить коректних даних OSCAR.</translation>
     </message>
     <message>
         <location filename="../oscar/SleepLib/loader_plugins/resmed_loader.cpp" line="210"/>
@@ -12255,46 +12640,46 @@ TTIA: %1</translation>
         <translation>Температура</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="175"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="188"/>
         <source>Obstructive Apnea (OA)</source>
         <translation>Обструктивне апное (OA)</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="959"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="965"/>
         <location filename="../oscar/SleepLib/loader_plugins/bmcg3x_loader.cpp" line="71"/>
         <source>Find sessions to import...</source>
         <translation>Пошук сеансів для імпорту...</translation>
     </message>
     <message>
-        <location filename="../oscar/reports.cpp" line="451"/>
+        <location filename="../oscar/reports.cpp" line="456"/>
         <source>Entire Day&apos;s Flow Waveform</source>
         <translation>Крива потоку за весь день</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="132"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="145"/>
         <source>Couldn&apos;t parse Channels.xml, OSCAR cannot continue and is exiting.</source>
         <translation>Не вдалося розібрати Channels.xml, OSCAR не може продовжити роботу і завершується.</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="199"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="212"/>
         <source>Leak Flag (LF)</source>
         <translation>Позначка витоку (LF)</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="834"/>
-        <location filename="../oscar/main.cpp" line="890"/>
-        <location filename="../oscar/main.cpp" line="908"/>
+        <location filename="../oscar/main.cpp" line="1018"/>
+        <location filename="../oscar/main.cpp" line="1074"/>
+        <location filename="../oscar/main.cpp" line="1092"/>
         <source>Exiting</source>
         <translation>Завершення роботи</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/day.cpp" line="1513"/>
-        <location filename="../oscar/SleepLib/day.cpp" line="1555"/>
+        <location filename="../oscar/SleepLib/day.cpp" line="1515"/>
+        <location filename="../oscar/SleepLib/day.cpp" line="1557"/>
         <source>ERROR:NOT AVAILABLE</source>
         <translation>ПОМИЛКА: НЕДОСТУПНО</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="341"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="354"/>
         <source>Low variation in minute ventilation</source>
         <translation>Низьке коливання хвилинної вентиляції</translation>
     </message>
@@ -12304,7 +12689,7 @@ TTIA: %1</translation>
         <translation>BiLevel-S/T</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1014"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1146"/>
         <source>Relative respiratory minute volume</source>
         <translation>Відносний хвилинний об&apos;єм дихання</translation>
     </message>
@@ -12314,27 +12699,27 @@ TTIA: %1</translation>
         <translation>Час переходу від EPAP до IPAP: що більше значення, то повільніший перехід</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="742"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="748"/>
         <source>Reslex Mode</source>
         <translation>Режим Reslex</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/importcontext.cpp" line="254"/>
+        <location filename="../oscar/SleepLib/importcontext.cpp" line="293"/>
         <source>Sorry, your %1 CPAP Device (%2) is not supported yet.</source>
         <translation>На жаль, ваш пристрій CPAP %1 (%2) поки не підтримується.</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="374"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="387"/>
         <source>Time in Light Sleep</source>
         <translation>Час у поверхневому сні</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="374"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="387"/>
         <source>Time In Light Sleep</source>
         <translation>Час у поверхневому сні</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="329"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="342"/>
         <source>Fixed Bi-Level</source>
         <translation>Фіксований Bi-Level</translation>
     </message>
@@ -12349,7 +12734,7 @@ TTIA: %1</translation>
         <translation>Інформація про апарат</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="157"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="170"/>
         <source>Pressure Support Maximum</source>
         <translation>Максимальна підтримка тиску</translation>
     </message>
@@ -12359,19 +12744,19 @@ TTIA: %1</translation>
         <translation>НЕПІДТВЕРДЖЕНО: можливо, змінне дихання - періоди значного відхилення від тренду пікового інспіраторного потоку</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1105"/>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1106"/>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1107"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1237"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1238"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1239"/>
         <source>BiSoft Mode</source>
         <translation>Режим BiSoft</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="287"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="300"/>
         <source>Graph showing severity of flow limitations</source>
         <translation>Графік вираженості обмежень потоку</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="165"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="178"/>
         <source>IPAP Setting</source>
         <translation>Налаштування IPAP</translation>
     </message>
@@ -12383,23 +12768,23 @@ TTIA: %1</translation>
 </translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="331"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="344"/>
         <source>Auto Bi-Level (Variable PS)</source>
         <translation>Auto Bi-Level (змінний PS)</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="943"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="949"/>
         <location filename="../oscar/SleepLib/loader_plugins/bmcg3x_loader.cpp" line="63"/>
         <source>Reading data...</source>
         <translation>Читання даних...</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="192"/>
+        <location filename="../oscar/main.cpp" line="196"/>
         <source>Migrating OSCAR data</source>
         <translation>Перенесення даних OSCAR</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="782"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="788"/>
         <source>Leak Alert</source>
         <translation>Сповіщення про витік</translation>
     </message>
@@ -12410,12 +12795,12 @@ TTIA: %1</translation>
         <translation>Сповіщення про маску</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/profiles.cpp" line="1528"/>
+        <location filename="../oscar/SleepLib/profiles.cpp" line="1525"/>
         <source>3. Use OSCAR&apos;s profile management tools to permanently remove the old profile</source>
         <translation>3. Скористайтеся засобами керування профілями OSCAR, щоб остаточно видалити старий профіль</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="430"/>
+        <location filename="../oscar/mainwindow.cpp" line="454"/>
         <source>OSCAR Reminder</source>
         <translation>Нагадування OSCAR</translation>
     </message>
@@ -12425,12 +12810,12 @@ TTIA: %1</translation>
         <translation>Полегшення на видиху</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/importcontext.cpp" line="245"/>
+        <location filename="../oscar/SleepLib/importcontext.cpp" line="284"/>
         <source>It seems similar enough to other devices that it might work, but the developers would like a .zip copy of this device&apos;s SD card and matching clinician .pdf reports to make sure it works with OSCAR.</source>
         <translation>Він досить схожий на інші пристрої, тож, імовірно, працюватиме, але розробники хотіли б отримати копію SD-карти цього пристрою у форматі .zip і відповідні клінічні звіти .pdf, щоб переконатися в сумісності з OSCAR.</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="177"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="190"/>
         <source>A partially obstructed airway</source>
         <translation>Частково обструковані дихальні шляхи</translation>
     </message>
@@ -12440,7 +12825,7 @@ TTIA: %1</translation>
         <translation>Під час імпорту не вдалося виділити додаткову пам&apos;ять.</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="156"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="169"/>
         <source>Pressure Support Minimum</source>
         <translation>Мінімальна підтримка тиску</translation>
     </message>
@@ -12460,7 +12845,7 @@ TTIA: %1</translation>
         <translation>Оксиметр Viatom</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="166"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="179"/>
         <source>EPAP Setting</source>
         <translation>Налаштування EPAP</translation>
     </message>
@@ -12475,12 +12860,12 @@ TTIA: %1</translation>
         <translation>Чи доступні вам налаштування типу трубки.</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="318"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="331"/>
         <source>Time started according to str.edf</source>
         <translation>Час початку за даними str.edf</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="220"/>
+        <location filename="../oscar/main.cpp" line="224"/>
         <source>Migrating profile: %1
 (%2 of %3)
 
@@ -12497,26 +12882,25 @@ Starting import...</source>
     </message>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="931"/>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="985"/>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="986"/>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="987"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1117"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1118"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1119"/>
         <source>Warning</source>
         <translation>Попередження</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="158"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="171"/>
         <source>Min Pressure</source>
         <translation>Мін. тиск</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="299"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="312"/>
         <source>Total Leak Rate</source>
         <translation>Загальна швидкість витоку</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="1102"/>
         <source>On the next screen OSCAR will ask you to select a folder with OSCAR 1.x data</source>
-        <translation>На наступному екрані OSCAR попросить вибрати теку з даними OSCAR 1.x</translation>
+        <translation type="vanished">На наступному екрані OSCAR попросить вибрати теку з даними OSCAR 1.x</translation>
     </message>
     <message>
         <location filename="../oscar/preferencesdialog.cpp" line="1375"/>
@@ -12530,7 +12914,7 @@ Starting import...</source>
         <translation>Ви користуєтеся OSCAR %1</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1050"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1182"/>
         <source>CriticalLeak</source>
         <translation>CriticalLeak</translation>
     </message>
@@ -12540,7 +12924,7 @@ Starting import...</source>
         <translation>Чи показує пристрій AHI на вбудованому екрані.</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="159"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="172"/>
         <source>Max Pressure</source>
         <translation>Макс. тиск</translation>
     </message>
@@ -12565,7 +12949,7 @@ Starting import...</source>
         <translation>Помилка імпорту - бракує пам&apos;яті</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="869"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="884"/>
         <source>Upper Threshold</source>
         <translation>Верхній поріг</translation>
     </message>
@@ -12575,219 +12959,218 @@ Starting import...</source>
         <translation>Файл нових версій сформовано неправильно</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="162"/>
+        <location filename="../oscar/main.cpp" line="166"/>
         <source>The folder you chose does not contain valid OSCAR 1.x data.</source>
         <translation>Вибрана вами тека не містить коректних даних OSCAR 1.x.</translation>
     </message>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="1051"/>
-        <location filename="../oscar/SleepLib/schema.cpp" line="299"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="312"/>
         <source>Total Leaks</source>
         <translation>Загальні витоки</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="262"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="275"/>
         <source>Minute Ventilation</source>
         <translation>Хвилинна вентиляція</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="271"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="284"/>
         <source>Rate of detected mask leakage</source>
         <translation>Швидкість виявленого витоку маски</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="247"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="260"/>
         <source>Breathing flow rate waveform</source>
         <translation>Крива швидкості дихального потоку</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="150"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="163"/>
         <source>Lower Expiratory Pressure</source>
         <translation>Нижчий тиск видиху</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="182"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="195"/>
         <source>Obstructive Hypopnea (OH)</source>
         <translation type="unfinished">Обструктивне гіпопное (OH)</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="182"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="195"/>
         <source>A hypopnea caused by airway obstruction</source>
         <translation type="unfinished">Гіпопное, спричинене обструкцією дихальних шляхів</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="184"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="197"/>
         <source>Central Hypopnea (CH)</source>
         <translation type="unfinished">Центральне гіпопное (CH)</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="184"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="197"/>
         <source>A hypopnea where respiratory effort is reduced rather than obstructed</source>
         <translation type="unfinished">Гіпопное, при якому дихальне зусилля зменшене, а не обструковане</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="192"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="205"/>
         <source>RERA (RE)</source>
         <translation>RERA (RE)</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="199"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="212"/>
         <source>LF</source>
         <translation>LF</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="212"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="225"/>
         <source>SensAwake (SA)</source>
         <translation>SensAwake (SA)</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="240"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="253"/>
         <source>SD</source>
         <translation>SD</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="328"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="341"/>
         <source>APAP (Variable)</source>
         <translation>APAP (змінний)</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="352"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="365"/>
         <source>Notes</source>
         <translation>Нотатки</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="360"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="373"/>
         <source>Journal</source>
         <translation>Щоденник</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="373"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="386"/>
         <source>Time spent in REM Sleep</source>
         <translation>Час у REM-сні</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="377"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="390"/>
         <source>Zeo ZQ</source>
         <translation>Zeo ZQ</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="377"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="390"/>
         <source>ZEO ZQ</source>
         <translation>ZEO ZQ</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="381"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="394"/>
         <source>Respiratory Rate (Watch)</source>
         <translation type="unfinished">Частота дихання (Watch)</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="381"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="394"/>
         <source>Breaths per minute measured by Apple Watch</source>
         <translation type="unfinished">Кількість вдихів за хвилину, виміряна Apple Watch</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="381"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="394"/>
         <source>Resp. Rate (Watch)</source>
         <translation type="unfinished">Частота дихання (Watch)</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="383"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="396"/>
         <source>Heart Rate Variability (SDNN)</source>
         <translation type="unfinished">Варіабельність серцевого ритму (SDNN)</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="383"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="396"/>
         <source>Heart rate variability measured by Apple Watch</source>
         <translation type="unfinished">Варіабельність серцевого ритму, виміряна Apple Watch</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="383"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="396"/>
         <source>HRV (SDNN)</source>
         <translation type="unfinished">ВСР (SDNN)</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="384"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="397"/>
         <source>Breathing Disturbances</source>
         <translation type="unfinished">Порушення дихання</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="384"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="397"/>
         <source>Apple&apos;s per-night sleep-breathing-disturbance count</source>
         <translation type="unfinished">Кількість порушень дихання уві сні за ніч від Apple</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="385"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="398"/>
         <source>Wrist Temperature</source>
         <translation type="unfinished">Температура зап&apos;ястя</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="385"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="398"/>
         <source>Wrist temperature measured by Apple Watch, stored in Celsius</source>
         <translation type="unfinished">Температура зап&apos;ястя, виміряна Apple Watch, зберігається у градусах Цельсія</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="867"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="882"/>
         <source>Leak Redline Threshold</source>
         <translation>Поріг червоної межі витоку</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="920"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1051"/>
         <source>Automatically turn on the device by breathing</source>
         <translation>Автоматично вмикати пристрій за диханням</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="163"/>
-        <location filename="../oscar/main.cpp" line="173"/>
+        <location filename="../oscar/main.cpp" line="167"/>
+        <location filename="../oscar/main.cpp" line="177"/>
         <source>You cannot migrate from this folder:</source>
         <translation>Перенести дані з цієї теки неможливо:</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/day.cpp" line="1652"/>
+        <location filename="../oscar/SleepLib/day.cpp" line="1654"/>
         <source>Min %1 Max %2 (%3)</source>
         <translation>Мін %1 Макс %2 (%3)</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="651"/>
+        <location filename="../oscar/mainwindow.cpp" line="675"/>
         <source>If you are using cloud storage, make sure OSCAR is closed and syncing has completed first on the other computer before proceeding.</source>
         <translation>Якщо ви користуєтеся хмарним сховищем, перед продовженням переконайтеся, що на іншому комп&apos;ютері OSCAR закрито і синхронізацію завершено.</translation>
     </message>
     <message>
-        <location filename="../oscar/reports.cpp" line="287"/>
+        <location filename="../oscar/reports.cpp" line="289"/>
         <source>AI=%1 HI=%2 CAI=%3 </source>
         <translation>AI=%1 HI=%2 CAI=%3 </translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="296"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="309"/>
         <source>Apnea Hypopnea Index (AHI)</source>
         <translation>Індекс апное-гіпопное (AHI)</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="194"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="207"/>
         <source>Vibratory Snore (VS)</source>
         <translation>Вібраційне хропіння (VS)</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="192"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="205"/>
         <source>Respiratory Effort Related Arousal: A restriction in breathing that causes either awakening or sleep disturbance.</source>
         <translation>Пробудження, пов&apos;язане з дихальним зусиллям: обмеження дихання, що спричиняє пробудження або порушення сну.</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="281"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="294"/>
         <source>Time taken to breathe in</source>
         <translation>Тривалість вдиху</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="159"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="172"/>
         <source>Maximum Therapy Pressure</source>
         <translation>Максимальний лікувальний тиск</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="863"/>
         <source>Are you sure you want to use this folder?</source>
-        <translation>Справді використати цю теку?</translation>
+        <translation type="vanished">Справді використати цю теку?</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="1034"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="1040"/>
         <location filename="../oscar/SleepLib/loader_plugins/bmcg3x_loader.cpp" line="185"/>
         <source>Starting import...</source>
         <translation>Починається імпорт...</translation>
@@ -12810,7 +13193,7 @@ Length: %1</source>
 Тривалість: %1</translation>
     </message>
     <message>
-        <location filename="../oscar/reports.cpp" line="453"/>
+        <location filename="../oscar/reports.cpp" line="458"/>
         <source>Current Selection</source>
         <translation>Поточне виділення</translation>
     </message>
@@ -12820,7 +13203,7 @@ Length: %1</source>
         <translation>Графічний рушій:</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="228"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="241"/>
         <source>Blood-oxygen saturation percentage</source>
         <translation>Відсоток насичення крові киснем</translation>
     </message>
@@ -12830,17 +13213,17 @@ Length: %1</source>
         <translation>&lt;b&gt;Для цього OSCAR зберігає резервну копію картки даних вашого пристрою.&lt;/b&gt;</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="281"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="294"/>
         <source>Inspiratory Time</source>
         <translation>Час вдиху</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="265"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="278"/>
         <source>Respiratory Rate</source>
         <translation>Частота дихання</translation>
     </message>
     <message>
-        <location filename="../oscar/Graphs/gGraphView.cpp" line="2501"/>
+        <location filename="../oscar/Graphs/gGraphView.cpp" line="2525"/>
         <source>Hide All Events</source>
         <translation>Сховати всі події</translation>
     </message>
@@ -12850,42 +13233,42 @@ Length: %1</source>
         <translation>Друк звіту %1</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="278"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="291"/>
         <source>Expiratory Time</source>
         <translation>Час видиху</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="218"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="231"/>
         <source>User Flag #2 (UF2)</source>
         <translation>Позначка користувача №2 (UF2)</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="293"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="306"/>
         <source>Maximum Leak</source>
         <translation>Максимальний витік</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="275"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="288"/>
         <source>Ratio between Inspiratory and Expiratory time</source>
         <translation>Співвідношення часу вдиху й видиху</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1090"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1222"/>
         <source>Deep sleep, stable respiration</source>
         <translation>Глибокий сон, стабільне дихання</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="206"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="219"/>
         <source>Non Responding Event (NR)</source>
         <translation>Подія без реакції (NR)</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="158"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="171"/>
         <source>Minimum Therapy Pressure</source>
         <translation>Мінімальний лікувальний тиск</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="237"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="250"/>
         <source>A sudden (user definable) change in heart rate</source>
         <translation>Раптова (задана користувачем) зміна частоти серцевих скорочень</translation>
     </message>
@@ -12895,7 +13278,7 @@ Length: %1</source>
         <translation>Мілісекунди</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="354"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="367"/>
         <source>Body Mass Index</source>
         <translation>Індекс маси тіла</translation>
     </message>
@@ -12915,12 +13298,12 @@ Length: %1</source>
         <translation>Оксиметр</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="203"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="216"/>
         <source>Large Leak (LL)</source>
         <translation>Великий витік (LL)</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="593"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="677"/>
         <location filename="../oscar/SleepLib/loader_plugins/prs1_loader.cpp" line="905"/>
         <source>Backing Up Files...</source>
         <translation>Резервне копіювання файлів...</translation>
@@ -12931,12 +13314,12 @@ Length: %1</source>
         <translation>Немає доступних даних</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="293"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="306"/>
         <source>The maximum rate of mask leakage</source>
         <translation>Максимальна швидкість витоку маски</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="152"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="165"/>
         <source>End Expiratory Pressure</source>
         <translation>Кінцевий тиск видиху</translation>
     </message>
@@ -12947,7 +13330,7 @@ Length: %1</source>
         <translation>Стан зволожувача</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1099"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1231"/>
         <location filename="../oscar/SleepLib/loader_plugins/prs1_loader.cpp" line="3111"/>
         <source>Machine Initiated Breath</source>
         <translation>Вдих, ініційований апаратом</translation>
@@ -12974,22 +13357,22 @@ Length: %1</source>
         <translation>SN</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="360"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="373"/>
         <source>Journal Notes</source>
         <translation>Нотатки щоденника</translation>
     </message>
     <message>
-        <location filename="../oscar/mainwindow.cpp" line="650"/>
+        <location filename="../oscar/mainwindow.cpp" line="674"/>
         <source>You can only work with one instance of an individual OSCAR profile at a time.</source>
         <translation>Одночасно можна працювати лише з одним екземпляром окремого профілю OSCAR.</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="149"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="162"/>
         <source>Expiratory Pressure</source>
         <translation>Тиск видиху</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="315"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="328"/>
         <source>Movement detector</source>
         <translation>Датчик руху</translation>
     </message>
@@ -13020,7 +13403,7 @@ Length: %1</source>
         <translation>Після оновлення ви &lt;font size=+1&gt;більше не зможете&lt;/font&gt; використовувати цей профіль у попередній версії.</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="188"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="201"/>
         <source>An apnea reported by your CPAP device.</source>
         <translation>Апное, про яке повідомив ваш пристрій CPAP.</translation>
     </message>
@@ -13030,7 +13413,7 @@ Length: %1</source>
         <translation>Справді скинути всі кольори та налаштування каналів кривих до стандартних?</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="326"/>
+        <location filename="../oscar/main.cpp" line="330"/>
         <source>Migration Partially Complete</source>
         <translation>Перенесення завершено частково</translation>
     </message>
@@ -13046,7 +13429,7 @@ Length: %1</source>
     </message>
     <message>
         <location filename="../oscar/SleepLib/common.cpp" line="987"/>
-        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="747"/>
+        <location filename="../oscar/SleepLib/loader_plugins/bmc_loader.cpp" line="753"/>
         <location filename="../oscar/SleepLib/loader_plugins/prs1_loader.cpp" line="2927"/>
         <location filename="../oscar/SleepLib/loader_plugins/prs1_loader.cpp" line="2954"/>
         <location filename="../oscar/SleepLib/loader_plugins/sefam_loader.cpp" line="181"/>
@@ -13069,17 +13452,17 @@ Length: %1</source>
         <translation>Пацієнт???</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="221"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="234"/>
         <source>User Flag #3 (UF3)</source>
         <translation>Позначка користувача №3 (UF3)</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="175"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="188"/>
         <source>An apnea caused by airway obstruction</source>
         <translation>Апное, спричинене обструкцією дихальних шляхів</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="196"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="209"/>
         <source>Vibratory Snore (VS2) </source>
         <translation>Вібраційне хропіння (VS2) </translation>
     </message>
@@ -13089,28 +13472,28 @@ Length: %1</source>
         <translation>Зачекайте...</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/viatom_loader.cpp" line="259"/>
+        <location filename="../oscar/SleepLib/loader_plugins/viatom_loader.cpp" line="258"/>
         <source>Your Viatom device registered a dead battery during operation.</source>
         <translation>Ваш пристрій Viatom зафіксував розряджену батарею під час роботи.</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="253"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="266"/>
         <source>Mask Pressure (High frequency)</source>
         <translation>Тиск у масці (висока частота)</translation>
     </message>
     <message>
-        <location filename="../oscar/main.cpp" line="958"/>
+        <location filename="../oscar/main.cpp" line="1144"/>
         <source>Database Error</source>
         <translation>Помилка бази даних</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="964"/>
-        <location filename="../oscar/SleepLib/schema.cpp" line="154"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.cpp" line="1095"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="167"/>
         <source>Higher End Expiratory Pressure</source>
         <translation>Вищий кінцевий тиск видиху</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/schema.cpp" line="392"/>
+        <location filename="../oscar/SleepLib/schema.cpp" line="405"/>
         <source>Pressure Wave</source>
         <translation>Хвиля тиску</translation>
     </message>
@@ -13194,12 +13577,12 @@ Length: %1</source>
         <translation>M-Series</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.h" line="237"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.h" line="251"/>
         <source>Löwenstein</source>
         <translation>Löwenstein</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.h" line="237"/>
+        <location filename="../oscar/SleepLib/loader_plugins/prisma_loader.h" line="251"/>
         <source>Prisma Smart</source>
         <translation>Prisma Smart</translation>
     </message>
@@ -13239,8 +13622,8 @@ Length: %1</source>
         <translation>SOMNOsoft2</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.h" line="154"/>
-        <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.h" line="155"/>
+        <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.h" line="168"/>
+        <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.h" line="169"/>
         <source>Yuwell</source>
         <translation>Yuwell</translation>
     </message>
@@ -13255,22 +13638,14 @@ Line %2, column %3</source>
         <translation type="vanished">Не вдалося розібрати файл Updates.xml.</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.cpp" line="377"/>
-        <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.cpp" line="500"/>
-        <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.cpp" line="1198"/>
-        <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.cpp" line="1662"/>
-        <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.cpp" line="2145"/>
-        <source>Import Error</source>
-        <translation>Помилка імпорту</translation>
-    </message>
-    <message>
         <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.cpp" line="378"/>
         <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.cpp" line="501"/>
         <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.cpp" line="1199"/>
         <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.cpp" line="1663"/>
         <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.cpp" line="2146"/>
-        <source>This device Record cannot be imported in this profile.</source>
-        <translation>Запис цього пристрою не можна імпортувати в цей профіль.</translation>
+        <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.cpp" line="2590"/>
+        <source>Import Error</source>
+        <translation>Помилка імпорту</translation>
     </message>
     <message>
         <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.cpp" line="379"/>
@@ -13278,12 +13653,23 @@ Line %2, column %3</source>
         <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.cpp" line="1200"/>
         <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.cpp" line="1664"/>
         <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.cpp" line="2147"/>
+        <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.cpp" line="2591"/>
+        <source>This device Record cannot be imported in this profile.</source>
+        <translation>Запис цього пристрою не можна імпортувати в цей профіль.</translation>
+    </message>
+    <message>
+        <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.cpp" line="380"/>
+        <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.cpp" line="503"/>
+        <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.cpp" line="1201"/>
+        <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.cpp" line="1665"/>
+        <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.cpp" line="2148"/>
+        <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.cpp" line="2592"/>
         <source>The Day records overlap with already existing content.</source>
         <translation>Записи дня перетинаються з уже наявними даними.</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.cpp" line="1338"/>
-        <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.cpp" line="1836"/>
+        <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.cpp" line="1339"/>
+        <location filename="../oscar/SleepLib/loader_plugins/yuwell_loader.cpp" line="1837"/>
         <source>Reading session directories...</source>
         <translation>Читання тек сеансів...</translation>
     </message>
@@ -13338,12 +13724,12 @@ Line %2, column %3</source>
         <translation>Вага: %1 фунт.</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/dreem_loader.cpp" line="86"/>
+        <location filename="../oscar/SleepLib/loader_plugins/dreem_loader.cpp" line="85"/>
         <source>Wrong File Format</source>
         <translation>Неправильний формат файлу</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/dreem_loader.cpp" line="87"/>
+        <location filename="../oscar/SleepLib/loader_plugins/dreem_loader.cpp" line="86"/>
         <source>The selected file does not appear to be a valid Dreem CSV file.
 
 Dreem data must be formatted as a semicolon-delimited CSV file. Please ensure your data is in CSV format and try again.</source>
@@ -13382,24 +13768,24 @@ Dreem data must be formatted as a semicolon-delimited CSV file. Please ensure yo
         <translation type="unfinished">Тривалість: %1</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/applehealth_loader.h" line="51"/>
-        <location filename="../oscar/SleepLib/loader_plugins/applehealth_loader.h" line="55"/>
+        <location filename="../oscar/SleepLib/loader_plugins/applehealth_loader.h" line="53"/>
+        <location filename="../oscar/SleepLib/loader_plugins/applehealth_loader.h" line="57"/>
         <source>Apple</source>
         <translation type="unfinished">Apple</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/applehealth_loader.h" line="51"/>
+        <location filename="../oscar/SleepLib/loader_plugins/applehealth_loader.h" line="53"/>
         <source>Watch</source>
         <translation type="unfinished">Watch</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/applehealth_loader.h" line="51"/>
-        <location filename="../oscar/SleepLib/loader_plugins/applehealth_loader.h" line="55"/>
+        <location filename="../oscar/SleepLib/loader_plugins/applehealth_loader.h" line="53"/>
+        <location filename="../oscar/SleepLib/loader_plugins/applehealth_loader.h" line="57"/>
         <source>Apple Health</source>
         <translation type="unfinished">Apple Health</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/applehealth_loader.h" line="55"/>
+        <location filename="../oscar/SleepLib/loader_plugins/applehealth_loader.h" line="57"/>
         <source>Watch Sleep</source>
         <translation type="unfinished">Watch Sleep</translation>
     </message>
@@ -13456,7 +13842,7 @@ Dreem data must be formatted as a semicolon-delimited CSV file. Please ensure yo
         <translation type="unfinished">22 мм</translation>
     </message>
     <message>
-        <location filename="../oscar/SleepLib/loader_plugins/sefam_loader.cpp" line="757"/>
+        <location filename="../oscar/SleepLib/loader_plugins/sefam_loader.cpp" line="749"/>
         <source>Reading %1 card...</source>
         <translation type="unfinished">Зчитування картки %1...</translation>
     </message>
@@ -13465,6 +13851,126 @@ Dreem data must be formatted as a semicolon-delimited CSV file. Please ensure yo
         <location filename="../oscar/SleepLib/loader_plugins/sefam_loader.h" line="93"/>
         <source>Sefam</source>
         <translation type="unfinished">Sefam</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="55"/>
+        <source>Enter a name for the data folder.</source>
+        <translation type="unfinished">Введіть назву для теки даних.</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="57"/>
+        <source>A folder name cannot begin or end with a space.</source>
+        <translation type="unfinished">Назва теки не може починатися або закінчуватися пробілом.</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="59"/>
+        <source>&quot;%1&quot; is not a valid folder name.</source>
+        <translation type="unfinished">&quot;%1&quot; не є допустимою назвою теки.</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="61"/>
+        <source>A folder name cannot end with a period.</source>
+        <translation type="unfinished">Назва теки не може закінчуватися крапкою.</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="66"/>
+        <source>A folder name cannot contain any of these characters: %1</source>
+        <translation type="unfinished">Назва теки не може містити жодного з цих символів: %1</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="75"/>
+        <source>&quot;%1&quot; is a name reserved by Windows and cannot be used.</source>
+        <translation type="unfinished">&quot;%1&quot; — це зарезервована назва Windows і не може бути використана.</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="211"/>
+        <source>You are seeing this message because either</source>
+        <translation type="unfinished">Ви бачите це повідомлення з однієї з таких причин</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="212"/>
+        <source>This is the first time you have used OSCAR 2.</source>
+        <translation type="unfinished">Це перший раз, коли ви використовуєте OSCAR 2.</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="213"/>
+        <source>OSCAR will need to create a data folder for you.</source>
+        <translation type="unfinished">OSCAR потрібно буде створити для вас теку даних.</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="214"/>
+        <source>OSCAR 2 could not find the OSCAR 2 data folder you last used.</source>
+        <translation type="unfinished">OSCAR 2 не вдалося знайти теку даних OSCAR 2, яку ви використовували востаннє.</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="215"/>
+        <source>You will need to help OSCAR find the OSCAR 2 data folder.</source>
+        <translation type="unfinished">Вам потрібно буде допомогти OSCAR знайти папку даних OSCAR 2.</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="216"/>
+        <source>or</source>
+        <translation type="unfinished">або</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="223"/>
+        <source>OSCAR was looking for:</source>
+        <translation type="unfinished">OSCAR шукав:</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="230"/>
+        <source>OSCAR 2 Startup</source>
+        <translation type="unfinished">Запуск OSCAR 2</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="231"/>
+        <source>Create OSCAR 2 data folder</source>
+        <translation type="unfinished">Створити папку даних OSCAR 2</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="232"/>
+        <source>Find my OSCAR 2 data folder</source>
+        <translation type="unfinished">Знайти мою папку даних OSCAR 2</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="246"/>
+        <source>OSCAR 2 uses a different data folder than OSCAR 1.x, so it cannot share the folder used by OSCAR 1.x.</source>
+        <translation type="unfinished">OSCAR 2 використовує іншу папку даних, ніж OSCAR 1.x, тому він не може використовувати спільну папку з OSCAR 1.x.</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="247"/>
+        <source>OSCAR can migrate your OSCAR 1.x data into the new OSCAR 2 data folder.</source>
+        <translation type="unfinished">OSCAR може перенести ваші дані OSCAR 1.x до нової папки даних OSCAR 2.</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="248"/>
+        <source>Click Migrate to select the OSCAR 1.x folder that you wish to migrate to your new OSCAR 2 data folder.</source>
+        <translation type="unfinished">Натисніть «Перенести», щоб вибрати папку OSCAR 1.x, яку ви бажаєте перенести до нової папки даних OSCAR 2.</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="249"/>
+        <source>Your old OSCAR 1.x data folder will not be changed, so you can still run OSCAR 1.x.</source>
+        <translation type="unfinished">Ваша стара папка даних OSCAR 1.x не буде змінена, тому ви все ще можете використовувати OSCAR 1.x.</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="250"/>
+        <source>Cancel removes the new OSCAR 2 data folder and exits OSCAR.</source>
+        <translation type="unfinished">Скасувати видаляє нову папку даних OSCAR 2 і завершує роботу OSCAR.</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="252"/>
+        <source>OSCAR 1.x Data Migration</source>
+        <translation type="unfinished">Перенесення даних OSCAR 1.x</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="253"/>
+        <source>Migrate</source>
+        <translation type="unfinished">Перенести</translation>
+    </message>
+    <message>
+        <location filename="../oscar/datafolderdialog.cpp" line="254"/>
+        <source>Skip migration</source>
+        <translation type="unfinished">Пропустити перенесення</translation>
     </message>
 </context>
 <context>
@@ -15950,428 +16456,428 @@ Make sure you trust the recipient before sharing this data.</source>
 <context>
     <name>Statistics</name>
     <message>
-        <location filename="../oscar/statistics.cpp" line="1334"/>
+        <location filename="../oscar/statistics.cpp" line="1370"/>
         <source>Days</source>
         <translation>Днів</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="1015"/>
+        <location filename="../oscar/statistics.cpp" line="1021"/>
         <source>This report was prepared on %1 by OSCAR %2</source>
         <translation>Цей звіт підготовлено %1 у OSCAR %2</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="1934"/>
+        <location filename="../oscar/statistics.cpp" line="1974"/>
         <source>Worst Flow Limtation</source>
         <translation>Найгірше обмеження потоку</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="1967"/>
+        <location filename="../oscar/statistics.cpp" line="2007"/>
         <source>Worst Large Leaks</source>
         <translation>Найгірші великі витоки</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="859"/>
+        <location filename="../oscar/statistics.cpp" line="865"/>
         <source>Oximeter Statistics</source>
         <translation>Статистика оксиметра</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="1975"/>
+        <location filename="../oscar/statistics.cpp" line="2015"/>
         <source>Date: %1 Leak: %2%</source>
         <translation>Дата: %1 Витік: %2%</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="1018"/>
+        <location filename="../oscar/statistics.cpp" line="1024"/>
         <source>OSCAR is free open-source CPAP report software</source>
         <translation>OSCAR - безкоштовна програма звітів CPAP з відкритим кодом</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="760"/>
-        <location filename="../oscar/statistics.cpp" line="1837"/>
+        <location filename="../oscar/statistics.cpp" line="761"/>
+        <location filename="../oscar/statistics.cpp" line="1877"/>
         <source>CPAP Usage</source>
         <translation>Використання CPAP</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="817"/>
+        <location filename="../oscar/statistics.cpp" line="823"/>
         <source>Other Statistics</source>
         <translation>Інша статистика</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="867"/>
+        <location filename="../oscar/statistics.cpp" line="873"/>
         <source>Blood Oxygen Saturation</source>
         <translation>Насичення крові киснем</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="1869"/>
+        <location filename="../oscar/statistics.cpp" line="1909"/>
         <source>Days %1 of 5 or greater: %2</source>
         <translation>Днів %1 від 5 і більше: %2</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="1876"/>
+        <location filename="../oscar/statistics.cpp" line="1916"/>
         <source>Best %1</source>
         <translation>Найкраще %1</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="1880"/>
-        <location filename="../oscar/statistics.cpp" line="1893"/>
+        <location filename="../oscar/statistics.cpp" line="1920"/>
+        <location filename="../oscar/statistics.cpp" line="1933"/>
         <source>Date: %1 %2: %3</source>
         <translation>Дата: %1 %2: %3</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="1886"/>
+        <location filename="../oscar/statistics.cpp" line="1926"/>
         <source>Worst %1</source>
         <translation>Найгірше %1</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="2079"/>
-        <location filename="../oscar/statistics.cpp" line="2091"/>
+        <location filename="../oscar/statistics.cpp" line="2119"/>
+        <location filename="../oscar/statistics.cpp" line="2131"/>
         <source>Date: %1 - %2</source>
         <translation>Дата: %1 - %2</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="2047"/>
+        <location filename="../oscar/statistics.cpp" line="2087"/>
         <source>No PB on record</source>
         <translation>Записів PB немає</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="890"/>
+        <location filename="../oscar/statistics.cpp" line="896"/>
         <source>% of time in %1</source>
         <translation>% часу в %1</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="1567"/>
+        <location filename="../oscar/statistics.cpp" line="1603"/>
         <source>Last 30 Days</source>
         <translation>Останні 30 днів</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="2055"/>
+        <location filename="../oscar/statistics.cpp" line="2095"/>
         <source>Want more information?</source>
         <translation>Потрібно більше інформації?</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="1843"/>
+        <location filename="../oscar/statistics.cpp" line="1883"/>
         <source>Days Used: %1</source>
         <translation>Днів використання: %1</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="889"/>
+        <location filename="../oscar/statistics.cpp" line="895"/>
         <source>%1 Index</source>
         <translation>Індекс %1</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="2088"/>
+        <location filename="../oscar/statistics.cpp" line="2128"/>
         <source>Worst Device Setting</source>
         <translation>Найгірше налаштування пристрою</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="769"/>
+        <location filename="../oscar/statistics.cpp" line="770"/>
         <source>Percent Total Days %1%2 hrs/day</source>
         <translation>Відсоток усіх днів %1%2 год/день</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="1418"/>
+        <location filename="../oscar/statistics.cpp" line="1454"/>
         <source>Oscar has no data to report :(</source>
         <translation>OSCAR не має даних для звіту :(</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="2012"/>
+        <location filename="../oscar/statistics.cpp" line="2052"/>
         <source>Date: %1 CSR: %2%</source>
         <translation>Дата: %1 CSR: %2%</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="891"/>
+        <location filename="../oscar/statistics.cpp" line="897"/>
         <source>% of time above %1 threshold</source>
         <translation>% часу вище порога %1</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="775"/>
+        <location filename="../oscar/statistics.cpp" line="776"/>
         <source>Therapy Efficacy</source>
         <translation>Ефективність терапії</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="892"/>
+        <location filename="../oscar/statistics.cpp" line="898"/>
         <source>% of time below %1 threshold</source>
         <translation>% часу нижче порога %1</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="888"/>
+        <location filename="../oscar/statistics.cpp" line="894"/>
         <source>Max %1</source>
         <translation>Макс %1</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="883"/>
+        <location filename="../oscar/statistics.cpp" line="889"/>
         <source>%1 Median</source>
         <translation>Медіана %1</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="782"/>
+        <location filename="../oscar/statistics.cpp" line="783"/>
         <source>AHI Median</source>
         <translation>Медіана AHI</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="887"/>
+        <location filename="../oscar/statistics.cpp" line="893"/>
         <source>Min %1</source>
         <translation>Мін %1</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="1643"/>
+        <location filename="../oscar/statistics.cpp" line="1679"/>
         <source>Database has %1 days of %2 Data, between %3 and %4</source>
         <translation>База даних містить %1 дн. даних %2 з %3 по %4</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="1565"/>
+        <location filename="../oscar/statistics.cpp" line="1601"/>
         <source>Most Recent</source>
         <translation>Найновіші</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="2057"/>
+        <location filename="../oscar/statistics.cpp" line="2097"/>
         <source>Please enable Pre-Load Summaries checkbox in preferences to make sure this data is available.</source>
         <translation>Увімкніть у налаштуваннях попереднє завантаження зведених даних, щоб ці дані були доступні.</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="1340"/>
+        <location filename="../oscar/statistics.cpp" line="1376"/>
         <source>Pressure Settings</source>
         <translation>Налаштування тиску</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="919"/>
+        <location filename="../oscar/statistics.cpp" line="925"/>
         <source>Phone: %1</source>
         <translation>Телефон: %1</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="2034"/>
+        <location filename="../oscar/statistics.cpp" line="2074"/>
         <source>Worst PB</source>
         <translation>Найгірше PB</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="2083"/>
-        <location filename="../oscar/statistics.cpp" line="2095"/>
+        <location filename="../oscar/statistics.cpp" line="2123"/>
+        <location filename="../oscar/statistics.cpp" line="2135"/>
         <source>Total Hours: %1</source>
         <translation>Усього годин: %1</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="834"/>
+        <location filename="../oscar/statistics.cpp" line="840"/>
         <source>Pressure Statistics</source>
         <translation>Статистика тиску</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="1845"/>
-        <location filename="../oscar/statistics.cpp" line="1846"/>
+        <location filename="../oscar/statistics.cpp" line="1885"/>
+        <location filename="../oscar/statistics.cpp" line="1886"/>
         <source>Days %1 %2 Hours: %3</source>
         <translation>Днів %1 %2 годин: %3</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="773"/>
+        <location filename="../oscar/statistics.cpp" line="774"/>
         <source>Median Hours per Night</source>
         <translation>Медіана годин за ніч</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="914"/>
+        <location filename="../oscar/statistics.cpp" line="920"/>
         <source>Name: %1, %2</source>
         <translation>Ім&apos;я: %1, %2</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="1568"/>
+        <location filename="../oscar/statistics.cpp" line="1604"/>
         <source>Last 6 Months</source>
         <translation>Останні 6 місяців</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="762"/>
-        <location filename="../oscar/statistics.cpp" line="864"/>
+        <location filename="../oscar/statistics.cpp" line="763"/>
+        <location filename="../oscar/statistics.cpp" line="870"/>
         <source>Total Days</source>
         <translation>Усього днів</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="922"/>
+        <location filename="../oscar/statistics.cpp" line="928"/>
         <source>Email: %1</source>
         <translation>Ел. пошта: %1</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="884"/>
-        <location filename="../oscar/statistics.cpp" line="885"/>
+        <location filename="../oscar/statistics.cpp" line="890"/>
+        <location filename="../oscar/statistics.cpp" line="891"/>
         <source>Average %1</source>
         <translation>Середнє %1</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="1271"/>
+        <location filename="../oscar/statistics.cpp" line="1307"/>
         <source>Last Use</source>
         <translation>Останнє використання</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="1338"/>
+        <location filename="../oscar/statistics.cpp" line="1374"/>
         <source>Pressure Relief</source>
         <translation>Полегшення тиску</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="916"/>
+        <location filename="../oscar/statistics.cpp" line="922"/>
         <source>DOB: %1</source>
         <translation>Дата народження: %1</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="872"/>
+        <location filename="../oscar/statistics.cpp" line="878"/>
         <source>Pulse Rate</source>
         <translation>Частота пульсу</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="1326"/>
+        <location filename="../oscar/statistics.cpp" line="1362"/>
         <source>Changes to Device Settings</source>
         <translation>Зміни налаштувань пристрою</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="1270"/>
+        <location filename="../oscar/statistics.cpp" line="1306"/>
         <source>First Use</source>
         <translation>Перше використання</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="2004"/>
+        <location filename="../oscar/statistics.cpp" line="2044"/>
         <source>Worst CSR</source>
         <translation>Найгірше CSR</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="1572"/>
+        <location filename="../oscar/statistics.cpp" line="1608"/>
         <source>Everything</source>
         <translation>Усе</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="1566"/>
+        <location filename="../oscar/statistics.cpp" line="1602"/>
         <source>Last Week</source>
         <translation>Останній тиждень</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="1570"/>
+        <location filename="../oscar/statistics.cpp" line="1606"/>
         <source>Last Year</source>
         <translation>Останній рік</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="1637"/>
+        <location filename="../oscar/statistics.cpp" line="1673"/>
         <source>Database has %1 day of %2 Data on %3</source>
         <translation>База даних містить %1 дн. даних %2 за %3</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="1924"/>
+        <location filename="../oscar/statistics.cpp" line="1964"/>
         <source>Best Flow Limitation</source>
         <translation>Найкраще обмеження потоку</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="925"/>
+        <location filename="../oscar/statistics.cpp" line="931"/>
         <source>Address:</source>
         <translation>Адреса:</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="1618"/>
+        <location filename="../oscar/statistics.cpp" line="1654"/>
         <source>Details</source>
         <translation>Подробиці</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="1946"/>
+        <location filename="../oscar/statistics.cpp" line="1986"/>
         <source>No Flow Limitation on record</source>
         <translation>Записів обмеження потоку немає</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="770"/>
+        <location filename="../oscar/statistics.cpp" line="771"/>
         <source>Percent Used Days %1%2 hrs/day</source>
         <translation>Відсоток використаних днів %1%2 год/день</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="766"/>
         <location filename="../oscar/statistics.cpp" line="767"/>
+        <location filename="../oscar/statistics.cpp" line="768"/>
         <source>Used Days %1%2 hrs/day</source>
         <translation>Використаних днів %1%2 год/день</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="863"/>
+        <location filename="../oscar/statistics.cpp" line="869"/>
         <source>Oximeter Usage</source>
         <translation>Використання оксиметра</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="763"/>
-        <location filename="../oscar/statistics.cpp" line="865"/>
+        <location filename="../oscar/statistics.cpp" line="764"/>
+        <location filename="../oscar/statistics.cpp" line="871"/>
         <source>Used Days</source>
         <translation>Використаних днів</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="1844"/>
+        <location filename="../oscar/statistics.cpp" line="1884"/>
         <source>Days %1 %2 %3%</source>
         <translation>Днів %1 %2 %3%</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="1981"/>
+        <location filename="../oscar/statistics.cpp" line="2021"/>
         <source>No Large Leaks on record</source>
         <translation>Записів великих витоків немає</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="1416"/>
+        <location filename="../oscar/statistics.cpp" line="1452"/>
         <source>No data found?!?</source>
         <translation>Даних не знайдено?!?</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="2042"/>
+        <location filename="../oscar/statistics.cpp" line="2082"/>
         <source>Date: %1 PB: %2%</source>
         <translation>Дата: %1 PB: %2%</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="1841"/>
+        <location filename="../oscar/statistics.cpp" line="1881"/>
         <source>Days Not Used: %1</source>
         <translation>Днів без використання: %1</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="1264"/>
+        <location filename="../oscar/statistics.cpp" line="1300"/>
         <source>Device Information</source>
         <translation>Інформація про пристрій</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="1541"/>
+        <location filename="../oscar/statistics.cpp" line="1577"/>
         <source>Last Session</source>
         <translation>Останній сеанс</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="765"/>
-        <location filename="../oscar/statistics.cpp" line="866"/>
+        <location filename="../oscar/statistics.cpp" line="766"/>
+        <location filename="../oscar/statistics.cpp" line="872"/>
         <source>Days Not Used</source>
         <translation>Днів без використання</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="745"/>
+        <location filename="../oscar/statistics.cpp" line="746"/>
         <source>CPAP Statistics</source>
         <translation>Статистика CPAP</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="2076"/>
+        <location filename="../oscar/statistics.cpp" line="2116"/>
         <source>Best Device Setting</source>
         <translation>Найкраще налаштування пристрою</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="2056"/>
+        <location filename="../oscar/statistics.cpp" line="2096"/>
         <source>OSCAR needs all summary data loaded to calculate best/worst data for individual days.</source>
         <translation>Щоб обчислити найкращі/найгірші показники за окремі дні, OSCAR потрібно завантажити всі зведені дані.</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="1928"/>
-        <location filename="../oscar/statistics.cpp" line="1941"/>
+        <location filename="../oscar/statistics.cpp" line="1968"/>
+        <location filename="../oscar/statistics.cpp" line="1981"/>
         <source>Date: %1 FL: %2</source>
         <translation>Дата: %1 FL: %2</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="829"/>
+        <location filename="../oscar/statistics.cpp" line="835"/>
         <source>Leak Statistics</source>
         <translation>Статистика витоків</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="2017"/>
+        <location filename="../oscar/statistics.cpp" line="2057"/>
         <source>No CSR on record</source>
         <translation>Записів CSR немає</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="772"/>
+        <location filename="../oscar/statistics.cpp" line="773"/>
         <source>Average Hours per Night</source>
         <translation>Середня кількість годин за ніч</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="1634"/>
+        <location filename="../oscar/statistics.cpp" line="1670"/>
         <source>Database has No %1 data available.</source>
         <translation>У базі даних немає доступних даних %1.</translation>
     </message>
     <message>
-        <location filename="../oscar/statistics.cpp" line="1840"/>
+        <location filename="../oscar/statistics.cpp" line="1880"/>
         <source>Total Days: %1</source>
         <translation>Усього днів: %1</translation>
     </message>
@@ -16862,7 +17368,7 @@ Make sure you trust the recipient before sharing this data.</source>
 <context>
     <name>gGraphView</name>
     <message>
-        <location filename="../oscar/Graphs/gGraphView.cpp" line="2317"/>
+        <location filename="../oscar/Graphs/gGraphView.cpp" line="2341"/>
         <source>Clone %1 Graph</source>
         <translation>Клонувати графік %1</translation>
     </message>
@@ -16882,15 +17388,15 @@ Make sure you trust the recipient before sharing this data.</source>
         <translation>Відновіть масштаб осі X до 100%, щоб побачити дані за весь день.</translation>
     </message>
     <message>
-        <location filename="../oscar/Graphs/gGraphView.cpp" line="2014"/>
-        <location filename="../oscar/Graphs/gGraphView.cpp" line="2067"/>
+        <location filename="../oscar/Graphs/gGraphView.cpp" line="2038"/>
+        <location filename="../oscar/Graphs/gGraphView.cpp" line="2091"/>
         <source>Double click title to pin / unpin
 Click and drag to reorder graphs</source>
         <translation>Подвійне клацання на заголовку закріплює/відкріплює
 Клацніть і перетягніть, щоб змінити порядок графіків</translation>
     </message>
     <message>
-        <location filename="../oscar/Graphs/gGraphView.cpp" line="2313"/>
+        <location filename="../oscar/Graphs/gGraphView.cpp" line="2337"/>
         <source>Remove Clone</source>
         <translation>Видалити клон</translation>
     </message>

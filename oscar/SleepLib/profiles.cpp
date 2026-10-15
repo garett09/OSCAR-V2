@@ -63,6 +63,7 @@ Profile *p_profile;
 Profile::Profile(QString path, bool open)
   : is_first_day(true),
     m_opened(false),
+    m_dataFormatError(false),
     m_database_id(0)
 {
     p_name = STR_GEN_Profile;
@@ -857,6 +858,17 @@ int dirCount(QString path)
 
 void Profile::DataFormatError(Machine *m)
 {
+    if (mainwin && mainwin->isBatchMode()) {
+        MachineLoader *loader = lookupLoader(m);
+        qCritical().noquote() << QString("Profile::DataFormatError: Machine '%1 %2' (serial %3) requires a database upgrade "
+                                         "(data version %4 < loader version %5). Run OSCAR interactively to upgrade.")
+                                     .arg(m->brand(), m->model(), m->serial())
+                                     .arg(m->version())
+                                     .arg(loader ? loader->Version() : 0);
+        m_dataFormatError = true;
+        return;
+    }
+
     QString msg;
 
     msg = "<font size=+1>"+QObject::tr("OSCAR %1 needs to upgrade its database for %2 %3 %4").
@@ -931,21 +943,20 @@ void Profile::DataFormatError(Machine *m)
 
     } else {
         delete question;
+        m_dataFormatError = true;
         // User chose not to upgrade now — exit cleanly so no integrity check on restart.
         DatabaseManager::markCleanShutdown(DatabaseManager::instance().databasePath());
         QApplication::exit(0);
+        return;
     }
 
 
     return;
-
 }
+
 void Profile::UnloadMachineData()
 {
     for (auto & mach : m_machlist) {
-        if (mach->getDatabaseId() == 0) {
-            mach->saveSessionInfo();  // Legacy path only: machine not in DB
-        }
         // Sessions in Days will be deleted by Day::~Day() below.
         // Sessions only in sessionlist (short/ignored sessions that AddSession()
         // kept for duplicate-import prevention but never added to a Day) must be
@@ -1023,18 +1034,24 @@ void Profile::LoadMachineData(ProgressDialog *progress)
         if (loader) {
             if (mach->version() < loader->Version()) {
                 qDebug() << "LoadMachineData" << mach->loaderName() << "data format error, machine version" << mach->version() << "loader version" << loader->Version();
-                progress->hide();
+                if (progress) progress->hide();
                 DataFormatError(mach);
-                progress->show();
+                if (m_dataFormatError) {
+                    return;
+                }
+                if (progress) progress->show();
             } else {
                 try {
                     mach->Load(progress);
                 } catch (OldDBVersion& e) {
                     qDebug() << "LoadMachineData" << mach->loaderName() << "load failure, machine version" << mach->version() << "loader version" << loader->Version();
                     Q_UNUSED(e)
-                    progress->hide();
+                    if (progress) progress->hide();
                     DataFormatError(mach);
-                    progress->show();
+                    if (m_dataFormatError) {
+                        return;
+                    }
+                    if (progress) progress->show();
                 }
             }
         } else {

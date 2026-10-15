@@ -15,7 +15,7 @@
 const QString DefaultLanguage = "en_US";
 const QString LangSetting = "Settings/Language";
 
-void initTranslations();
+void initTranslations(bool batchMode = false);
 QString currentLanguage();
 QString lookupLanguageName(QString language);
 

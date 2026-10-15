@@ -18,8 +18,6 @@
 #include <QThreadPool>
 #include <QFile>
 #include <QDataStream>
-#include <QDomDocument>
-#include <QDomElement>
 
 
 #include <QDialog>
@@ -36,10 +34,14 @@
 #include "profiles.h"
 #include "schema.h"
 #include "session.h"
+#include "session_split.h"
+#include "calcs.h"
 #include "mainwindow.h"
 #include "../database/machine_repository.h"
 #include "../database/profile_repository.h"
 #include "../database/session_repository.h"
+#include "../database/session_summaries_repository.h"
+#include "../database/daily_summary_repository.h"
 #include "../database/database_manager.h"
 #include "../database/device_time_correction_repository.h"
 
@@ -82,11 +84,6 @@ void SaveTask::run()
     sess->TrashEvents();
 }
 
-void LoadTask::run()
-{
-    sess->LoadSummary();
-}
-
 //////////////////////////////////////////////////////////////////////////////////////////
 // Device Base-Class implmementation
 //////////////////////////////////////////////////////////////////////////////////////////
@@ -127,7 +124,6 @@ Machine::Machine(Profile *_profile, MachineID id) : profile(_profile)
 }
 Machine::~Machine()
 {
-//    saveSessionInfo();
     //qDebug() << "Destroy device" << info.loadername << hex << m_id;
 }
 Session *Machine::SessionExists(SessionID session)
@@ -137,125 +133,6 @@ Session *Machine::SessionExists(SessionID session)
     } else {
         return nullptr;
     }
-}
-
-const quint16 sessinfo_version = 2;
-
-bool Machine::saveSessionInfo()
-{
-    if (info.type == MT_JOURNAL) return false;
-    if (sessionlist.size() == 0) return false;
-
-    qDebug() << "Machine::saveSessionInfo(): Saving" << info.brand << "session info" << info.loadername;
-    QString filename = getDataPath() + "Sessions.info";
-    QFile file(filename);
-    if (!file.open(QFile::WriteOnly)) {
-        qWarning() << "Machine::saveSessionInfo(): Couldn't open" << filename << "for writing, error code" << file.error() << file.errorString();
-        return false;
-    }
-
-    QDataStream out(&file);
-    out.setByteOrder(QDataStream::LittleEndian);
-    out.setVersion(QDataStream::Qt_5_0);
-
-    out << magic;
-    out << filetype_sessenabled;
-    out << sessinfo_version;
-
-    QHash<SessionID, Session *>::iterator s;
-
-    out << (int)sessionlist.size();
-    for (s = sessionlist.begin(); s != sessionlist.end(); ++s) {
-        Session * sess = s.value();
-        if (sess->realFirst() != 0) {
-            out << (quint32) sess->session();
-            out << (quint8)(sess->enabled(true));
-        } else {
-            qWarning() << "Machine::SaveSessionInfo(): discarding session" << sess->session()
-                       << "["+QDateTime::fromSecsSinceEpoch(sess->session()).toString("MMM dd, yyyy hh:mm:ss")+"]"
-                       << "from machine" << serial() << "with first=0";
-        }
-
-        //out << sess->m_availableChannels;
-    }
-    qDebug() << "Machine::saveSessionInfo(): Done Saving" << info.brand << "session info";
-
-    return true;
-}
-
-bool Machine::loadSessionInfo()
-{
-    // SessionInfo basically just contains a list of all sessions and their enabled status,
-    // so the enabling/reenabling doesn't require a summary rewrite every time.
-
-    if (info.type == MT_JOURNAL)
-        return true;
-
-    QHash<SessionID, Session *>::iterator s;
-    QFile file(getDataPath() + "Sessions.info");
-
-    if ( ! file.open(QFile::ReadOnly)) {
-        // No session.info file present, so let's create one...
-
-        // But first check for legacy SESSION_ENABLED field in session settings
-        for (s = sessionlist.begin(); s!= sessionlist.end(); ++s) {
-            Session * sess = s.value();
-            QHash<ChannelID, QVariant>::iterator it = sess->settings.find(SESSION_ENABLED);
-
-            quint8 b = true;
-            b &= 0x1;
-            if (it != sess->settings.end()) {
-                b = it.value().toBool();
-            } else {
-            }
-            sess->setEnabled(b);        // Extract from session settings and save..
-        }
-
-        // Now write the file
-        saveSessionInfo();
-        return true;
-    }
-
-    QDataStream in(&file);
-    in.setByteOrder(QDataStream::LittleEndian);
-    in.setVersion(QDataStream::Qt_5_0);
-
-    quint32 mag32;
-    in >> mag32;
-
-    quint16 ft16, version;
-    in >> ft16;
-    in >> version;
-
-    // Legacy crud
-    if (version == 1) {
-        // was available channels
-        QHash<ChannelID, bool> crap;
-        in >> crap;
-    }
-
-
-    // Read in size record, followed by size * [SessionID, bool] pairs containing the enable status.
-    int size;
-    in >> size;
-
-    quint32 sid;
-    quint8 b;
-
-    for (int i=0; i< size; ++i) {
-        in >> sid;
-        in >> b;
-        b &= 0x1;
-
-        s = sessionlist.find(sid);
-
-        if (s != sessionlist.end()) {
-            Session * sess = s.value();
-
-            sess->setEnabled(b);
-        }
-    }
-    return true;
 }
 
 // Find date this session belongs in
@@ -295,6 +172,82 @@ QDate Machine::pickDate(qint64 first)
 // given date.
 bool Machine::AddSession(Session *s, bool allowOldSessions)
 {
+    // Cut before adding: s keeps the part before the first day split time.
+    const QList<Session *> pieces = allowOldSessions ? QList<Session *>() : splitAtDayBoundaries(s);
+
+    const bool added = addSessionImpl(s, allowOldSessions, false);
+    for (Session *piece : pieces) {
+        addSessionImpl(piece, false, true);
+    }
+    return added;
+}
+
+QList<Session *> Machine::splitAtDayBoundaries(Session *s)
+{
+    QList<Session *> pieces;
+    if (s == nullptr || profile == nullptr || !profile->session->splitNonCPAPSessions()) {
+        return pieces;
+    }
+    const MachineType mt = s->type();
+    if (mt != MT_OXIMETER && mt != MT_SLEEPSTAGE && mt != MT_POSITION) {
+        return pieces;
+    }
+    // Only a session fresh from a loader can be cut: one already stored (a profile
+    // migration stores before adding) or summary-only has no events to divide.
+    if (s->sessionRowId() != 0 || s->summaryOnly() || s->eventlist.isEmpty()
+            || s->realFirst() == 0 || sessionlist.contains(s->session())) {
+        return pieces;
+    }
+
+    // Boundaries are wall-clock times, so work in corrected time as the day pick below
+    // does, then convert each back to the session's raw time.
+    const qint64 corrFirst = correctionMs(QDateTime::fromMSecsSinceEpoch(s->realFirst()).date());
+    const QList<qint64> bounds = SessionSplit::boundariesWithin(s->realFirst() + corrFirst,
+                                                                s->realLast() + corrFirst,
+                                                                profile->session->daySplitTime());
+    if (bounds.isEmpty()) {
+        return pieces;
+    }
+
+    // Find desaturations and pulse changes over the whole recording before cutting, so an
+    // event that straddles a cut is found once (both are no-ops if already calculated).
+    calcSPO2Drop(s);
+    calcPulseChange(s);
+
+    Session *piece = s;
+    for (qint64 bound : bounds) {
+        // Use the correction addSessionImpl() will apply to this piece, so that it lands
+        // exactly on the boundary and is placed on the new day.
+        const qint64 corr = correctionMs(QDateTime::fromMSecsSinceEpoch(bound - corrFirst).date());
+        const qint64 rawBound = bound - corr;
+
+        SessionID sid = SessionID(rawBound / 1000L);
+        bool taken = true;
+        while (taken) {
+            taken = sessionlist.contains(sid);
+            for (Session *p : pieces) {
+                if (p->session() == sid) taken = true;
+            }
+            if (taken) ++sid;
+        }
+
+        Session *next = SessionSplit::splitAt(piece, rawBound, sid);
+        if (next == nullptr) {
+            continue;   // no samples on one side of this boundary
+        }
+        pieces.append(next);
+        piece = next;
+    }
+
+    if (!pieces.isEmpty()) {
+        qDebug() << "Machine::AddSession: split session" << s->session() << "of" << serial()
+                 << "into" << pieces.size() + 1 << "pieces at the day split time";
+    }
+    return pieces;
+}
+
+bool Machine::addSessionImpl(Session *s, bool allowOldSessions, bool splitPiece)
+{
     if (s == nullptr) {
         qCritical() << "AddSession() called with a null object";
         return false;
@@ -331,6 +284,13 @@ bool Machine::AddSession(Session *s, bool allowOldSessions)
 
     updateChannels(s);
 
+    // Learn which channels this device actually scores as soon as a session joins it.
+    // Several loaders (ResMed, BMC, and everything on ImportContext) write the session
+    // to the database *before* this point, so the set cannot be left to Save()'s
+    // pre-pass: StoreSummaryToDatabase() would see an empty set and NULL every count
+    // column of the rows it writes (GitLab #313).
+    noteReportedChannels(s);
+
     if (s->session() > highest_sessionid) {
         highest_sessionid = s->session();
     }
@@ -345,6 +305,9 @@ bool Machine::AddSession(Session *s, bool allowOldSessions)
     } else {
         split_time = profile->session->daySplitTime();
         combine_sessions = profile->session->combineCloseSessions();
+    }
+    if (splitPiece) {
+        combine_sessions = 0;   // combining would pull the piece back onto the day it was cut from
     }
 
     int ignore_sessions = profile->session->ignoreShortSessions();
@@ -677,9 +640,61 @@ qint64 Machine::correctionMs(QDate night) const
     return total;
 }
 
+/*! \brief Copy the identity fields of \a info into an existing machines record.
+    \param data      The record as currently stored; updated in place.
+    \param info      The identity the loader (or the database) has just supplied.
+    \param machineId OSCAR's internal machine ID, or 0 when it is not yet known.
+    \return true when at least one column changed and \a data must be written back.
+
+    A field is only overwritten when the incoming value is non-empty, so a loader that
+    supplies nothing for a column (an oximeter with no serial, a device whose series the
+    loader does not know) leaves the stored value alone.  Anything else that differs wins:
+    a model name corrected by a loader update replaces the stored one whatever it said,
+    which the earlier "only replace an empty or 'Unknown' model" rule could not do for
+    placeholders such as ResMed's "Resmed ???".
+
+    This is the single place that decides what gets written back, shared by
+    Machine::setInfo() and Machine::SaveToDatabase() so the two cannot diverge. */
+static bool applyIdentityTo(MachineData & data, const MachineInfo & info, MachineID machineId)
+{
+    bool changed = false;
+
+    auto setIfChanged = [&changed](QString & stored, const QString & incoming) {
+        if (incoming.isEmpty() || stored == incoming) return;
+        stored = incoming;
+        changed = true;
+    };
+
+    setIfChanged(data.brand,        info.brand);
+    setIfChanged(data.model,        info.model);
+    setIfChanged(data.modelNumber,  info.modelnumber);
+    setIfChanged(data.serialNumber, info.serial);
+    setIfChanged(data.series,       info.series);
+
+    // A machine ID of 0 means "not assigned yet", and a data version of 0 means the loader
+    // does not declare one; neither should overwrite a good stored value.
+    if (machineId != 0 && data.machineId != machineId) {
+        data.machineId = machineId;
+        changed = true;
+    }
+    if (info.version != 0 && data.dataVersion != info.version) {
+        data.dataVersion = info.version;
+        changed = true;
+    }
+
+    return changed;
+}
+
+/*! \brief True when \a a and \a b differ in any field applyIdentityTo() would write. */
+static bool identityDiffers(const MachineInfo & a, const MachineInfo & b)
+{
+    return a.brand   != b.brand   || a.model  != b.model   || a.modelnumber != b.modelnumber
+        || a.serial  != b.serial  || a.series != b.series  || a.version     != b.version;
+}
+
 void Machine::setInfo(MachineInfo inf)
 {
-    int oldVersion = info.version;
+    const MachineInfo oldInfo = info;
 
     MachineInfo merged = inf;
     if (info.purgeDate.isValid()) merged.purgeDate = info.purgeDate;
@@ -689,18 +704,25 @@ void Machine::setInfo(MachineInfo inf)
     // Some loaders (ResMed, BMC, BMCG3X, ...) look up an already-loaded Machine and call
     // setInfo() on it directly, bypassing Profile::CreateMachine(); others reuse an existing
     // Machine object through CreateMachine()'s dedup branches. Either way, nothing else writes
-    // a version bump back to the database: ImportContext::CreateMachineFromInfo() and
+    // an identity change back to the database: ImportContext::CreateMachineFromInfo() and
     // Profile::storeMachinesToDatabase() both skip machines that already have a database id.
     // Without this, a stale DB data_version makes Profile::DataFormatError()'s "needs upgrade"
-    // prompt reappear on every subsequent launch even after the user has upgraded.
-    if (m_database_id > 0 && info.version != oldVersion) {
+    // prompt reappear on every subsequent launch even after the user has upgraded, and a model
+    // name the loader has learned since the record was written is discarded at shutdown.
+    //
+    // The in-memory comparison comes first so that the common case — re-importing a device
+    // whose identity has not changed — costs nothing instead of a SELECT per machine.
+    if (m_database_id > 0 && identityDiffers(oldInfo, info)) {
         MachineRepository repo;
         MachineData data = repo.findById(m_database_id);
-        if (data.id > 0 && data.dataVersion != info.version) {
-            data.dataVersion = info.version;
-            repo.update(data);
-            qDebug() << "Machine::setInfo(): Persisted version bump for" << info.loadername << info.serial
-                     << "from" << oldVersion << "to" << info.version;
+        if (data.id > 0) {
+            const int storedVersion = data.dataVersion;
+            if (applyIdentityTo(data, info, m_id)) {
+                qDebug() << "Machine::setInfo(): Persisting identity update for" << info.loadername
+                         << info.serial << "model" << data.model
+                         << "data version" << storedVersion << "->" << data.dataVersion;
+                repo.update(data);
+            }
         }
     }
 }
@@ -773,108 +795,25 @@ bool Machine::Load(ProgressDialog *progress)
 #endif
     progress->setMessage(QObject::tr("Loading %1 data for %2...").arg(info.brand).arg(profile->user->userName()));
 
-    // Try loading from database first.  This must happen before the on-disk
-    // directory check because restored profiles have all data in the database
-    // and the machine subdirectory (e.g. ResMed_12345678/) may not exist yet.
-    if (m_database_id > 0 && LoadSessionsFromDatabase(progress)) {
-        qDebug() << "Machine::Load: Loaded" << sessionlist.size() << "sessions from database for machine" << info.serial;
-
-        // Remove the legacy Sessions.info file if present — enabled state is
-        // now stored in the DB and this file is no longer read or written.
-        QFile sessionInfoFile(getDataPath() + "Sessions.info");
-        if (sessionInfoFile.exists()) {
-            sessionInfoFile.remove();
-            qDebug() << "Machine::Load: Removed legacy Sessions.info for machine" << info.serial;
-        }
-
-        return true;
-    }
-
-    // Fall back to file-based loading (legacy .000/.001 files).
-    // The on-disk machine directory must exist for this path.
-    QString path = getDataPath();
-    QDir dir(path);
-    qDebug() << "Machine::Load: Loading" << info.loadername.toLocal8Bit().data() << "record:" << path.toLocal8Bit().data();
-
-    if (!dir.exists() || !dir.isReadable()) {
+    // Sessions are read only from the database. The device's on-disk folder
+    // (e.g. ResMed_12345678/) is not needed and may not exist for restored profiles.
+    if (m_database_id == 0) {
+        qWarning() << "Machine::Load: device" << info.serial << "is not in the database";
         return false;
     }
 
-    if (loader()) {
-        mainwin->connect(loader(), SIGNAL(updateMessage(QString)), progress, SLOT(setMessage(QString)));
-        mainwin->connect(loader(), SIGNAL(setProgressMax(int)),   progress, SLOT(setProgressMax(int)));
-        mainwin->connect(loader(), SIGNAL(setProgressValue(int)), progress, SLOT(setProgressValue(int)));
+    // No sessions is not an error: a device keeps its record after all of its
+    // sessions are purged or deleted.
+    if (LoadSessionsFromDatabase(progress)) {
+        qDebug() << "Machine::Load: Loaded" << sessionlist.size() << "sessions from database for machine" << info.serial;
     }
 
-    if ( ! LoadSummary(progress)) {
-        qDebug() << "Machine::Load: Recreating the Summary index XML file";
-        // No XML index file, so assume upgrading, or it simply just got screwed up or deleted...
-        progress->setMessage(QObject::tr("Scanning Files"));
-        progress->setProgressValue(0);
-        QApplication::processEvents();
-
-        QElapsedTimer time;
-        time.start();
-        dir.setFilter(QDir::Files | QDir::Hidden | QDir::NoSymLinks);
-
-        ///////////////////////////////////////////////////////////////////////
-        // Read summary files from Summaries/ subdirectory
-        ///////////////////////////////////////////////////////////////////////
-        QString summarypath = getSummariesPath();
-        dir.setPath(summarypath);
-        QStringList filters;
-        filters << "*.000";
-        dir.setNameFilters(filters);
-        QStringList filelist = dir.entryList();
-        int size = filelist.size();
-
-        progress->setMessage(QObject::tr("Reading summary files"));
-        qDebug() << "Machine::Load: Reading summary files (.000)";
-        progress->setProgressValue(0);
-        QApplication::processEvents();
-
-        QString sesstr;
-        SessionID sessid;
-        bool ok;
-
-        for (int i=0; i < size; i++) {
-
-            if ((i % 20) == 0) { // This is slow.. :-/
-                progress->setProgressValue(i);
-                QApplication::processEvents();
-            }
-
-            QString filename = filelist.at(i);
-            sesstr = filename.section(".", 0, -2);
-            sessid = sesstr.toLong(&ok, 16);
-
-            if (!ok) { continue; }
-
-            Session *sess = new Session(this, sessid);
-
-            // Forced to load it, because know nothing about this session..
-            if (sess->LoadSummary()) {
-                AddSession(sess, true);
-            } else {
-                qWarning() << "Machine::Load: Error loading summary file" << filename;
-                delete sess;
-            }
-        }
-
-        SaveSummaryCache();
-        qDebug() << "Machine::Load: Loaded" << info.model.toLocal8Bit().data() << "data in" << time.elapsed() << "ms";
-        progress->setProgressValue(size);
-    }
-    progress->setMessage(QObject::tr("Loading Session Info"));
-    qDebug() << "Machine::Load: Loading Session Info";
-    QApplication::processEvents();
-
-    loadSessionInfo();
-
-    if (loader()) {
-        mainwin->disconnect(loader(), SIGNAL(updateMessage(QString)), progress, SLOT(setMessage(QString)));
-        mainwin->disconnect(loader(), SIGNAL(setProgressMax(int)),   progress, SLOT(setProgressMax(int)));
-        mainwin->disconnect(loader(), SIGNAL(setProgressValue(int)), progress, SLOT(setProgressValue(int)));
+    // Remove the legacy Sessions.info file if present — enabled state is
+    // now stored in the DB and this file is no longer read or written.
+    QFile sessionInfoFile(getDataPath() + "Sessions.info");
+    if (sessionInfoFile.exists()) {
+        sessionInfoFile.remove();
+        qDebug() << "Machine::Load: Removed legacy Sessions.info for machine" << info.serial;
     }
 
     return true;
@@ -965,299 +904,6 @@ bool Machine::hasModifiedSessions()
     return false;
 }
 
-const QString summaryFileName = "Summaries.xml";
-const int summaryxml_version=1;
-
-bool Machine::LoadSummary(ProgressDialog * progress)
-{
-    QElapsedTimer time;
-    time.start();
-    QString filename = getDataPath() + summaryFileName + ".gz";
-
-    QDomDocument doc;
-    QFile file(filename);
-    qDebug() << "Loading" << filename.toLocal8Bit().data();
-    progress->setMessage(QObject::tr("Loading Summaries.xml.gz"));
-    QApplication::processEvents();
-
-    if (!file.open(QIODevice::ReadOnly)) {
-//        qWarning() << "Could not open" << filename;
-        qWarning() << "Could not open" << filename << "for reading, error code" << file.error() << file.errorString();
-        return false;
-    }
-
-    QByteArray data = file.readAll();
-    QByteArray uncompressed = gUncompress(data);
-
-#if QT_VERSION < QT_VERSION_CHECK(6,8,0)
-
-    QString errorMsg;
-    int errorLine;
-    int errorColumn;
-    if (!doc.setContent(uncompressed, false, &errorMsg, &errorLine, &errorColumn)) {
-        qWarning() << "Invalid XML Content in" << filename
-                   << "at line" << errorLine << ", column" << errorColumn
-                   << ":" << errorMsg;
-        file.close();
-        return false;
-    }
-#else
-    auto result = doc.setContent(uncompressed) ;
-    if (!result) {
-        qWarning() << "Invalid XML Content in" << filename
-                   << "at line:" << result.errorLine << ", column: " <<  result.errorColumn
-                   << ":" << result.errorMessage;
-        file.close();
-        return false;
-    }
-#endif
-
-#if 0
-///////////////////////////////////////////////////////////////////////////////////////////////
-QByteArray uncompressed = gUncompress(data);
-    QString errorMsg;
-    int errorLine;
-    int errorColumn;
-
-    QDomDocument::ParseOptions options;
-    options |= QDomDocument::ParseError; // Enable error reporting
-
-    if (!doc.setContent(uncompressed, options, &errorMsg, &errorLine, &errorColumn)) {
-        qWarning() << "Invalid XML Content in" << filename
-                   << "at line" << errorLine << ", column" << errorColumn
-                   << ":" << errorMsg;
-        file.close();
-        return false;
-    }
-
-////////////////////////////////////////////////////////////////////////////////////////////
-#endif
-
-
-    file.close();
-
-    QDomElement root = doc.documentElement();
-
-    if (root.tagName().compare("sessions", Qt::CaseInsensitive) != 0) {
-        qDebug() << "Summaries cache messed up, recreating...";
-        return false;
-    }
-    bool ok;
-    int version = root.attribute("version", "").toInt(&ok);
-    if (!ok || (version != summaryxml_version)) {
-        qDebug() << "Summaries cache outdated, recreating...";
-        return false;
-    }
-    QDomNode node;
-
-    bool s_ok;
-
-    QDomNodeList sessionlist = root.childNodes();
-
-    int size = sessionlist.size();
-
-    QMap<qint64, Session *>  sess_order;
-
-    progress->setProgressMax(size);
-    for (int s=0; s < size; ++s) {
-        if ((s % 20) == 0) {
-            progress->setProgressValue(s);
-            QApplication::processEvents();
-        }
-        node = sessionlist.at(s);
-        QDomElement e = node.toElement();
-        SessionID sessid = e.attribute("id", "0").toLong(&s_ok);
-        qint64 first =  e.attribute("first", "0").toLongLong();
-        qint64 last =  e.attribute("last", "0").toLongLong();
-        bool enabled = e.attribute("enabled", "1").toInt() == 1;
-        bool events = e.attribute("events", "1").toInt() == 1;
-        if (s_ok) {
-            Session * sess = new Session(this, sessid);
-            sess->really_set_first(first);
-            sess->really_set_last(last);
-            sess->setEnabled(enabled);
-            sess->setSummaryOnly(!events);
-
-            if (e.hasChildNodes()) {
-                QList<ChannelID> available_channels;
-                QList<ChannelID> available_settings;
-
-                QDomElement chans = e.firstChildElement("channels");
-                if (chans.isElement()) {
-                    QDomNode node = chans.firstChild();
-                    QString txt = node.nodeValue();
-                    QStringList channels = txt.split(",");
-                    for (int i=0; i<channels.size(); ++i) {
-                        bool ok;
-                        ChannelID code = channels.at(i).toInt(&ok, 16);
-                        available_channels.append(code);
-                    }
-                }
-                sess->m_availableChannels = available_channels;
-
-                QDomElement sete = e.firstChildElement("settings");
-                if (sete.isElement()) {
-                    QString sets = sete.firstChild().nodeValue();
-                    QStringList settings = sets.split(",");
-                    for (int i=0; i<settings.size(); ++i) {
-                        bool ok;
-                        ChannelID code = settings.at(i).toInt(&ok, 16);
-                        available_settings.append(code);
-                    }
-                }
-                sess->m_availableSettings = available_settings;
-            }
-
-            sess_order[first] = sess;
-        }
-    }
-    QMap<qint64, Session *>::iterator it_end = sess_order.end();
-    QMap<qint64, Session *>::iterator it;
-    bool loadSummaries = profile->session->preloadSummaries();
-    qDebug() << "PreloadSummaries is" << (loadSummaries ? "true" : "false");
-    qDebug() << "Queue task loader is" << (loader() ? "" : "not ") << "available";
-//  sleep(1);
-
-//  progress->setMessage(QObject::tr("Queueing Open Tasks"));
-//  QApplication::processEvents();
-//  int cnt = 0;
-
-//  progress->setMaximum(sess_order.size());
-
-    for (it = sess_order.begin(); it != it_end; ++it /*, ++cnt*/ ) {
-/****************************************************************
-//      if ((cnt % 100) == 0) {
-//          progress->setValue(cnt);
-//          //QApplication::processEvents();
-//      }
-*****************************************************************/
-        Session * sess = it.value();
-        if ( ! AddSession(sess, true)) {
-            delete sess;
-        } else {
-            if (loadSummaries) {
-                if (loader()) {
-                    loader()->queTask(new LoadTask(sess,this));
-                } else {
-                    // no progress bar
-                    queTask(new LoadTask(sess,this));
-                }
-            }
-        }
-    }
-    progress->setMessage(QObject::tr("Loading Summary Data"));
-    qDebug() << "Loading Summary Data";
-    QApplication::processEvents();
-
-    if (loader()) {
-        qDebug() << "Machine::LoadSummary calling runTasks in loader";
-        loader()->runTasks();
-    } else {
-        qDebug() << "Machine::LoadSummary calling runTasks";
-        runTasks();
-    }
-    progress->setProgressValue(sess_order.size());
-    QApplication::processEvents();
-
-    // IMPORTANT: Ensure all sessions loaded from files know their machine's database ID
-    // This is required so sessions can be saved to database correctly on profile reopen
-    if (m_database_id > 0) {
-        qDebug() << "Machine::LoadSummary(): Setting machine_id=" << m_database_id 
-                 << "on" << this->sessionlist.size() << "sessions loaded from files";
-        QHash<SessionID, Session *>::iterator sess_it;
-        for (sess_it = this->sessionlist.begin(); sess_it != this->sessionlist.end(); ++sess_it) {
-            Session* sess = sess_it.value();
-            if (sess && sess->first() != 0) {
-                sess->setSessionRowId(m_database_id);
-            }
-        }
-    }
-
-    qDebug() << "Loaded" << info.model.toLocal8Bit().data() << "data in" << time.elapsed() << "ms";
-
-    return true;
-}
-
-bool Machine::SaveSummaryCache()
-{
-    qDebug() << "Machine::SaveSummaryCache: Saving" << info.brand << info.model <<  "Summaries";
-    QString filename = getDataPath() + summaryFileName;
-
-    QDomDocument doc("OSCAR_SessionIndex");
-
-    QDomElement root = doc.createElement("sessions");
-    root.setAttribute("version", summaryxml_version);
-    root.setAttribute("profile", profile->user->userName());
-    root.setAttribute("count", sessionlist.size());
-    root.setAttribute("loader", info.loadername);
-    root.setAttribute("serial", info.serial);
-
-    doc.appendChild(root);
-
-// No longer used as data is in database
-//    if (!QDir().exists(getSummariesPath()))
-//        QDir().mkpath(getSummariesPath());
-
-    QHash<SessionID, Session *>::iterator s;
-    QHash<SessionID, Session *>::iterator sess_end = sessionlist.end();
-
-    for (s = sessionlist.begin(); s != sess_end; ++s) {
-        QDomElement el = doc.createElement("session");
-        Session * sess = s.value();
-        el.setAttribute("id", (quint32)sess->session());
-        el.setAttribute("first", sess->realFirst());
-        el.setAttribute("last", sess->realLast());
-        el.setAttribute("enabled", sess->enabled(true) ? "1" : "0");
-        el.setAttribute("events", sess->summaryOnly() ? "0" : "1");
-
-        QHash<ChannelID, QVector<EventList *> >::iterator ev;
-        QHash<ChannelID, QVector<EventList *> >::iterator ev_end = sess->eventlist.end();
-        QStringList chanlist;
-        for (ev = sess->eventlist.begin(); ev != ev_end; ++ev) {
-            chanlist.append(QString::number(ev.key(), 16));
-        }
-        if (chanlist.size() == 0) {
-            for (int i=0; i<sess->m_availableChannels.size(); i++) {
-                ChannelID code = sess->m_availableChannels.at(i);
-                chanlist.append(QString::number(code, 16));
-            }
-        }
-
-        QDomElement chans = doc.createElement("channels");
-        chans.appendChild(doc.createTextNode(chanlist.join(",")));
-        el.appendChild(chans);
-
-        chanlist.clear();
-        QHash<ChannelID, QVariant>::iterator si;
-        QHash<ChannelID, QVariant>::iterator set_end = sess->settings.end();
-        for (si = sess->settings.begin(); si != set_end; ++si) {
-            chanlist.append(QString::number(si.key(), 16));
-        }
-        QDomElement settings = doc.createElement("settings");
-        settings.appendChild(doc.createTextNode(chanlist.join(",")));
-        el.appendChild(settings);
-
-        root.appendChild(el);
-        if (sess->IsChanged())
-            sess->StoreSummary();
-    }
-
-    QString xmltext;
-    QTextStream ts(&xmltext);
-    doc.save(ts, 1);
-
-    QByteArray data = gCompress(xmltext.toUtf8());
-
-    QFile file(filename + ".gz");
-
-    if (!file.open(QFile::WriteOnly)) {
-        qWarning() << "Machine::SaveSummaryCache: Couldn't open summary cache" << filename << "for writing, error code" << file.error() << file.errorString();
-    }
-    file.write(data);
-
-    return true;
-}
-
 bool Machine::Save()
 {
     //int size;
@@ -1284,6 +930,43 @@ bool Machine::Save()
     }
 
     QHash<SessionID, Session *>::iterator s;
+
+    // Settle this device's reported-channel set before any SaveTask runs: the tasks
+    // write session_summaries in parallel and each row's NULL columns depend on it
+    // (Session::StoreSummaryToDatabase). The pre-pass also detects a device reporting
+    // a channel for the first time after rows already exist — a G3X's first central
+    // hypopnea weeks in, a ResMed's first RERA — and rebuilds its earlier rows, which
+    // were stored NULL for that channel (GitLab #261).
+    //
+    // Every session is visited, not just the dirty ones: Session::Store() clears the
+    // dirty flag, so a loader that stores its sessions itself would otherwise leave the
+    // set empty here, and the DB-save loop below does not use that condition either
+    // (GitLab #313).
+    const QSet<ChannelID> before = m_reportedChannels;
+    bool hasStoredRows = false;
+    for (s = sessionlist.begin(); s != sessionlist.end(); s++) {
+        noteReportedChannels(*s);
+        if ((*s)->sessionRowId() != 0) hasStoredRows = true;
+    }
+    // Backstop. An import now settles the set in AddSession() and repairs its own rows
+    // through Machine::repairStoredSummaries() (GitLab #313), so this fires only if a
+    // session reached sessionlist some other way.
+    if (hasStoredRows && m_database_id > 0 && m_reportedChannels != before) {
+        qDebug() << "Machine::Save(): device reports new channels; rebuilding stored summaries for machine" << m_database_id;
+        QSqlDatabase db = DatabaseManager::instance().database();
+        if (SessionSummariesRepository::rebuildFromChannels(db, m_database_id)) {
+            // Daily rows: recompute this device's days. calculateAndStoreFromDay() is an
+            // INSERT OR REPLACE, so nothing needs invalidating first. The post-import
+            // pass may cover only the imported days (ImportContext::Commit), so the
+            // older days are not left to it.
+            DailySummaryRepository dailyRepo;
+            const qint64 profileId = getProfileId();
+            for (auto it = day.begin(); it != day.end(); ++it) {
+                Day * d = it.value();
+                if (d && d->hasEnabledSessions()) dailyRepo.calculateAndStoreFromDay(d, profileId);
+            }
+        }
+    }
 
 //  m_savelist.clear();
 
@@ -1381,6 +1064,39 @@ void Machine::updateChannels(Session * sess)
     }
 }
 
+void Machine::noteReportedChannels(Session * sess)
+{
+    QMutexLocker locker(&m_reportedChannelsMutex);
+
+    // A session loaded from the database carries its counts in m_cnt, and so does one
+    // whose events have already been trashed after UpdateSummaries() ...
+    for (auto it = sess->m_cnt.cbegin(); it != sess->m_cnt.cend(); ++it) {
+        if (it.value() > 0) m_reportedChannels.insert(it.key());
+    }
+    // ... while one freshly built by a loader still has its events in the EventLists.
+    for (auto it = sess->eventlist.cbegin(); it != sess->eventlist.cend(); ++it) {
+        if (m_reportedChannels.contains(it.key())) continue;
+        for (EventList * el : it.value()) {
+            if (el && el->count() > 0) {
+                m_reportedChannels.insert(it.key());
+                break;
+            }
+        }
+    }
+}
+
+bool Machine::repairStoredSummaries()
+{
+    if (m_database_id == 0) return false;
+
+    QSqlDatabase db = DatabaseManager::instance().database();
+    if (!SessionSummariesRepository::rebuildFromChannels(db, m_database_id)) {
+        qWarning() << "Machine::repairStoredSummaries(): rebuild failed for machine" << m_database_id;
+        return false;
+    }
+    return true;
+}
+
 QList<ChannelID> Machine::availableChannels(quint32 chantype)
 {
     QList<ChannelID> list;
@@ -1429,6 +1145,9 @@ bool Machine::LoadSessionsFromDatabase(ProgressDialog *progress)
         
         // Load from database
         if (sess->LoadFromDatabase()) {
+            // m_cnt is populated now and the event lists are empty, so this is the
+            // point to learn which channels the device has actually scored.
+            noteReportedChannels(sess);
             // Add to machine (this creates Day objects)
             if (AddSession(sess, true)) {
                 loaded++;
@@ -1466,7 +1185,14 @@ bool Machine::SaveToDatabase()
         return true;  // Already saved
     }
 
-    if (info.serial.isEmpty() && info.model.isEmpty()) {
+    // A CPAP with neither serial nor model means the loader failed to identify the card, so no
+    // record is created. Oximetry, position, sleep-stage and journal importers may legitimately
+    // supply neither (e.g. a Somnopose CSV without the optional model=/serial= headers): these
+    // are the single-instance types Profile::CreateMachine() recognises, one machine per
+    // loader, identified by (serial "", loader, profile).
+    const bool singleInstance = (info.type == MT_OXIMETER) || (info.type == MT_POSITION)
+                             || (info.type == MT_SLEEPSTAGE) || (info.type == MT_JOURNAL);
+    if (info.loadername.isEmpty() || (!singleInstance && info.serial.isEmpty() && info.model.isEmpty())) {
         qWarning() << "Machine::SaveToDatabase(): Cannot save machine without serial or model";
         return false;
     }
@@ -1519,20 +1245,11 @@ bool Machine::SaveToDatabase()
         // Update machine_id and any info fields that may have changed since the record
         // was first written (e.g. series corrected after a loader bug fix, machineId changed
         // after a rebuild-from-backup, or serial updated after a 1.x migration).
-        bool needsUpdate = (existing.machineId    != m_id)
-                        || (existing.series        != info.series)
-                        || (existing.model         != info.model)
-                        || (existing.modelNumber   != info.modelnumber)
-                        || (existing.serialNumber  != info.serial);
-        if (needsUpdate) {
-            MachineData updateData = existing;
-            updateData.machineId    = m_id;
-            updateData.serialNumber = info.serial;
-            updateData.series       = info.series;
-            updateData.model        = info.model;
-            updateData.modelNumber  = info.modelnumber;
+        MachineData updateData = existing;
+        if (applyIdentityTo(updateData, info, m_id)) {
             qDebug() << "Machine::SaveToDatabase(): Updating machine record for" << info.serial
-                     << "series:" << existing.series << "->" << info.series;
+                     << "series:" << existing.series << "->" << updateData.series
+                     << "model:" << existing.model << "->" << updateData.model;
             repo.update(updateData);
         }
 

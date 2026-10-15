@@ -26,6 +26,8 @@ struct AppleHealthImportSummary
     int weightDays = 0;
     int skippedExisting = 0;
     QHash<QString, int> sleepSourceCounts;
+    QHash<QString, int> ignoredVitalsCounts;
+    QStringList importedVitalsSources;
     QString chosenSleepSource;
     bool validFile = false;
 };
@@ -90,6 +92,7 @@ class AppleHealthLoader : public MachineLoader
     bool m_forwardParserProgress = true;
     bool m_accumulatingImportSummary = false;
     QStringList m_chosenSleepSources;
+    QStringList m_importedVitalsSources;
     QSet<QDate> m_importSkippedNights;
     AppleHealthImportSummary m_lastImportSummary;
 };

@@ -4,6 +4,594 @@ Notable bugs found and fixed during development/investigation.
 
 ---
 
+## 2026-10-10 - Rebuild CPAP Data failed for Prisma and deleted the data first (#321)
+
+**Files:** `oscar/SleepLib/loader_plugins/prisma_loader.cpp/.h`, `oscar/mainwindow.cpp`
+
+**Symptom:** Data → Advanced → Rebuild CPAP Data on a Löwenstein Prisma purged all of the
+device's data, then reported "Couldn't find any valid Device Data at …/Backup". The data
+stayed gone until re-imported from the SD card.
+
+**Root cause:** Two problems.
+1. `PrismaLoader::Open()` backs the card up to `Backup/<imported folder name>/`
+   (e.g. `Backup/Prisma/`), but Rebuild opens the `Backup` root, and `Open()` only looked
+   for the config file in the folder it was given.
+2. `on_actionRebuildCPAP()` purged the device before anything checked that the backup was
+   importable. Every normal import path calls `Open()` only on a folder `Detect()` accepts;
+   Rebuild skipped that check.
+
+**Fix:** New `PrismaLoader::findCardPath()`, used by `Open()` and `PeekInfo()`, falls back to
+an immediate subfolder that `Detect()` accepts. Normal imports are unaffected, because they
+already pass a detected folder. Rebuild now runs the loader's `Detect()` on the backup root
+or an immediate subfolder before purging. If neither matches, the user gets a warning
+(default No) instead of the usual confirmation. The backup layouts of the
+Apex/BMC/G3X/Intellipap/PRS1/ResMed/Sefam/Yuwell test profiles all pass `Detect()`.
+ICON, SleepStyle, Resvent and vREM were not checked against real backups; a mismatch
+there produces only the warning, not a blocked rebuild.
+
+---
+
+## 2026-10-10 - Prisma 20A APAP max pressure shown equal to min pressure (#319)
+
+**Files:** `oscar/SleepLib/loader_plugins/prisma_loader.cpp`
+
+**Symptom:** For a Löwenstein prisma 20A in APAP mode, the Daily sidebar showed the
+maximum pressure equal to the minimum (e.g. 7.5–7.5 for a 7.5–9.0 setting). The pressure
+graph was correct. Present since the Prisma Line support was added (1.7.x too).
+
+**Root cause:** The Prisma Line APAP branch took `CPAP_PressureMax` from parameter 1200
+(`PRISMA_LINE_IPAP`). In APAP mode the 20A writes 1200 = 1201 = the minimum; the upper
+limit of the auto range is in 1199 (`IPAP_MAX`), which equalled 1139 (`EEPAP_MAX`) in
+every session of the sample card.
+
+**Fix:** Read the max from `PRISMA_LINE_IPAP_MAX`. Settings are stored per session, so
+existing data needs a re-import or rebuild to show the corrected value.
+
+**Also fixed:** In CPAP mode the Prisma Line branch set `CPAP_Mode` but not `Prisma_Mode`,
+the loader's mode channel, so the sidebar Mode row was blank on 20A CPAP days. It now
+sets `PRISMA_COMBINED_MODE_CPAP`, as the Prisma Smart branch already did.
+
+---
+
+## 2026-10-10 - Preferences Events/Waveforms checkboxes invisible on macOS 27 (#318)
+
+**Files:** `oscar/treecheckdelegate.cpp/.h` (new), `oscar/combocheckdelegate.h`,
+`oscar/preferencesdialog.cpp`, `oscar/oscar.pro`
+
+**Symptom:** On macOS 27 (dark mode), Preferences → Events and Waveforms showed no
+checkboxes in the Name or Overview columns. Clicking the empty cell still toggled the
+setting. Enabling the Fusion theme (with restart) did not bring them back.
+
+**Root cause:** Qt's native macOS style draws item-view check indicators outside the cell
+on macOS 27 (Liquid Glass), so only a first-row/column indicator can appear
+(QTBUG-150017, fixed in Qt 6.12.1 / 6.8.10 / 6.13.0, not 6.12.0). These two trees are
+OSCAR's only checkable item views. Why Fusion was also blank on the reporter's Mac is
+unexplained.
+
+**Fix:** New `TreeCheckDelegate` on columns 0 and 2 of `chanView`/`waveView` paints the
+check box itself with fixed colours (shared `drawOscarCheckBox()` helper, also now used
+by `ComboCheckDelegate`) and does its own hit-testing, so the drawn box and click area
+match. The style still draws background, selection and focus. The box is centred when
+the cell has no text (Overview column). Changes the look on all platforms to match the
+graph context-menu checkboxes.
+
+---
+
+## 2026-10-09 - Alt+Tab blocked on Linux X11 while the mouse is over the graphs (#305)
+
+**Files:** `oscar/Graphs/gGraphView.cpp/.h`, `oscar/daily.cpp`
+
+**Symptom:** On Linux X11 (reported on Debian 13 / Cinnamon), Alt+Tab did nothing while
+the mouse was over OSCAR's graphs. With OSCAR maximized there was no way out without
+clicking. Windows was not affected.
+
+**Root cause:** `gGraphView::mouseMoveEvent()` called `grabKeyboard()` on every mouse move
+and released it only in `leaveEvent()` and `Daily::on_ReloadDay()`. On xcb that is an X
+server keyboard grab, so the window manager never saw Alt+Tab. On Windows the grab only
+redirects keys within the application.
+
+**Fix:** The grab is replaced by ordinary focus. New `gGraphView::takeHoverFocus()` takes
+focus on hover in the active window, remembering the previous focus widget, but leaves
+editable text fields, spin boxes and editable combos alone so typing is never interrupted.
+`leaveEvent()` hands focus back to the remembered widget; a click on the graph clears it,
+so clicked focus stays put as before. The `releaseKeyboard()` in `on_ReloadDay()` is gone.
+A new `enterEvent()` also calls `takeHoverFocus()`. This fixes a related 2.1.0 bug: after
+clicking the Daily tab with the cursor landing on a graph, Left/Right went to the main tab
+bar and switched tabs, because no mouse move had happened yet. Qt sends a synthetic Enter
+event when a widget appears under a still cursor.
+
+## 2026-10-09 - Logger startup unlocked a mutex from a non-owning thread (MR !48)
+
+**Files:** `oscar/logger.cpp/.h`; also `volatile` cleanup in `oscar/daily.cpp`,
+`oscar/mainwindow.cpp/.h`, `resmed_loader.h`, `cms50f37_loader.h`
+
+**Symptom:** None observed; latent undefined behaviour at every startup.
+
+**Root cause:** `initializeLogger()` locked `s_LoggerRunning` on the main thread and
+`LogThread::run()` unlocked it on the logger thread to signal startup. Qt documents
+unlocking a `QMutex` from a thread that does not own it as undefined behaviour.
+`LogThread::running` was `volatile bool`, which gives no cross-thread guarantees, yet
+`isRunning()` is read from arbitrary threads by the message handler.
+
+**Fix:** Startup now hands off through a `QSemaphore` released by `run()` after `running`
+is set and while `strlock` is still held, so `isRunning()` is true once
+`initializeLogger()` returns and `quit()` cannot wake the thread before it waits.
+`running` is `std::atomic<bool>`. `shutdownLogger()` is safe to call twice. The other
+`volatile` fields were only touched on one thread or under a mutex, so they became plain
+types, and the dead `MainWindow::m_inRecalculation` flag (never set true) was removed.
+
+## 2026-10-09 - Empty database created silently when oscar.db went missing (#316)
+
+**Files:** `oscar/main.cpp`, `oscar/datafolderdialog.cpp/.h` (new `showDatabaseMissingChoice()`),
+`oscar/mainwindow.cpp` (`on_actionCompress_Database_triggered()`)
+
+**Symptom:** A macOS user returned after a week away to find OSCAR showing no data. The data
+folder and its profile folder were intact, but `oscar.db` held no profiles or machines; the
+log showed `Found 0 profiles` / `Database empty, falling back to directory scan`.
+
+**Root cause:** `main()` offered the startup dialog only on a first run or when the data
+folder itself was missing; it never checked for `oscar.db`. When the folder existed but the
+file had gone (moved, deleted, removed by a cloud sync or clean-up tool),
+`DatabaseManager::initialize()` saw no file and created a new, empty schema without a word.
+A second, narrower path: in Compress Database, if moving the compacted file into place failed
+and moving the original back from `oscar.db.bak` also failed, the second failure was
+ignored, `initialize()` created an empty database, and the user was told the original had
+been restored.
+
+**Fix:** At startup a recorded folder that `classifyDataFolder()` reports as `Other` (exists,
+holds files, no `oscar.db`, not OSCAR 1.x) now shows "OSCAR Database Not Found", which
+explains how to put a backup back and offers Find my data folder / Create new empty
+database / Exit. An empty folder still counts as a new data folder, as before. Compress
+Database reopens the database only when `oscar.db` exists, falls back to a copy when the
+rename back fails, and if the original still cannot be restored it names the `.bak` file
+and closes OSCAR instead of creating a database.
+
+## 2026-10-07 - Daily sidebar Oximeter Information missing for CPAP-recorded oximetry (#315)
+
+**File:** `oscar/daily.cpp` (`Daily::getOximeterInformation()`, new `sessionHasOximetry()`)
+
+**Symptom:** For CPAPs that store SpO2/Pulse in their own sessions (ResMed and PRS1 with an
+attached oximeter, BMC G3X/E5), the Daily page drew the SpO2 and Pulse graphs and the
+Statistics rows, but the left sidebar's Oximeter Information block (SpO2 Desaturations,
+Pulse Change events, SpO2 Baseline Used) never appeared.
+
+**Root cause:** The block was gated on `day->machine(MT_OXIMETER)`, unchanged since 1.7.1.
+#98 (Statistics page), #103 (Welcome page) and the calendar `hasoxi` fix added an `MT_CPAP`
+fallback for their own screens; the Daily sidebar was never covered (the 2026-07-29 BMC entry
+below already noted the gap). Its rates also divided by `hours(MT_OXIMETER)`, which is 0
+without an oximeter, so simply widening the gate would have printed inf/NaN.
+
+**Fix:** With no enabled oximeter sessions, the block falls back to the CPAP machine when
+one of its enabled sessions has a non-zero SpO2 or Pulse count, and labels the source
+"Recorded by <brand> <model>". All figures are now summed over the chosen machine's sessions
+only (for a CPAP, only those that carried oximetry), so the rates use oximetry hours and a
+CPAP's SpO2 Drop events are no longer folded into a separate oximeter's counts. The baseline
+is the hours-weighted `OXI_SPO2Drop` session setting, as `settings_wavg()` did. Count/sum
+calls are guarded by `m_cnt`/`m_sum.contains()` because `Session::count()` caches 0 for an
+absent channel, which would make `channelHasData()` report it present.
+
+---
+
+## 2026-10-07 - Imports stored NULL event counts and hid OAHI/CAHI (#313)
+
+**Files:** `oscar/SleepLib/machine.h/.cpp`, `oscar/SleepLib/machine_loader.cpp`,
+`oscar/SleepLib/importcontext.cpp`, `oscar/mainwindow.cpp`
+
+Reported as "a day shows a central hypopnea but the AHI block has no OAHI/CAHI line" on a
+freshly imported profile; restarting OSCAR made the line appear. The display was the visible
+part of a wider fault: every import since schema v19 wrote `NULL` into *all* the count
+columns of `session_summaries` and `daily_summaries` — the apnea/hypopnea/RERA counts and
+`rdi`/`oahi`/`cahi` — for devices that plainly report those channels. `ahi` and
+`session_channels` stayed correct, so only SQL reports, CSV exports and the OAHI/CAHI gate
+were wrong.
+
+**Root cause.** Four loaders write a session to the database *before* attaching it to the
+machine: everything on `ImportContext` (Prisma, PRS1) via `ImportContext::AddSession()`, BMC
+and G3X at `bmc_loader.cpp:224`, ResMed at `resmed_loader.cpp:3588` and `:1223`. SEFAM, which
+adds first and lets `Machine::Save()` write, was the only correct one. `Session::Store()`
+reaches `StoreSummaryToDatabase()`, which decides each column's NULL-ness from
+`Machine::hasReportedEvents()`; with no sessions attached yet, `m_reportedChannels` is empty
+and everything is written NULL. The pre-pass in `Machine::Save()` could not repair it, because
+`Session::Store()` clears the dirty flag and the pre-pass only visited `IsChanged()` sessions.
+`calculateDailySummaries()` then wrote all-NULL daily rows, and `Daily::getAHI()`'s
+`reportsHypopneaMechanism()` gate returned false — hence the missing line. A restart masked it:
+`LoadSessionsFromDatabase()` rebuilds the set from `session_channels`.
+
+**Fix.** `Machine::AddSession()` now registers the session's channels, so the set is right
+whatever order a loader uses; the set is mutex-guarded because ResMed and BMC reach
+`AddSession()` from worker threads. The `Machine::Save()` pre-pass visits every session rather
+than only the dirty ones. New `Machine::repairStoredSummaries()` re-applies the NULL rule to a
+device's stored rows from `session_channels`, and the three import paths that already recompute
+daily summaries call it first: `MachineLoader::finishAddingSessions()`,
+`ImportContext::Commit()` and the `MainWindow::importCPAP()` fallback. Databases written by
+2.1.0-beta-1/beta-2 are corrected the next time that device imports, or by Rebuild CPAP Data;
+no migration.
+
+---
+
+## 2026-10-06 - Version tag lagged one build behind a change in git state (#312)
+
+**Files:** `oscar/oscar.pro`
+
+In shadow builds, the qmake rule that regenerates `git_info.h` was named `git_info.h`,
+relative to the build directory, while qmake wrote `version.o`'s dependency as
+`../../git_info.h`. Make treated these as two unrelated files. It judged `version.o`
+against the old timestamp before `update_gitinfo` rewrote the header, so after a new
+commit or a change between a clean and a dirty tree (`-plus`), the exe carried the
+previous tag until the next build.
+
+The rule target and its `PRE_TARGETDEPS` entry now use
+`$$relative_path($$_PRO_FILE_PWD_/git_info.h, $$OUT_PWD)`, which is the same spelling
+as the dependency. In-source builds still get `git_info.h`. Verified with a stale
+`git_info.h`: a single `make` run regenerated it and recompiled `version.cpp`, and a
+second run with no change recompiled nothing.
+
+---
+
+## 2026-10-06 - Profile restore always failed on macOS: "Failed to extract backup package" (#310)
+
+**Files:** `oscar/zip.cpp`
+
+The Zip Slip guard in `UnzipFile::ExtractAll()` compared the extraction root's canonical
+path with an uncanonicalized destination for files that did not exist yet. Restore
+extracts under `QDir::tempPath()`, which on macOS is `/var/folders/...`, and `/var` is a
+symlink to `/private/var`. Qt does not resolve it, so the root resolved to
+`/private/var/...` while each new file stayed under `/var/...`. The first entry,
+`manifest.json`, was rejected as escaping the root, and every restore on a Mac failed.
+The same happened on any platform whose temp path contains a symlink.
+
+The root is now resolved once after it is created, and each entry's destination is built
+from it with `QDir::cleanPath()`. The guard still rejects absolute paths and `..` escapes.
+`ExtractEntry()` was checked and is not affected because its caller supplies the path.
+
+---
+
+## 2026-10-04 - ResMed: STR.edf settings added to existing sessions were not saved (#308)
+
+**Files:** `oscar/SleepLib/loader_plugins/resmed_loader.cpp`
+
+When a day was first imported without settings and a later card's STR.edf had them,
+`ResmedLoader::checkSummaryDay()` added the settings to the day's sessions, which were
+already in the database, and only marked them changed. Nothing saved them afterwards.
+`CloseProfile()` runs `UnloadMachineData()`, which deletes every session, before
+`Profile::Save()`, so the save at close never sees a changed session. The settings were
+lost at the next launch.
+
+Each session is now stored with `Session::StoreToDatabase()` right after its settings are
+added. The sessions were loaded in full by `LoadFromDatabase()` when the profile opened,
+so the channel, slice and summary rows written alongside the settings keep their values.
+`Session::Store()` was not used because it sets `s_events_loaded`, which would stop the
+session's event data being read from the database later.
+
+A sweep of every `SetChanged(true)` found no other case that relies on a save at close.
+New loader sessions are saved by the import tasks. Recompress/Reprocess call
+`SaveSession()`. Daily journal edits are saved by `Daily::Unload()`, which `CloseProfile()`
+runs first. `Session::setEnabled()` writes straight to the database.
+
+---
+
+## 2026-10-04 - Imported journal entries were not saved; legacy summary files removed (#307)
+
+**Files:** `oscar/SleepLib/journal.cpp`, `oscar/SleepLib/machine.cpp`,
+`oscar/SleepLib/machine.h`, `oscar/SleepLib/session.cpp`, `oscar/SleepLib/session.h`,
+`oscar/SleepLib/profiles.cpp`, `oscar/SleepLib/importcontext.cpp`, `oscar/mainwindow.cpp`,
+`oscar/oximeterimport.cpp`, `oscar/tests/applehealthtests.cpp`, and the applehealth,
+dreem, resmed, somnopose, viatom and zeo loaders
+
+`Journal::RestoreDay()` (Import Journal) marked the journal session changed, called
+`Machine::SaveSummaryCache()`, then cleared the changed flag. `SaveSummaryCache()` only
+wrote the legacy `Summaries.xml.gz` and `.000` files, so nothing reached the database and
+the imported notes, weight, feelings and bookmarks were lost at the next launch. It now
+calls `Session::StoreToDatabase()`, as `Daily::Unload()` does.
+
+Found during a sweep for code that still reads OSCAR 1.x data files. The sweep also removed:
+- `Machine::SaveSummaryCache()` and `Session::StoreSummary()`, which still wrote
+  `Summaries.xml.gz` and `Summaries/*.000` after every import, purge and session delete
+  although nothing read them.
+- The file fallback in `Machine::Load()`. When a device had no sessions in the database
+  it read `Summaries.xml.gz` (making session shells the database could not fill), scanned
+  `Summaries/*.000`, and read/wrote `Sessions.info`. `Machine::LoadSummary()`, `LoadTask`,
+  and `load`/`saveSessionInfo()` went with it. A device with no sessions now simply loads
+  none.
+
+Journal `.000` migration (`Journal::MigrateToDatabase`) and the 1.x profile importer still
+read these files, as they should.
+
+The same sweep found a ResMed case that lost data the same way; see the #308 entry above.
+
+---
+
+## 2026-09-30 - F12 still garbled the on-screen graphs while the Save dialog was open (#237)
+
+**Files:** `oscar/mainwindow.cpp`
+
+A tester on the 2026-09-29 fix (below) reported the saved screenshot clean, but the graphs
+on screen were garbled while the Save dialog was open, recovering on Cancel. The Qt 6.10.2
+source explains it: `QWidget::grab()` captures a `QOpenGLWidget` through
+`QOpenGLWidgetPrivate::grabFramebuffer()`, which calls `render()` - a full `paintGL()` into
+the widget's own framebuffer, the one composed on screen - and then reads it back. On the
+affected driver that extra pass is what comes out garbled, so it spoiled the screen as well
+as the grab until the next normal repaint. Painting the raster render over the grab only
+fixed the file.
+
+`DelayedScreenshot()` now renders each visible graph view to a raster pixmap first, hides
+the views for the `grab()` (`paintSiblingsRecursive()` skips hidden children, so no GL pass
+runs), and shows them again before returning to the event loop, restoring keyboard focus if
+a hidden view had it. The raster renders are then painted into the grab, clipped to each
+view's visible region, as before.
+
+---
+
+## 2026-09-29 - F12 screenshot graph pane overlaid with coloured specks on some GPUs (#237)
+
+**Files:** `oscar/Graphs/gGraphView.h/.cpp`, `oscar/mainwindow.cpp`
+
+The F12 screenshot used `QWidget::grab()` on the main window. Each graph view is a
+`QOpenGLWidget`, so grab() reads it back from the GL framebuffer, and on some drivers
+(first seen on NVIDIA) that readback comes back overlaid with a regular lattice of
+multi-coloured specks. The screen and the underlying render were always correct, and the
+Software graphics engine avoided it - both pointing at the driver's readback, not OSCAR's
+drawing. First closed as a driver issue with the Software-engine workaround; reopened
+after a second report.
+
+`gGraphView::paintGL()` is split: the drawing body is now `paintView(QPainter&)`, and the
+new `renderToRasterPixmap()` runs it on a raster `QPixmap` at the widget's device pixel
+ratio. The graph layers draw only through `QPainter`, so that is the same picture as on
+screen with no GL involved. `MainWindow::DelayedScreenshot()` still grabs the window, then
+repaints every visible graph view belonging to the window over its grabbed area from
+that raster render, clipped to the view's visible region.
+
+---
+
+## 2026-09-15 - Database schema upgraded silently at startup, with no way to decline and no progress
+
+**Files:** `oscar/main.cpp`, `oscar/database/database_manager.h/.cpp`, `oscar/database/database_schema.h/.cpp`
+
+`DatabaseManager::initialize()` ran every pending schema migration as soon as it found an older
+database. A loader data-format change gets `Profile::DataFormatError()` - an explanation, a
+warning that the profile can no longer be opened by the previous version, and a No that exits -
+but the schema upgrade, which is equally irreversible, had none of that. It also ran on the GUI
+thread with no dialog, so a multi-minute migration looked like a hang.
+
+`initialize()` now opens an older database without touching it and reports the on-disk
+version through `pendingSchemaUpgradeFrom()`. `main()` then asks: **Back up and upgrade**
+(default), **Upgrade**, or **Exit**. Exit closes the connection and marks a clean shutdown.
+The backup is `DatabaseManager::snapshotTo()` - `VACUUM INTO` on a private connection, so it
+is one self-contained file (`oscar-backup-v<N>-<timestamp>.db` beside `oscar.db`) that includes
+everything still in the WAL; a hand copy of `oscar.db` alone would miss that. Free space is
+checked first, and a failed backup offers "Upgrade without backup" or Exit. The copy and the
+migrations run on a worker thread (`DatabaseManager::upgradeSchema()`, also on a private
+connection with the same per-connection pragmas) behind an application-modal progress dialog
+that names the step (`step n of m`). There is no Cancel: each migration is one transaction
+that cannot be interrupted, and the choice to stop was offered before anything changed.
+`completeInitialization()` then finishes what `initialize()` used to do after a migration.
+`DatabaseSchema::upgradeSchema()` was rewritten as a step table so it can count steps and
+report them. The `databaseError` connection in `main()` now has `qApp` as its context so an
+emission from the worker thread (via `checkQueryError()`) is queued to the GUI thread.
+
+---
+
+## 2026-09-15 - OAHI/CAHI shown for devices that cannot report them (#261)
+
+**Files:** `oscar/SleepLib/machine.h/.cpp`, `oscar/SleepLib/session.cpp`,
+`oscar/database/session_summaries_repository.h/.cpp`, `oscar/database/daily_summary_repository.h/.cpp`,
+`oscar/database/database_schema.h/.cpp`, `oscar/SleepLib/loader_plugins/{bmc,sefam,prisma}_loader.cpp`,
+`oscar/daily.cpp`, `oscar/reports.cpp`, `oscar/statistics.cpp`, `oscar/docs/system_reports.orf`,
+`oscar/tests/machinetests.h/.cpp`
+
+OAHI/CAHI were computed and displayed for every device. For any device that does not split
+hypopneas by mechanism (everything except BMC G3X, SEFAM and prisma) OAHI merely restated
+AHI and CAHI the clear-airway rate, implying a classification the device never made. Legacy
+BMC devices also listed `OH 0.00 / CH 0.00` in the Daily events list and the Statistics
+per-channel rows, because the shared BMC event writer pre-created the OH/CH lists and an
+empty list is stored as a zero-count `session_channels` row, which is what
+`Machine::hasChannel()` reads. The summary tables stored 0 in `oahi`/`cahi` and the OH/CH
+counts for those devices, indistinguishable from "scored none".
+
+Capability is now derived from the data: `Machine::m_reportedChannels` (channels with
+count > 0 on some session, ever), `hasReportedEvents()` and `reportsHypopneaMechanism()`,
+computed on the main thread at load and in a pre-pass in `Machine::Save()` before the
+parallel `SaveTask`s write summary rows. The Daily sidebar, printed report and Statistics
+page gate on it (Statistics per period: `"-"` unless every CPAP day in the period is from a
+capable device). The three OH/CH loaders create those two lists on the first event only.
+The summary tables store `NULL` for metrics that do not apply (schema v19, with the #285
+recompute relocated from v18 so v18 tester databases receive it). A device reporting a
+channel for the first time after rows exist has its earlier rows rebuilt from
+`session_channels`. `system_reports.orf` sums were `COALESCE`d — `SUM()` over an all-NULL
+group is `NULL`, which would have blanked every ResMed profile's RDI.
+
+Design: `Notes/specs/2026-09-14-oh-ch-capability-gating-design.md`.
+
+---
+
+## 2026-09-13 - First-run setup let users pick the parent folder instead of creating OSCAR20_Data (#291)
+
+**Files:** `oscar/datafolderdialog.h/.cpp` (new), `oscar/main.cpp`, `oscar/mainwindow.cpp`,
+`oscar/SleepLib/preferences.h/.cpp`, `oscar/oscar.pro`
+
+When OSCAR had no data folder (first run, or the recorded folder had gone) it asked a
+yes/no question and then, for "No", showed one directory picker titled "Choose or create a
+new folder for OSCAR data". Users did not realise they had to create the new folder inside
+the picker before returning it, so they handed back the intended parent - usually Documents
+- and OSCAR initialised its database there. File > Database > New used the same picker and
+had the same failure mode. A second, smaller defect: the default path was written to
+`Settings/AppData` before the user had chosen anything, so cancelling on a first run made
+the next launch look like a lost folder; `--datadir` did the same, persisting a path the
+moment it was parsed even if the folder did not exist and the user then cancelled.
+
+Creating a folder and finding one are now separate paths:
+
+- **OSCAR 2 Startup** offers *First Use of OSCAR 2* / *Find my OSCAR 2 data folder* /
+  Cancel. When a recorded folder is missing, its path is shown and *Find* is the default.
+- **OSCAR 2 Initial Setup** (`DataFolderCreateDialog`) takes the folder *name* and the
+  *location* separately and creates the folder itself, showing the full path it will
+  create as the fields change. It rejects invalid names (reserved characters and Windows
+  device names, trailing space or period), a location that does not exist, and a target
+  that holds OSCAR 1.x data, an OSCAR 2 database, or anything else; warns when the location
+  looks cloud-managed (OneDrive, Google Drive, Dropbox, iCloud - Windows often redirects
+  Documents into OneDrive silently); then creates the folder and checks it is writable.
+- *Find* accepts only a folder containing `oscar.db` and explains a 1.x folder.
+- `Settings/AppData` is written only once a folder is confirmed: after the dialogs, or,
+  for `--datadir`, once the folder is known to exist. `SetAppData()` gained a `persist`
+  flag so `--datadir` can set the in-memory path without recording it.
+- **OSCAR 1.x Data Migration** now offers *Migrate* / *Skip migration* / *Cancel*. Cancel
+  closes the database, lock and log, removes the just-created folder, and restores
+  `Settings/AppData` to the folder recorded before launch (or the most recent remaining
+  database after a Database > New relaunch, or nothing), so the next start returns to the
+  Startup dialog rather than silently adopting an empty folder.
+- File > Database > New uses the same creation dialog (default name pre-filled, location
+  = parent of the current folder); Database > Open tells the user when a 1.x folder was
+  selected and points at File > Profiles > Import from OSCAR.
+- Dialogs shown before the preferences are loaded used the platform default font (9 pt on
+  Windows) and looked smaller than the rest of OSCAR. `main()` now applies OSCAR's default
+  application size (`DefaultApplicationFontSize`, 10 pt) as soon as the QApplication
+  exists; `setApplicationFont()` still applies the user's preference later. That alone did
+  not fix QMessageBox text: `MainWindow`'s constructor sets an application stylesheet,
+  which goes through `QApplication::setStyle()` and re-applies the platform theme's
+  per-class fonts - on Windows a 9 pt "message box font" for `QMessageBox`. The three
+  setup screens are therefore plain `QDialog`s (`SetupChoiceDialog`, `DataFolderCreateDialog`)
+  sharing one frame: bold heading, 28 px margins, 600 px minimum width, resizable, no icon.
+
+---
+
+## 2026-09-13 — SEFAM: rejected sessions counted as imported and leaked; all-blower-off sessions inflated usage
+
+**File:** `oscar/SleepLib/loader_plugins/sefam_loader.cpp`
+
+Both from an external code review of the loader.
+
+### 1. `Machine::AddSession()`'s return value was ignored
+
+`AddSession()` refuses a session that is a duplicate, has a zero start time, or is
+older than the profile's ignore-older-sessions cutoff (`machine.cpp:306-332`), and takes
+no ownership when it does. The loader called it, discarded the result, and incremented
+`imported` regardless — so a refused session was reported as imported, its span and
+usage were added to the run totals, and the `Session` leaked. The Apex loader is the
+pattern: check the return and delete on failure. Now done, with the session counted as
+skipped; `AddSession()` has already logged the reason.
+
+### 2. An entirely blower-off session was imported with its full span as usage
+
+`addMaskSlices()` returned early with no slices for a session in which the blower never
+ran. An empty slice list means "no slice information", so `Session::hours()` fell back to
+the full powered-on span — the opposite of the intent, and a known limitation recorded
+when the blower-off exclusion was written. It was reachable: every session with a log
+gets its six event lists whether or not any event fell in it, so the "no valid samples"
+check in `Open()` never caught these.
+
+The review suggested all-MaskOff slices, which make `hours()` zero. That is not safe:
+`Session::cph()` (`session.cpp:2202`) and `Day::cph()` (`day.cpp:1109`) divide by
+`hours()` with no guard, and `Session::cph()` runs in `UpdateSummaries()`, so 0/0 would
+be stored as NaN in `session_channels.cph`. The session-summary and Day AHI paths do
+guard, but those two do not.
+
+Such a session is now skipped instead: `addMaskSlices()` returns false and `Open()`
+drops it with a warning. Nothing in it would have survived the blower-off exclusion —
+every waveform sample is invalidated — so the only loss is the record of the machine
+having been switched on. One session on the validated Rêve card is affected: 7 minutes
+of overstated usage out of 158 h.
+
+**Not changed:** the unguarded divisions in `cph()`. Any loader that produces a
+zero-hour session with events hits them; a one-line guard in each would let an all-off
+session be kept with zero usage, which is what the vendor software shows. Left for a
+separate decision since it is core code, not loader code.
+
+## 2026-09-12 - Czech UI still shows English day and month names in dates (#283)
+
+**Files:** `oscar/translation.cpp`
+
+A Czech user reported that the Welcome page shows "pátek 11. září 2026" but Statistics,
+Overview, device information and the calendar button show "Fri 11. Sep 2026" and
+"07 Jul 2026 (Tuesday)". Commit b071ac84 had already switched those call sites from
+`QDate::toString(format)` (always English names in Qt 6) to `QLocale().toString(date,
+format)` and added `QLocale::setDefault(QLocale(language))` after installing the
+translators, so the fix should have covered them.
+
+The root cause is the language code. OSCAR derives it from the catalogue filename, and the
+Czech catalogue is `Czech.cz.ts`, so `language` is `"cz"`. That is not an ISO 639 code
+(Czech is `cs`), and `QLocale("cz")` silently returns the C locale. The default locale was
+therefore English and every `QLocale().toString()` produced English names, while the
+Welcome page - which uses `QLocale::system()` directly - was correct on a Czech Windows.
+`English.en_UK.ts` has the same defect: territory `UK` is not ISO 3166 (`GB` is), so
+`QLocale("en_UK")` resolves to en_US formats.
+
+Renaming the catalogues would have needed a settings migration (the code is stored in
+QSettings) and touched the translation tooling, which keys on `cz` in several places.
+Instead the default locale is now built from `QTranslator::language()`, the language tag
+that `lrelease` embeds in the `.qm` from the `.ts` header (`cs_CZ` and `en_GB`
+respectively - verified in the compiled `Czech.cz.qm`), falling back to the filename code
+only if the tag is absent. All 31 catalogues declare a valid `language` attribute.
+
+---
+
+## 2026-09-11 - SpO2 dotted lines: 95% and 99.5% (Max) lines indistinguishable (#281)
+
+**Files:** `oscar/SleepLib/schema.cpp`
+
+Originally CrimsonNape/OSCAR-code #41. The reporter believed the 95% and 99.5% dotted
+lines on the SpO2 graph shared a line of code. They do not: `Day::calcPercentile()` and
+`Day::calcMax()` call `percentile()` with 0.95 and 0.995 respectively. The lines look
+identical for two reasons.
+
+SpO2 is integer-valued over a narrow range and `percentile()` returns an observed
+sample value, so the 95th and 99.5th percentiles often land on the same or adjacent
+integer (8 of 40 sessions in the test database were identical; most differed by 1-2).
+
+The real defect was the colour scheme. `adjustcolor()` derived the Min / Middle /
+Percentile / Max line colours by multiplying the channel's RGB components, plus a
+`rand() & 64` jitter. For a saturated primary base such as SpO2's pure blue (0,0,255)
+the red and green components are zero and stay zero, so all four lines came out
+(near-)pure blue - the same as the SpO2 plot and the hard-coded blue Lower Threshold
+line. The jitter was 0 or 64 per component, so the lines were frequently exactly the
+same colour, and different from run to run.
+
+Fix: replaced `adjustcolor()` with `calcLineColor()`, which rotates the base colour's
+hue by a fixed offset per calc type (-72, 72, 144, 216 degrees), spacing the four lines
+and the base colour evenly around the colour wheel. Greyscale bases (Snore, PS, Flow
+Limit, etc.) have no hue to rotate, so they are given a fixed saturated hue and a
+lightened value first. This changes the dotted-line colours on every waveform graph;
+the colours are not persisted anywhere, so there is no migration impact.
+
+---
+
+## 2026-09-11 - PRS1: summary-only Clear0/Clear1 duplicates overwrite full sessions (#280)
+
+**Files:** `oscar/SleepLib/importcontext.cpp`, `oscar/SleepLib/importcontext.h`
+
+Reported on ApneaBoard with a fix by the reporter. When Encore clears a PRS1 card it
+moves the old data into a `ClearN` folder and writes summary-only copies of earlier
+sessions, under the same session IDs, into the new folder. `PRS1Loader::Open()` walks
+every P-Series subfolder that has a PROP.TXT (Clear0, Clear1, ..., serial folder) in one
+run, and `ScanFiles()` skips already-imported sessions via `context()->SessionExists()`.
+That only consulted `Machine::sessionlist`, which is not filled until
+`ImportContext::Commit()` runs after `Open()` returns - so the check was false for the
+whole run and every duplicate was imported again.
+
+The `finishAddingSessions()` call at the end of `PRS1Loader::OpenMachine()` does not
+help: it iterates `MachineLoader::new_sessions`, which the PRS1 loader never populates
+(`PRS1Import::run()` hands sessions to `ImportContext::AddSession()` instead).
+
+In 2.0 the damage is done in `Session::StoreToDatabase()`: the duplicate finds the
+existing row, updates it as summary-only, and replaces `session_settings` and
+`session_channels` with the summary-only set, wiping the full channel data. Then
+`m_sessions[sid] = session` replaced the pointer, leaking the full Session, so `Commit()`
+added only the summary-only copy. The result is long runs of empty days in the AHI and
+event graphs, both on a first import of such a card and on a rebuild from backup.
+
+Fix (two commits cherry-picked from the reporter's fork): `SessionExists()` now also
+returns true for a session already pending in `m_sessions` for the same machine, so
+the first folder's copy wins as it did before commit `947a27b7` moved the commit out of
+the loader. As a second line of defence `AddSession()` rejects a duplicate session ID
+before `Store()` is called, deletes it and logs a warning. PRS1 is the only caller of
+`context()->SessionExists()`; Prisma dedups its own IDs, so neither change affects it.
+The reporter's third commit (a mutex around `Store()`) was not taken: import
+multithreading is hard-disabled in `AppSettings`.
+
+Same defect exists in 1.7.1 (`importcontext.cpp:55`); the reporter's OSCAR-code fork
+carries matching branches for a backport.
+
+---
+
 ## 2026-09-09 - macOS 27: clicking the menu-bar icon aborts OSCAR (#279)
 
 **File:** `oscar/mainwindow.cpp`
@@ -5565,11 +6153,11 @@ Deliberately not changed: scored events. Only 7 of 1568 fall inside an off-span 
 they sit at the detection boundaries; dropping them would disturb counts validated
 against the vendor to within one event.
 
-Known limitation: a session that is entirely blower-off gets no slices and a warning,
-so its usage falls back to full span (7 min out of 158 h on the validated card). An
-empty slice list means "no slice information", and the alternative is worse -
-`Day::cph()` divides by `hours()` unguarded (`day.cpp:1109`, and `sph()` likewise), so
-a zero-usage day would yield inf/nan.
+Known limitation *(closed 2026-09-13 — such sessions are now skipped; see that entry)*:
+a session that is entirely blower-off gets no slices and a warning, so its usage falls
+back to full span (7 min out of 158 h on the validated card). An empty slice list means
+"no slice information", and the alternative is worse - `Day::cph()` divides by `hours()`
+unguarded (`day.cpp:1109`, and `sph()` likewise), so a zero-usage day would yield inf/nan.
 
 ## 2026-08-04 - Session::avg() divides by only the last EventList's count (#260)
 
@@ -6111,3 +6699,292 @@ already in the file.
 around the `<lengthvariant>` children, and the old code would have rewritten that
 whitespace had it ever met a translation marked both `type="unfinished"` and
 `variants="yes"`. No catalogue currently contains one.
+
+## 2026-09-12 - session_summaries.ahi disagreed with its own event counts and the Daily page (#285)
+
+A SQL report over `session_summaries` showed `ahi` below the value obtained by dividing
+the row's own event-count columns by its hours, and below what the Daily page shows for
+the same night. One ResMed session had 6 hypopneas in 8.07 h: Daily page and count/hours
+both give 0.74, the stored `ahi` was 0.68.
+
+`Session::StoreSummaryToDatabase()` preferred `m_wavg[CPAP_AHI]` whenever the session had
+that channel, falling back to count/hours only for summary-only sessions. The comment
+described the cached value as "device-reported", but no loader produces a `CPAP_AHI`
+channel: it is the rolling 60-minute AHI *graph* built by `calcAHIGraph()`. The average of
+that graph is not events per hour. Each event contributes to the rolling window for one
+hour after it occurs, or for the rest of the session if less than an hour remains, so
+events in the last hour are under-weighted and the graph average is systematically below
+count/hours. Replaying `calcAHIGraph()`'s loop over the stored hypopnea times of the
+example session reproduces the stored 0.6804 exactly (its last two events fall 43 min
+before the session end). `rdi` had the same defect and, because only the PRS1 loader gets
+a `CPAP_RDI` graph, was stored as 0 for every other device.
+
+`StoreSummaryToDatabase()` now derives `ahi`, `rdi`, `oahi` and `cahi` from event counts
+divided by `hours()` - mask-on time when slices exist, the full span otherwise - which is
+the denominator `Day::calcAHI()` uses for the Daily page and the one 1.7.1's per-session
+CSV export used (`count(AllAhiChannels) / sess->hours()`). It is also the `mask_on_hours`
+column, so the stored indices now agree with the `by Session` system report's
+count-based formulas. Previously `oahi`/`cahi` used `hoursUsed` (full span); they follow
+the same denominator now so OAHI + CAHI == AHI still holds per row.
+
+Existing rows are repaired by the v17 -> v18 migration, which now recomputes `ahi`,
+`rdi`, `oahi` and `cahi` for every `session_summaries` row as the sum of
+`session_channels.cph` over each channel group, in two SQL UPDATEs (under a second for
+56,000 rows on the test database), after first filling `all_apnea_count` from
+`session_channels`. `cph` is `count / hours()` kept as a REAL, so the sum is exactly the
+value the fixed `StoreSummaryToDatabase()` produces. The first version of the backfill
+divided the integer count columns by `mask_on_hours` instead; that is wrong for ResMed
+summary-only sessions, whose counts are fractional (STR index x hours, e.g. 5.94
+hypopneas) and are truncated by the INTEGER columns, so it would have stored 5/6.6 =
+0.76 where the Daily page shows 0.9. It was folded into the existing v18 step rather
+than a new schema version because v18 had only reached a few testers; databases already
+at v18 do not re-run it, so those testers need *Rebuild CPAP Data* (or a re-import) to
+correct their historical rows.
+
+## 2026-09-12 - daily_summaries not refreshed on import for BMC/G3X/Resvent, nor after a machine purge (#286)
+
+Found while cross-checking #285. For one BMC profile, 27 single-session days had
+`daily_summaries` rows (`mask_on_hours`, `ahi`) that no longer matched the sessions or the
+Daily page. The rows were timestamped the evening before a Rebuild CPAP Data that re-stored
+every session with different mask-on slices, and nothing had recomputed them since.
+
+Three things combined:
+
+- `bmc_loader.cpp` (whose `BmcLoaderTask` also serves `bmcg3x_loader.cpp`) and
+  `resvent_loader.cpp` add sessions with `mach->AddSession()` directly. They never call
+  `MachineLoader::finishAddingSessions()`, which is where every other loader's import runs
+  `Profile::calculateDailySummaries()`, and they do not use `ImportContext`, whose
+  `Commit()` recomputes the imported days. `MainWindow::importCPAP()` had no recompute of
+  its own, so for these loaders nothing refreshed `daily_summaries` at import time.
+- `MainWindow::purgeMachine()`, which Rebuild uses, deleted the sessions but left the
+  machine's `daily_summaries` rows in place.
+- The load-time reconcile added for #239 only fills *missing* days, so a stale existing row
+  never self-healed. New BMC days were therefore filled in on the next launch, but any day
+  that was re-imported (Rebuild, or BMC's routine re-import of the last day on the card)
+  kept the row computed from the earlier data.
+
+Fix: `MachineLoader` now records whether `finishAddingSessions()` ran during the current
+import (`dailySummariesCalculated()`, reset by `importCPAP()` before `Open()`), and
+`importCPAP()` runs `calculateDailySummaries()` itself, inside the import transaction, when
+sessions were imported and the loader did not. `purgeMachine()` now invalidates the purged
+machine's date range in `daily_summaries` and recomputes what the remaining machines still
+cover. No loader code was changed.
+
+Two other things turned up in the same cross-check. The first is fixed as #287 below; the
+second is left alone:
+
+- ResMed summary-only sessions carry fractional event counts (STR index x hours, e.g. 5.94
+  hypopneas). `ahi` is computed from the float counts and is right; the INTEGER count columns
+  in `daily_summaries`, `session_summaries` and `session_channels` truncated them (#287).
+  `session_channels.cph` (REAL) is the exact rate - which is why the #285 backfill sums
+  `cph` rather than dividing the count columns.
+- `Session::LoadFromDatabase()` restores those counts as `qRound(cph * hours)`, so after a
+  reload the Daily page shows e.g. 1.81 where the import-time value was 1.8. At most half
+  an event; not worth a fix.
+
+## 2026-09-12 - Fractional event counts truncated, not rounded, when stored (#287)
+
+ResMed summary-only sessions get their event counts as STR index x hours
+(`resmed_loader.cpp`, `setCount(CPAP_Hypopnea, R.hi * sess->hours())`), so `m_cnt` holds
+values like 5.94. Commit `23d99481` (2026-02-02) made `LoadFromDatabase()` rebuild those
+counts as `qRound(cph * hours)`, but the three places that write them never got the same
+treatment and converted float to int by truncation: `session_channels.count`
+(`session.cpp`, `channel.count = m_cnt.value(id, 0)`), the `session_summaries` count
+fields (`StoreSummaryToDatabase()`), and the `daily_summaries` count fields
+(`DailySummaryRepository::calculateFromDay()`, `static_cast<int>`). The database therefore
+held the floor while the app showed the rounded value: in the test database all 331
+decisive summary-only ResMed rows (fraction >= .5) stored the floor - 5.81 -> 5,
+16.71 -> 16, 0.56 -> 0 - and SQL sums over the count columns understated those days by up
+to one event per channel.
+
+All three sites now use `qRound()`. Existing rows are not rewritten; `session_channels.cph`
+is unaffected and remains the exact rate.
+
+## 2026-09-13 - Session::count() truncated fractional counts when summing the AHI group (#288)
+
+Found by an external review of the four commits above. `Session::count()` declared its
+accumulator as `int sum = 0;` (unchanged since 2021), and the channel-group path added
+for the CH/OH split (`bede825f`) does `sum += count(group->at(i))`, so each fractional
+per-channel count was truncated as it was added: `count(AllAhiChannels)` returned 5 for a
+ResMed summary-only session with 5.94 hypopneas. `Day::count()` uses an `EventDataType`
+accumulator, so the Daily page and `daily_summaries` were unaffected, but the #285 change
+to `StoreSummaryToDatabase()` divides `count(AllAhiChannels)` by `hours()`, so the next
+store of such a session would have written 5/6.6 = 0.76 where the Daily page and the
+v17 -> v18 backfill (sum of `session_channels.cph`) both give 0.9. `cph()` and `rdi` go
+through the same `count()`. No row in the test database shows it yet: every summary-only
+session there was stored before `bede825f`.
+
+The accumulator is now `EventDataType`. The event-list path stores the same `sum` into
+`m_cnt`, which is already an `EventDataType` hash, so nothing else changes.
+
+## 2026-09-18 - Prisma LINE config parsing: junk machines, miniz leak, unchecked extracts (#294)
+
+Found while reviewing !43. `PrismaLoader::PeekInfoFromPrismaLineConfig()` initialised its
+result from `newInfo()` (type already `MT_CPAP`) and returned that same object when
+`config.pcfg` could not be opened or was not a valid zip, so `Open()`'s
+`info.type == MT_UNKNOWN` guard never fired for a LINE card. A corrupt or truncated
+`config.pcfg` therefore produced `serial=""`, `model="Unknown Model"`, and `Open()` went on
+to `CreateMachineFromInfo()` -> `SaveToDatabase()`, which only rejects a record when serial
+*and* model are empty - leaving a Prisma machine row with an empty serial in `machines`.
+The SMART branch of `PeekInfoFromConfig()` already returned `MachineInfo()` on failure.
+
+Two more problems in the same function: `mz_zip_reader_end()` was never called after
+`mz_zip_reader_init_mem()`, leaking the reader's heap state on every call; and the result
+of `mz_zip_reader_extract_file_to_heap()` was not NULL-checked, so a zip without
+`mnt/flash/conf/device.xml` built a `QByteArray` from a null pointer and an uninitialised
+size, then parsed an empty document without any diagnostic.
+
+Every failure path (open, zip init, missing `device.xml`, invalid XML, missing
+`DeviceSerialNumber`) now logs a warning and returns `MachineInfo()`, and the reader is
+ended as soon as the member has been extracted.
+
+Two related defects fixed at the same time:
+
+- `PeekInfo()` passed `<card>/config.pscfg` into `PeekInfoFromConfig()`, which appends the
+  config filename itself, so it looked for `<card>/config.pscfg/config.pscfg` and always
+  returned an empty `MachineInfo`. The "CPAP Data Located" prompt therefore never showed a
+  Prisma model/serial, and the "different SD card" warning could never trigger for Prisma.
+  It now passes the card root.
+- `Open()`'s `therapy.pdat` loop had the same unchecked extract: a session with only an
+  event file or only a signal file (`eventFiles[sid]` / `signalFiles[sid]` defaulting to an
+  empty name) or a member that fails to extract produced the same null-pointer
+  `QByteArray`. Missing or unextractable members now yield an empty buffer, which
+  `PrismaImport::run()` already handles, matching the directory-based `ImportDataDir()`.
+
+## 2026-09-22 - Somnopose imports stored no event data; graphs showed "Plots Disabled" (#296)
+
+After importing a Somnopose CSV, the Inclination and Orientation graphs showed "Plots
+Disabled", while OSCAR 1.7.1 plotted them. The session had `session_channels` rows but no
+`event_lists` rows.
+
+`Machine::SaveToDatabase()` refused to create a machine record when serial *and* model were
+both empty. The Somnopose `model=`/`serial=` headers are optional, and the loader copies
+them over `newInfo()`'s defaults even when absent, so a typical CSV yields a machine with
+neither. The loader's `mach->Save()` therefore skipped every session. `Profile::StoreMachines()`
+then created the machine row (it has no such guard), and the session summary was written
+when the profile closed, but by then the event lists had been released, so no event data
+was ever stored.
+
+The guard now applies only to machines that are not single-instance: oximetry, position,
+sleep-stage and journal machines (the types `Profile::CreateMachine()` treats as one per
+loader) may be saved with empty serial and model, identified by (serial "", loader,
+profile). CPAP machines keep the guard against junk rows from unidentified cards (#294).
+A loader name is now also required.
+
+Existing Somnopose data imported by the affected build has no event data and must be
+purged and re-imported (re-importing alone skips the already-present session).
+
+## 2026-09-22 - Machine identity changes were never written back to the database (!43)
+
+Review follow-up to the contributed prisma20A support. `Machine::setInfo()` only ever
+updated the in-memory `MachineInfo`, so anything a loader learned after a machine's record
+was first written was discarded at shutdown and re-read stale on the next launch: a model
+name added to a loader's tested-models table (the prisma20A case), a corrected series, and
+the data version — the last of which made `Profile::DataFormatError()`'s "needs upgrade"
+prompt reappear on every launch even after the user had upgraded. Nothing else covers it:
+`ImportContext::CreateMachineFromInfo()` and `Profile::storeMachinesToDatabase()` both skip
+machines that already have a database id, and `Machine::SaveToDatabase()`'s existing-record
+branch is only reached before `m_database_id` is set.
+
+The contributed fix updated the model only when the stored value was empty or contained the
+literal "Unknown", which never matched other loaders' placeholders - ResMed writes
+`"Resmed ???"` (`resmed_loader.cpp:68`) - and could not correct a stored model that was
+simply wrong, such as the Lumis 150 misidentified as an S9. It also duplicated, with
+different rules, the identity-update logic already in `SaveToDatabase()`.
+
+Both sites now share `applyIdentityTo()`, which overwrites brand, model, model number,
+serial and series whenever the incoming value is non-empty and differs, plus machine id and
+data version when those are non-zero and differ. Non-empty-wins means a loader that supplies
+nothing for a column leaves the stored value alone; dropping the "Unknown" test means any
+corrected name is persisted whatever the old one said. `setInfo()` compares the incoming
+`MachineInfo` against the previous one first, so the common case - re-importing a device
+whose identity has not changed - costs no database round trip.
+
+Also in the same review: the Prisma loader recorded the device firmware in
+`MachineInfo::series`. `series` is a lookup key - it selects the device pixmap
+(`Machine::getPixmap()`) and is matched against in the SD-card warnings
+(`welcome.cpp:58`) - so a version string there would rule out ever keying a Prisma icon off
+it. Firmware now goes to `info.properties["firmware"]`, spelled as in
+`bmcg3x_loader.cpp:52`, and joins `FWVersion` with `FWRevision` so it reads `5.07.0002` as
+the vendor's prismaTS report shows it. Note that loader-set properties are currently not
+persisted at all: `SaveToDatabase()` writes `{"capabilities":N}` over the column for a new
+record and does not touch it for an existing one, so the value lives only in memory and the
+debug log. Making properties persist is a separate change.
+
+The speculative `"0x0a"`/`"0x0A"` entries were dropped from `s_PrismaTestedModels`: LINE
+devices report `DeviceType` as a decimal string, and the hex ids belong to the Firefly
+platform's JSON `devid`, so those entries could never match.
+
+## 2026-09-22 - New profile creation hung OSCAR in an infinite date loop (#297)
+
+Clicking Finish in the new-profile wizard left OSCAR unresponsive with one core pinned.
+The debug log stopped after `DoctorInfoRepository: Updated doctor_info record id <n>` and
+never reached `Statistics::GenerateHTML: entered`, which placed the hang between the end of
+`Profile::saveExtendedDataToDatabase()` and the first line of `Statistics::GenerateHTML()`.
+The only computation in that window is the `Statistics` constructor, which calls
+`anyMechanismDays(p_profile->FirstDay(MT_CPAP), p_profile->LastDay(MT_CPAP))`.
+
+A brand-new profile has no CPAP days, so both dates come back invalid. `mechanismDays()`
+iterates `for (QDate date = start; date <= end; date = date.addDays(1))`, and
+`QDate().addDays(1)` is itself invalid: every invalid QDate carries julian day 0, so
+`date <= end` stays true and `date` never advances. The loop spins forever - one thread at
+100%, the GUI thread never returning to the event loop, hence "not responding" rather than a
+crash. `NewProfile` calls `MainWindow::GenerateStatistics()` on Finish, so every new profile
+hit it; so would any profile whose CPAP days had all been purged.
+
+Introduced with the OAHI/CAHI capability gating (#261, `46ac5bcd`) - `mechanismDays()` was
+new there and is the only one of the statistics day loops not already behind a
+`FirstDay()`/`LastDay()` validity check.
+
+`mechanismDays()` now returns immediately when either date is invalid. The same unguarded
+pattern in `Statistics::UpdateRecordsBox()` was guarded at the same time: its loops sit
+behind `if (cpap)`, which is satisfied by a device record that has no days left, so a purged
+or never-imported device would hang there the same way. With the guard, an empty profile
+renders the normal "no data" statistics page - `GenerateCPAPUsage()` already returns an empty
+string when no device has days, and `GenerateHTML()` turns that into `htmlNoData()`.
+
+## 2026-09-24 - Export Journal hung on a profile with no days (#299)
+
+File > Export Journal on a profile with no days at all spun forever with one core pinned,
+even when the save dialog was cancelled. `Journal::BackupJournal()` walked
+`FirstDay(MT_JOURNAL)`..`LastDay(MT_JOURNAL)` with a `do ... while (date <= last)` loop;
+with no days both dates are invalid, `QDate().addDays(1)` stays invalid and invalid dates
+compare equal, so the loop never ended - the same defect as #297. A profile with days but
+no journal entries was not affected, because `FirstDay(MT_JOURNAL)` then falls back to the
+(valid) last day. Cancelling did not help because the caller passed the empty filename
+straight to `BackupJournal()`, which only looks at the filename after the loop.
+
+The loop is now a `while (haveRange && date < last)`, skipped when either date is invalid,
+so an empty profile exports an empty journal. The change also drops the old loop's extra
+pass past `last`. `MainWindow::on_actionExport_Journal_triggered()` now returns when the
+save dialog is cancelled. The same unguarded pattern in `MainWindow::FreeSessions()` and
+`DailySummaryRepository::calculateRange()` (neither currently called) was guarded as well.
+
+Found by code reading during an effort-level comparison; not reproduced at runtime.
+
+---
+
+## 2026-09-29 - Events-per-hour divided by zero for sessions with no MaskOn time (#290)
+
+**Files:** `oscar/SleepLib/session.cpp`, `oscar/SleepLib/day.cpp`,
+`oscar/Graphs/gAHIChart.cpp`, `oscar/Graphs/gSummaryChart.cpp`, `oscar/reports.cpp`,
+`oscar/welcome.cpp`, `oscar/daily.cpp`, `oscar/exports/exportcsv.cpp`,
+`oscar/SleepLib/loader_plugins/sefam_loader.cpp`
+
+`Session::cph()`, `Session::sph()`, `Day::cph()` and `Day::sph()` divided by `hours()` with
+no check. `hours()` is zero for a session whose slice list holds no `MaskOn` slice (and for a
+day made only of such sessions), so `UpdateSummaries()` cached `0/0 = NaN` or `inf` in
+`m_cph` and it was written to `session_channels.cph`. All four now return 0 when
+`hours() <= 0`, matching the guards already in `Day::calcAHI()` and the session-summary AHI.
+
+Zero-hour sessions were already reachable: the PRS1 loader keeps sessions whose slices are
+all MaskOff. A day made only of such sessions also reached unguarded divisions by day hours
+elsewhere. The Overview AHI chart (`gAHIChart`) now skips the day, and the per-channel
+Overview charts (`gSummaryChart`, `ST_CPH`/`ST_SPH`) omit the slice. Either way the day
+stays out of the chart's median/average instead of adding NaN, or inf, which would set
+the Y-axis peak to infinity. The daily print report, the Welcome page AHI, the Daily "Time over leak redline"
+row and the per-session AHI in the CSV export now show 0.
+
+With the guards in place the SEFAM loader no longer skips a session in which the blower
+never ran (2026-09-13 entry): `addMaskSlices()` gives it only MaskOff slices, so it is
+kept with zero usage, as the vendor software shows it.

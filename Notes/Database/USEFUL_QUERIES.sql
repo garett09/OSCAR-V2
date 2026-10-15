@@ -280,9 +280,8 @@ ORDER BY s.start_time DESC;
 -- Verify the OAHI + CAHI = AHI identity (schema v18+).
 -- Every AHI-contributing channel belongs to exactly one bucket, so any row listed
 -- here means a channel was added to ahiChannels without being placed in a bucket.
--- Only rows written at v18 or later can satisfy this: earlier rows have 0 in the new
--- columns by design and are excluded by the mask_on_hours/ahi guard below only in the
--- trivial case, so restrict by date if the profile predates the upgrade.
+-- Since v19 oahi/cahi are NULL for a device that does not split hypopneas by
+-- mechanism; the identity only applies where they are present, hence the IS NOT NULL.
 SELECT
     ds.date,
     ROUND(ds.ahi, 4)  as AHI,
@@ -291,9 +290,26 @@ SELECT
     ROUND(ds.oahi + ds.cahi - ds.ahi, 4) as difference
 FROM daily_summaries ds
 WHERE ds.mask_on_hours > 0
-  AND (ds.oahi > 0 OR ds.cahi > 0)          -- skip un-migrated rows
+  AND ds.oahi IS NOT NULL                   -- device splits hypopneas (v19)
   AND ABS(ds.oahi + ds.cahi - ds.ahi) > 0.005
 ORDER BY ds.date DESC;
+
+-- NULL vs 0 in the summary tables (schema v19). 0 means measured and none; NULL means
+-- not applicable (the device never reports that channel; oahi/cahi for a device that
+-- does not split hypopneas; rdi for one that does not score RERA) or not measured
+-- (pressure/leak/oximetry with no data). When adding count columns together use
+-- COALESCE(SUM(col), 0): SUM() over an all-NULL group is NULL and NULL + x is NULL.
+-- Which channels does each device actually report?
+SELECT
+    m.brand, m.model,
+    GROUP_CONCAT(DISTINCT c.channel_code) as reported_channels
+FROM machines m
+JOIN sessions s ON s.machine_id = m.id
+JOIN session_channels sc ON sc.session_id = s.id AND sc.count > 0
+JOIN channels c ON c.channel_id = sc.channel_id AND c.profile_id = m.profile_id
+WHERE m.profile_id = 1
+  AND sc.channel_id IN (4097, 4098, 4099, 4100, 4102, 4112, 4113, 4114)
+GROUP BY m.id;
 
 -- ============================================
 -- QUICK STATS

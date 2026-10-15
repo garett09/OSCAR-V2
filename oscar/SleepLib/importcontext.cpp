@@ -59,6 +59,24 @@ QString ImportContext::GetBackupPath()
 bool ImportContext::SessionExists(SessionID sid)
 {
     Q_ASSERT(m_machine);
+
+    // Sessions imported earlier in this same run have already been written to disk, but they
+    // don't show up in the device's session list until Commit(). Loaders use this check to
+    // skip previously imported sessions, so the ones still pending must count as existing.
+    //
+    // Otherwise a session that appears in more than one folder of the same card (e.g. the
+    // summary-only chunks the device flushes into a Clear0/Clear1 folder when the card is
+    // cleared) gets imported a second time, and that second, less complete copy overwrites
+    // the full data already stored on disk.
+    m_sessionMutex.lock();
+    QMap<SessionID, Session *>::const_iterator it = m_sessions.constFind(sid);
+    bool pending = (it != m_sessions.constEnd() && it.value()->machine() == m_machine);
+    m_sessionMutex.unlock();
+
+    if (pending) {
+        return true;
+    }
+
     return m_machine->SessionExists(sid);
 }
 
@@ -70,6 +88,23 @@ Session* ImportContext::CreateSession(SessionID sid)
 
 bool ImportContext::AddSession(Session* session)
 {
+    SessionID sid = session->session();
+
+    // Never let a second copy of a session clobber the one already written to disk. The
+    // loaders are supposed to filter these out via SessionExists(), so reaching this point
+    // means something slipped through; discarding the duplicate is safer than overwriting
+    // data that may well be more complete.
+    m_sessionMutex.lock();
+    bool duplicate = m_sessions.contains(sid);
+    m_sessionMutex.unlock();
+
+    if (duplicate) {
+        qWarning() << "ImportContext::AddSession: session" << sid
+                   << "already imported in this run, discarding duplicate";
+        delete session;
+        return false;
+    }
+
     // Make sure the session will be saved.
     session->SetChanged(true);
 
@@ -79,7 +114,7 @@ bool ImportContext::AddSession(Session* session)
     // Write the session file to disk.
     bool ok = session->Store(session->machine()->getDataPath());
     if (!ok) {
-        qWarning() << "ImportContext::AddSession: Failed to store session" << session->session();
+        qWarning() << "ImportContext::AddSession: Failed to store session" << sid;
     }
 
     // Unload the memory-intensive data now that it's written to disk.
@@ -88,7 +123,7 @@ bool ImportContext::AddSession(Session* session)
     // TODO: Remove MachineLoader::addSession once all loaders use this.
     // Add the session to the database
     m_sessionMutex.lock();
-    m_sessions[session->session()] = session;
+    m_sessions[sid] = session;
     m_sessionMutex.unlock();
 
     return ok;
@@ -118,7 +153,10 @@ bool ImportContext::Commit()
         if (profileId == 0) profileId = session->machine()->getProfileId();
     }
 
-    // Update lastImported timestamp for each machine that received sessions.
+    // Update lastImported timestamp for each machine that received sessions, and put
+    // right the summary rows AddSession() has only now settled the capability for:
+    // ImportContext::AddSession() writes each session to the database long before this,
+    // so those rows carry NULL in columns the device does report (GitLab #313).
     if (!m_sessions.isEmpty()) {
         QDateTime now = QDateTime::currentDateTime();
         MachineRepository repo;
@@ -127,6 +165,7 @@ bool ImportContext::Commit()
             Machine* m = session->machine();
             if (updatedMachines.contains(m)) continue;
             updatedMachines.insert(m);
+            m->repairStoredSummaries();
             m->info.lastimported = now;
             if (m->getDatabaseId() > 0) {
                 MachineData data = repo.findById(m->getDatabaseId());
@@ -157,7 +196,7 @@ bool ImportContext::Commit()
     }
 
     // TODO: Move what we can from finishCPAPImport into here,
-    // e.g. Profile::StoreMachines and Machine::SaveSummaryCache.
+    // e.g. Profile::StoreMachines.
     return ok;
 }
 
@@ -206,14 +245,18 @@ Machine* ProfileImportContext::CreateMachineFromInfo(const MachineInfo & info)
 
 // MARK: -
 
-ImportUI::ImportUI(Profile* profile)
-    : m_profile(profile)
+ImportUI::ImportUI(Profile* profile, bool batchMode)
+    : m_profile(profile), m_batchMode(batchMode)
 {
     Q_ASSERT(m_profile);
 }
 
 void ImportUI::onUnexpectedData(const MachineInfo & info, QSet<QString> & /*newMessages*/)
 {
+    if (m_batchMode) {
+        qWarning() << "Untested data from" << info.brand << info.model << info.modelnumber;
+        return;
+    }
     QMessageBox::information(QApplication::activeWindow(),
                              QObject::tr("Untested Data"),
                              QObject::tr("Your %1 %2 (%3) generated data that OSCAR has never seen before.").arg(info.brand).arg(info.model).arg(info.modelnumber) +"\n\n"+
@@ -223,6 +266,10 @@ void ImportUI::onUnexpectedData(const MachineInfo & info, QSet<QString> & /*newM
 
 void ImportUI::onDeviceReportsUsageOnly(const MachineInfo & info)
 {
+    if (m_batchMode) {
+        qWarning() << "Non-data-capable device detected:" << info.brand << info.modelnumber;
+        return;
+    }
     if (m_profile->cpap->brickWarning()) {
         QApplication::processEvents();
         QMessageBox::information(QApplication::activeWindow(),
@@ -237,6 +284,10 @@ void ImportUI::onDeviceReportsUsageOnly(const MachineInfo & info)
 void ImportUI::onDeviceIsUntested(const MachineInfo & info)
 {
     Machine* m = m_profile->CreateMachine(info);
+    if (m_batchMode) {
+        qWarning() << "Untested device detected:" << info.brand << info.modelnumber;
+        return;
+    }
     if (m_profile->session->warnOnUntestedMachine() && m->warnOnUntested()) {
         m->suppressWarnOnUntested();  // don't warn the user more than once
         QMessageBox::information(QApplication::activeWindow(),
@@ -249,6 +300,10 @@ void ImportUI::onDeviceIsUntested(const MachineInfo & info)
 
 void ImportUI::onDeviceIsUnsupported(const MachineInfo & info)
 {
+    if (m_batchMode) {
+        qWarning() << "Unsupported device detected:" << info.brand << info.modelnumber;
+        return;
+    }
     QMessageBox::information(QApplication::activeWindow(),
                              QObject::tr("Device Unsupported"),
                              QObject::tr("Sorry, your %1 CPAP Device (%2) is not supported yet.").arg(info.brand).arg(info.modelnumber) +"\n\n"+

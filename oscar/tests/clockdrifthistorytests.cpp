@@ -153,6 +153,36 @@ void ClockDriftHistoryTests::testSchemaVersion18HasNightClockOffsetsTable()
     QSqlDatabase::removeDatabase("test_schema18");
 }
 
+void ClockDriftHistoryTests::testUpgradeEitherVersion19Schema()
+{
+    for (bool upstreamSchema : {false, true}) {
+        QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE", "test_schema19_merge");
+        db.setDatabaseName(":memory:");
+        QVERIFY(db.open());
+        DatabaseSchema::createSchema(db);
+        {
+            QSqlQuery q(db);
+            if (upstreamSchema) {
+                QVERIFY(q.exec("DROP TABLE night_clock_offsets"));
+            }
+            QVERIFY(q.exec("UPDATE schema_version SET version = 19"));
+            // The branch's v19 still contains zero-valued unsupported metrics.
+            QVERIFY(q.exec("INSERT INTO profiles (id, username, data_folder) VALUES (1, 'merge-test', '/tmp/merge-test')"));
+            QVERIFY(q.exec("INSERT INTO daily_summaries (profile_id, date, clear_airway_count) "
+                           "VALUES (1, '2026-10-15', 0)"));
+            QVERIFY(DatabaseSchema::upgradeSchema(db, 19));
+            QCOMPARE(DatabaseSchema::getSchemaVersion(db), 20);
+            QVERIFY(q.exec("SELECT COUNT(*) FROM night_clock_offsets"));
+            QVERIFY(q.exec("SELECT clear_airway_count FROM daily_summaries WHERE profile_id = 1"));
+            QVERIFY(q.next());
+            QVERIFY(q.value(0).isNull());
+        }
+        db.close();
+        db = QSqlDatabase();
+        QSqlDatabase::removeDatabase("test_schema19_merge");
+    }
+}
+
 void ClockDriftHistoryTests::testUpsertNightsInsertsRows()
 {
     QSqlDatabase db = makeTestDb("test_nco_insert");

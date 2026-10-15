@@ -1097,7 +1097,6 @@ void OximeterImport::on_saveButton_clicked()
     mach->AddSession(session);
     qDebug() << "oximod - Saving device";
     mach->Save();
-    mach->SaveSummaryCache();
     p_profile->StoreMachines();
     p_profile->calculateDailySummaries();
 

@@ -20,6 +20,8 @@
 #include <QMutexLocker>
 #include <QCoreApplication>
 #include <QSettings>
+#include <QFile>
+#include <QStorageInfo>
 
 //#define DBDEBUG
 /*
@@ -39,6 +41,7 @@ DatabaseManager& DatabaseManager::instance()
 DatabaseManager::DatabaseManager()
     : QObject(nullptr)
     , m_initialized(false)
+    , m_pendingUpgradeFrom(0)
     , m_inTransaction(false)
     , m_corruptionReported(false)
 {
@@ -64,6 +67,11 @@ DatabaseManager::~DatabaseManager()
  *
  * This method creates the database file if needed, opens a connection,
  * configures settings, and creates the schema if this is a new database.
+ *
+ * An existing database with an older schema is opened but left as-is:
+ * m_pendingUpgradeFrom records its version, m_initialized stays false, and the
+ * caller decides (after warning the user) whether to run upgradeSchema() or
+ * close() and exit. The upgrade is irreversible, so it must not happen silently.
  */
 bool DatabaseManager::initialize(const QString& databasePath)
 {
@@ -106,7 +114,7 @@ bool DatabaseManager::initialize(const QString& databasePath)
     qDebug() << "DatabaseManager::initialize: Database opened:" << databasePath;
 
     // Configure database settings
-    if (!configureDatabaseSettings()) {
+    if (!configureConnection(m_database)) {
         qCritical() << "DatabaseManager::initialize: Failed to configure database settings";
         close();
         return false;
@@ -128,25 +136,12 @@ bool DatabaseManager::initialize(const QString& databasePath)
         qDebug() << "DatabaseManager::initialize: Current schema version:" << currentVersion;
         
         if (currentVersion < DatabaseSchema::CURRENT_SCHEMA_VERSION) {
+            // Leave the upgrade to the caller: it is irreversible and the user
+            // must be told first. See upgradeSchema() / completeInitialization().
             qDebug() << "DatabaseManager::initialize: Schema needs upgrade from" << currentVersion
-                     << "to" << DatabaseSchema::CURRENT_SCHEMA_VERSION;
-            if (!DatabaseSchema::upgradeSchema(m_database, currentVersion)) {
-                qCritical() << "DatabaseManager::initialize: Schema upgrade failed";
-                emit databaseError(QString(
-                    "Database Schema Upgrade Failed\n\n"
-                    "OSCAR could not upgrade your database from version %1 to version %2.\n\n"
-                    "Steps to resolve:\n"
-                    "1. Close OSCAR\n"
-                    "2. Backup your current OSCAR data directory\n"
-                    "3. Delete or rename your oscar.db file\n"
-                    "4. Restart OSCAR and reimport your CPAP SD card data\n\n"
-                    "OSCAR will now close.")
-                    .arg(currentVersion)
-                    .arg(DatabaseSchema::CURRENT_SCHEMA_VERSION));
-                close();
-                return false;
-            }
-            qDebug() << "DatabaseManager::initialize: Schema upgrade successful";
+                     << "to" << DatabaseSchema::CURRENT_SCHEMA_VERSION << "- awaiting confirmation";
+            m_pendingUpgradeFrom = currentVersion;
+            return true;
         } else if (currentVersion > DatabaseSchema::CURRENT_SCHEMA_VERSION) {
             qCritical() << "DatabaseManager::initialize: DB version" << currentVersion
                         << "is newer than this build's schema" << DatabaseSchema::CURRENT_SCHEMA_VERSION;
@@ -164,6 +159,173 @@ bool DatabaseManager::initialize(const QString& databasePath)
         qDebug() << "DatabaseManager: Schema version is correct";
     }
 
+    return finishInitialization();
+}
+
+/*
+ * Schema version awaiting upgrade after initialize()
+ *
+ * Returns: the on-disk schema version when it is older than
+ * DatabaseSchema::CURRENT_SCHEMA_VERSION, otherwise 0.
+ */
+int DatabaseManager::pendingSchemaUpgradeFrom() const
+{
+    QMutexLocker locker(&m_mutex);
+    return m_pendingUpgradeFrom;
+}
+
+/*
+ * Write a consistent single-file copy of the database
+ *
+ * Parameters:
+ *   destPath - Full path of the copy to create; must not already exist
+ *   error - Receives a human-readable reason on failure (may be nullptr)
+ *
+ * Returns: true if the copy was written
+ *
+ * VACUUM INTO writes a fresh, compacted database containing every committed
+ * transaction, including those still in the WAL, so the copy is a single file
+ * a user can restore by renaming. It runs on a private connection (Qt SQL
+ * connections are per-thread) so it can be called from a worker thread and does
+ * not need m_initialized — the caller in main() uses it before a schema upgrade.
+ *
+ * Free space is checked first against the current database size: VACUUM INTO on
+ * a multi-GB database otherwise runs for minutes before failing with a disk-full
+ * error.
+ */
+bool DatabaseManager::snapshotTo(const QString& destPath, QString* error)
+{
+    auto fail = [&](const QString& reason) {
+        qWarning() << "DatabaseManager::snapshotTo:" << reason;
+        if (error) *error = reason;
+        return false;
+    };
+
+    if (m_databasePath.isEmpty()) {
+        return fail(tr("No database is open."));
+    }
+    if (QFile::exists(destPath)) {
+        return fail(tr("The file %1 already exists.").arg(QDir::toNativeSeparators(destPath)));
+    }
+
+    const qint64 needed = QFileInfo(m_databasePath).size() + QFileInfo(m_databasePath + "-wal").size();
+    const QStorageInfo volume(QFileInfo(destPath).absolutePath());
+    if (volume.isValid() && volume.bytesAvailable() < needed) {
+        return fail(tr("Not enough free space: the copy needs about %1 MB but only %2 MB is available.")
+                        .arg(needed / (1024 * 1024))
+                        .arg(volume.bytesAvailable() / (1024 * 1024)));
+    }
+
+    const QString connName = QString("OSCAR_SNAPSHOT_%1").arg(quintptr(QThread::currentThread()));
+    bool ok = false;
+    QString reason;
+    {
+        QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE", connName);
+        db.setDatabaseName(m_databasePath);
+        if (!db.open()) {
+            reason = db.lastError().text();
+        } else {
+            QSqlQuery query(db);
+            QString safePath = destPath;
+            safePath.replace("'", "''");
+            ok = query.exec(QString("VACUUM INTO '%1'").arg(safePath));
+            if (!ok) {
+                reason = query.lastError().text();
+            }
+            db.close();
+        }
+    }
+    QSqlDatabase::removeDatabase(connName);
+
+    if (!ok) {
+        QFile::remove(destPath);  // never leave a partial copy behind
+        return fail(reason);
+    }
+    qDebug() << "DatabaseManager::snapshotTo: wrote" << destPath;
+    return true;
+}
+
+/*
+ * Run the pending schema upgrade
+ *
+ * Parameters:
+ *   progress - Optional callback invoked before each migration step
+ *
+ * Returns: true if every migration succeeded
+ *
+ * Migrations run on a private connection so this can execute on a worker
+ * thread while the UI shows progress; m_database belongs to the thread that
+ * called initialize() and is left untouched. SQLite notices the schema change
+ * on the main connection's next statement, so nothing needs re-opening. The
+ * private connection gets the same per-connection settings as the main one
+ * (foreign_keys in particular, which some migrations rely on).
+ *
+ * m_mutex is not held: the migrations call checkQueryError() on this object,
+ * and they can run for minutes.
+ */
+bool DatabaseManager::upgradeSchema(const DatabaseSchema::UpgradeProgress& progress)
+{
+    const int fromVersion = pendingSchemaUpgradeFrom();
+    if (fromVersion == 0) {
+        qWarning() << "DatabaseManager::upgradeSchema: no upgrade pending";
+        return false;
+    }
+
+    const QString connName = QString("OSCAR_UPGRADE_%1").arg(quintptr(QThread::currentThread()));
+    bool ok = false;
+    {
+        QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE", connName);
+        db.setDatabaseName(m_databasePath);
+        if (!db.open()) {
+            qCritical() << "DatabaseManager::upgradeSchema: Cannot open private connection:"
+                        << db.lastError().text();
+        } else if (!configureConnection(db)) {
+            qCritical() << "DatabaseManager::upgradeSchema: Failed to configure private connection";
+            db.close();
+        } else {
+            ok = DatabaseSchema::upgradeSchema(db, fromVersion, progress);
+            db.close();
+        }
+    }
+    QSqlDatabase::removeDatabase(connName);
+
+    if (!ok) {
+        qCritical() << "DatabaseManager::upgradeSchema: Schema upgrade failed";
+        return false;
+    }
+
+    QMutexLocker locker(&m_mutex);
+    m_pendingUpgradeFrom = 0;
+    qDebug() << "DatabaseManager::upgradeSchema: Schema upgrade successful";
+    return true;
+}
+
+/*
+ * Finish initialization after a successful upgradeSchema()
+ *
+ * Returns: true if the database is ready for use
+ *
+ * Must run on the thread that called initialize(), because it uses m_database.
+ */
+bool DatabaseManager::completeInitialization()
+{
+    if (pendingSchemaUpgradeFrom() != 0) {
+        qWarning() << "DatabaseManager::completeInitialization: schema upgrade still pending";
+        return false;
+    }
+    QMutexLocker locker(&m_mutex);
+    return finishInitialization();
+}
+
+/*
+ * Common tail of initialize() and completeInitialization()
+ *
+ * Returns: true (the report-version check is not fatal)
+ *
+ * Caller holds m_mutex.
+ */
+bool DatabaseManager::finishInitialization()
+{
     // Check and update CSV report versions (runs at every startup)
     // This is separate from schema upgrades because report changes don't require schema changes
     qDebug() << "DatabaseManager::initialize: Checking CSV report versions...";
@@ -181,12 +343,14 @@ bool DatabaseManager::initialize(const QString& databasePath)
  * Close the database connection
  *
  * Call this during application shutdown to properly close the database.
+ * Also used when a pending schema upgrade is declined, so the guard is on the
+ * connection being open rather than on m_initialized.
  */
 void DatabaseManager::close()
 {
     QMutexLocker locker(&m_mutex);
 
-    if (m_initialized && m_database.isOpen()) {
+    if (m_database.isOpen()) {
         // Update query-planner statistics before closing. PRAGMA optimize is
         // lightweight (analyses only tables with stale stats) and takes effect
         // on the next open, improving query planning over time.
@@ -217,6 +381,7 @@ void DatabaseManager::close()
     }
     
     m_initialized = false;
+    m_pendingUpgradeFrom = 0;
 }
 
 /*
@@ -570,7 +735,10 @@ bool DatabaseManager::checkpointWAL()
 }
 
 /*
- * Configure database connection settings
+ * Configure per-connection settings
+ *
+ * Parameters:
+ *   db - An open connection (the main one, or a private one for upgrades)
  *
  * Returns: true if successful, false otherwise
  *
@@ -580,9 +748,9 @@ bool DatabaseManager::checkpointWAL()
  * - Optimized cache size
  * - Faster synchronous mode
  */
-bool DatabaseManager::configureDatabaseSettings()
+bool DatabaseManager::configureConnection(QSqlDatabase& db)
 {
-    QSqlQuery query(m_database);
+    QSqlQuery query(db);
 
     // Enable foreign key constraints
     if (!query.exec("PRAGMA foreign_keys = ON")) {

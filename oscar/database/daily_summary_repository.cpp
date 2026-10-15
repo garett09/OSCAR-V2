@@ -19,6 +19,27 @@
 #include <QDebug>
 #include <QCryptographicHash>
 
+namespace {
+//! \brief Bind an optional metric: SQL NULL when it is absent, the value otherwise.
+template <class T>
+QVariant bindOptional(const std::optional<T> & v)
+{
+    return v ? QVariant::fromValue(*v) : QVariant();
+}
+
+//! \brief Read a REAL column that may be NULL.
+std::optional<double> optionalDouble(const QVariant & v)
+{
+    return v.isNull() ? std::nullopt : std::optional<double>(v.toDouble());
+}
+
+//! \brief Read an INTEGER column that may be NULL.
+std::optional<int> optionalInt(const QVariant & v)
+{
+    return v.isNull() ? std::nullopt : std::optional<int>(v.toInt());
+}
+} // namespace
+
 DailySummaryRepository::DailySummaryRepository()
     : db(DatabaseManager::instance().database())
 {
@@ -56,30 +77,30 @@ qint64 DailySummaryRepository::create(const DailySummaryData& data)
     query.addBindValue(data.totalHours);
     query.addBindValue(data.maskOnHours);
     query.addBindValue(data.ahi);
-    query.addBindValue(data.rdi);
-    query.addBindValue(data.oahi);
-    query.addBindValue(data.cahi);
-    query.addBindValue(data.obstructiveCount);
-    query.addBindValue(data.unclassifiedCount);
-    query.addBindValue(data.hypopneaCount);
-    query.addBindValue(data.reraCount);
-    query.addBindValue(data.clearAirwayCount);
-    query.addBindValue(data.obstructiveHypopneaCount);
-    query.addBindValue(data.centralHypopneaCount);
-    query.addBindValue(data.allApneaCount);
-    query.addBindValue(data.pressureAvg);
-    query.addBindValue(data.pressureMin);
-    query.addBindValue(data.pressureMax);
-    query.addBindValue(data.pressure95th);
-    query.addBindValue(data.leakTotalAvg);
-    query.addBindValue(data.leakTotal95th);
-    query.addBindValue(data.leakTotalMax);
-    query.addBindValue(data.leakUnintentionalAvg);
-    query.addBindValue(data.spo2Avg);
-    query.addBindValue(data.spo2Min);
-    query.addBindValue(data.pulseAvg);
-    query.addBindValue(data.pulseMin);
-    query.addBindValue(data.pulseMax);
+    query.addBindValue(bindOptional(data.rdi));
+    query.addBindValue(bindOptional(data.oahi));
+    query.addBindValue(bindOptional(data.cahi));
+    query.addBindValue(bindOptional(data.obstructiveCount));
+    query.addBindValue(bindOptional(data.unclassifiedCount));
+    query.addBindValue(bindOptional(data.hypopneaCount));
+    query.addBindValue(bindOptional(data.reraCount));
+    query.addBindValue(bindOptional(data.clearAirwayCount));
+    query.addBindValue(bindOptional(data.obstructiveHypopneaCount));
+    query.addBindValue(bindOptional(data.centralHypopneaCount));
+    query.addBindValue(bindOptional(data.allApneaCount));
+    query.addBindValue(bindOptional(data.pressureAvg));
+    query.addBindValue(bindOptional(data.pressureMin));
+    query.addBindValue(bindOptional(data.pressureMax));
+    query.addBindValue(bindOptional(data.pressure95th));
+    query.addBindValue(bindOptional(data.leakTotalAvg));
+    query.addBindValue(bindOptional(data.leakTotal95th));
+    query.addBindValue(bindOptional(data.leakTotalMax));
+    query.addBindValue(bindOptional(data.leakUnintentionalAvg));
+    query.addBindValue(bindOptional(data.spo2Avg));
+    query.addBindValue(bindOptional(data.spo2Min));
+    query.addBindValue(bindOptional(data.pulseAvg));
+    query.addBindValue(bindOptional(data.pulseMin));
+    query.addBindValue(bindOptional(data.pulseMax));
     query.addBindValue(data.isCompliant);
     query.addBindValue(data.hasOximetry);
     query.addBindValue(data.sessionsHash);
@@ -280,73 +301,83 @@ DailySummaryData DailySummaryRepository::calculateFromDay(Day* day)
         data.totalHours = day->hours(MT_OXIMETER);
     }
     
-    // Use Day's built-in AHI/RDI calculation methods
-    // These may return NaN if hours are 0, so check for validity
-    if (day->hasMachine(MT_CPAP) && data.totalHours > 0) {
+    // Which device this day belongs to decides what is applicable (schema v19, GitLab
+    // #261; spec §5.2): a count column is NULL when the device has never reported the
+    // channel and 0 when it scored none today; oahi/cahi are NULL unless the device
+    // splits hypopneas by mechanism; rdi is NULL unless it reports RERA. A day with no
+    // CPAP machine leaves every CPAP column NULL.
+    Machine * cpap = day->machine(MT_CPAP);
+    const bool mechanism   = cpap && cpap->reportsHypopneaMechanism();
+    const bool reportsRera = cpap && cpap->hasReportedEvents(CPAP_RERA);
+
+    // Day's index methods may return NaN or inf when hours are 0, hence the checks.
+    if (cpap && data.totalHours > 0) {
+        auto finite = [](EventDataType v) { return !qIsNaN(v) && !qIsInf(v); };
         EventDataType ahi = day->calcAHI();
-        EventDataType rdi = day->calcRDI();
-        EventDataType oahi = day->calcOAHI();
-        EventDataType cahi = day->calcCAHI();
-        // Only set if valid numbers (not NaN or inf)
-        if (!qIsNaN(ahi) && !qIsInf(ahi)) {
-            data.ahi = ahi;
+        if (finite(ahi)) data.ahi = ahi;
+        if (reportsRera) {
+            EventDataType rdi = day->calcRDI();
+            if (finite(rdi)) data.rdi = rdi;
         }
-        if (!qIsNaN(rdi) && !qIsInf(rdi)) {
-            data.rdi = rdi;
-        }
-        if (!qIsNaN(oahi) && !qIsInf(oahi)) {
-            data.oahi = oahi;
-        }
-        if (!qIsNaN(cahi) && !qIsInf(cahi)) {
-            data.cahi = cahi;
+        if (mechanism) {
+            EventDataType oahi = day->calcOAHI();
+            EventDataType cahi = day->calcCAHI();
+            if (finite(oahi)) data.oahi = oahi;
+            if (finite(cahi)) data.cahi = cahi;
         }
     }
 
-    // Event counts using Day's count() method
-    data.obstructiveCount = static_cast<int>(day->count(CPAP_Obstructive));
-    data.unclassifiedCount = static_cast<int>(day->count(CPAP_Apnea));
-    data.hypopneaCount = static_cast<int>(day->count(CPAP_Hypopnea));
-    data.reraCount = static_cast<int>(day->count(CPAP_RERA));
-    data.clearAirwayCount = static_cast<int>(day->count(CPAP_ClearAirway));
-    data.obstructiveHypopneaCount = static_cast<int>(day->count(CPAP_ObstructiveHypopnea));
-    data.centralHypopneaCount = static_cast<int>(day->count(CPAP_CentralHypopnea));
+    // Event counts using Day's count() method. Day::count() is a float sum and can be
+    // fractional (ResMed summary-only sessions store STR index * hours), so round to
+    // the nearest event; static_cast<int> truncated and understated those days.
+    auto storeCount = [&](std::optional<int> & field, ChannelID id) {
+        if (!cpap || !cpap->hasReportedEvents(id)) return;      // never reported: NULL
+        field = qRound(day->count(id));
+    };
+    storeCount(data.obstructiveCount,         CPAP_Obstructive);
+    storeCount(data.unclassifiedCount,        CPAP_Apnea);
+    storeCount(data.hypopneaCount,            CPAP_Hypopnea);
+    storeCount(data.reraCount,                CPAP_RERA);
+    storeCount(data.clearAirwayCount,         CPAP_ClearAirway);
+    storeCount(data.obstructiveHypopneaCount, CPAP_ObstructiveHypopnea);
+    storeCount(data.centralHypopneaCount,     CPAP_CentralHypopnea);
     // CPAP_AllApnea contributes to AHI but was never stored before schema v18, which
     // is why SQL sums over these columns used to disagree with the stored ahi.
-    data.allApneaCount = static_cast<int>(day->count(CPAP_AllApnea));
-    
-    // Pressure statistics using Day's aggregation methods
+    storeCount(data.allApneaCount,            CPAP_AllApnea);
+
+    // Continuous statistics: present only when the day has the channel.
     if (day->channelHasData(CPAP_Pressure)) {
-        data.pressureAvg = day->wavg(CPAP_Pressure);
-        data.pressureMin = day->Min(CPAP_Pressure);
-        data.pressureMax = day->Max(CPAP_Pressure);
+        data.pressureAvg  = day->wavg(CPAP_Pressure);
+        data.pressureMin  = day->Min(CPAP_Pressure);
+        data.pressureMax  = day->Max(CPAP_Pressure);
         data.pressure95th = day->p90(CPAP_Pressure);
     }
-    
+
     // Leak statistics
     if (day->channelHasData(CPAP_Leak)) {
-        data.leakTotalAvg = day->wavg(CPAP_Leak);
+        data.leakTotalAvg  = day->wavg(CPAP_Leak);
         data.leakTotal95th = day->p90(CPAP_Leak);
-        data.leakTotalMax = day->Max(CPAP_Leak);
+        data.leakTotalMax  = day->Max(CPAP_Leak);
     }
-    
+
     if (day->channelHasData(CPAP_LeakFlag)) {
         data.leakUnintentionalAvg = day->wavg(CPAP_LeakFlag);
     }
-    
+
     // Oximetry statistics
     if (day->channelHasData(OXI_SPO2)) {
         data.hasOximetry = true;
         data.spo2Avg = day->wavg(OXI_SPO2);
         data.spo2Min = day->Min(OXI_SPO2);
     }
-    
+
     if (day->channelHasData(OXI_Pulse)) {
         data.hasOximetry = true;
         data.pulseAvg = day->wavg(OXI_Pulse);
         data.pulseMin = day->Min(OXI_Pulse);
         data.pulseMax = day->Max(OXI_Pulse);
     }
-    
+
     // Compliance flag (4 hours minimum by default)
     data.isCompliant = (data.totalHours >= 4.0);
 
@@ -363,7 +394,12 @@ bool DailySummaryRepository::calculateRange(qint64 profileId, const QDate& start
         qWarning() << "DailySummaryRepository::calculateRange - No active profile";
         return false;
     }
-    
+    // Invalid dates never advance and compare equal, so the loop below would never end.
+    if (!startDate.isValid() || !endDate.isValid()) {
+        qWarning() << "DailySummaryRepository::calculateRange - Invalid date range";
+        return false;
+    }
+
     int successCount = 0;
     int totalDays = startDate.daysTo(endDate) + 1;
     
@@ -485,33 +521,33 @@ DailySummaryData DailySummaryRepository::mapResultToData(const QSqlQuery& query)
     data.maskOnHours = query.value("mask_on_hours").toDouble();
     
     data.ahi = query.value("ahi").toDouble();
-    data.rdi = query.value("rdi").toDouble();
-    data.oahi = query.value("oahi").toDouble();
-    data.cahi = query.value("cahi").toDouble();
-    data.obstructiveCount = query.value("obstructive_count").toInt();
-    data.unclassifiedCount = query.value("unclassified_count").toInt();
-    data.hypopneaCount = query.value("hypopnea_count").toInt();
-    data.reraCount = query.value("rera_count").toInt();
-    data.clearAirwayCount = query.value("clear_airway_count").toInt();
-    data.obstructiveHypopneaCount = query.value("obstructive_hypopnea_count").toInt();
-    data.centralHypopneaCount = query.value("central_hypopnea_count").toInt();
-    data.allApneaCount = query.value("all_apnea_count").toInt();
+    data.rdi = optionalDouble(query.value("rdi"));
+    data.oahi = optionalDouble(query.value("oahi"));
+    data.cahi = optionalDouble(query.value("cahi"));
+    data.obstructiveCount = optionalInt(query.value("obstructive_count"));
+    data.unclassifiedCount = optionalInt(query.value("unclassified_count"));
+    data.hypopneaCount = optionalInt(query.value("hypopnea_count"));
+    data.reraCount = optionalInt(query.value("rera_count"));
+    data.clearAirwayCount = optionalInt(query.value("clear_airway_count"));
+    data.obstructiveHypopneaCount = optionalInt(query.value("obstructive_hypopnea_count"));
+    data.centralHypopneaCount = optionalInt(query.value("central_hypopnea_count"));
+    data.allApneaCount = optionalInt(query.value("all_apnea_count"));
     
-    data.pressureAvg = query.value("pressure_avg").toDouble();
-    data.pressureMin = query.value("pressure_min").toDouble();
-    data.pressureMax = query.value("pressure_max").toDouble();
-    data.pressure95th = query.value("pressure_95th").toDouble();
+    data.pressureAvg = optionalDouble(query.value("pressure_avg"));
+    data.pressureMin = optionalDouble(query.value("pressure_min"));
+    data.pressureMax = optionalDouble(query.value("pressure_max"));
+    data.pressure95th = optionalDouble(query.value("pressure_95th"));
     
-    data.leakTotalAvg = query.value("leak_total_avg").toDouble();
-    data.leakTotal95th = query.value("leak_total_95th").toDouble();
-    data.leakTotalMax = query.value("leak_total_max").toDouble();
-    data.leakUnintentionalAvg = query.value("leak_unintentional_avg").toDouble();
+    data.leakTotalAvg = optionalDouble(query.value("leak_total_avg"));
+    data.leakTotal95th = optionalDouble(query.value("leak_total_95th"));
+    data.leakTotalMax = optionalDouble(query.value("leak_total_max"));
+    data.leakUnintentionalAvg = optionalDouble(query.value("leak_unintentional_avg"));
     
-    data.spo2Avg = query.value("spo2_avg").toDouble();
-    data.spo2Min = query.value("spo2_min").toDouble();
-    data.pulseAvg = query.value("pulse_avg").toDouble();
-    data.pulseMin = query.value("pulse_min").toDouble();
-    data.pulseMax = query.value("pulse_max").toDouble();
+    data.spo2Avg = optionalDouble(query.value("spo2_avg"));
+    data.spo2Min = optionalDouble(query.value("spo2_min"));
+    data.pulseAvg = optionalDouble(query.value("pulse_avg"));
+    data.pulseMin = optionalDouble(query.value("pulse_min"));
+    data.pulseMax = optionalDouble(query.value("pulse_max"));
     
     data.isCompliant = query.value("is_compliant").toBool();
     data.hasOximetry = query.value("has_oximetry").toBool();

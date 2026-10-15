@@ -21,6 +21,7 @@
 #include <QFile>
 
 #include <cmath>
+#include <algorithm>
 
 #include "SleepLib/schema.h"
 #include "SleepLib/importcontext.h"
@@ -51,7 +52,7 @@ ChannelID Prisma_Mode = 0, Prisma_SoftPAP = 0, Prisma_BiSoft = 0, Prisma_PSoft =
 ChannelID Prisma_ObstructLevel = 0, Prisma_rMVFluctuation = 0, Prisma_rRMV= 0, Prisma_PressureMeasured = 0, Prisma_FlowFull = 0, Prisma_EEPAP = 0;
 
 // events
-ChannelID Prisma_Artifact = 0, Prisma_CriticalLeak = 0, Prisma_DeepSleep = 0, Prisma_TimedBreath = 0;
+ChannelID Prisma_Artifact = 0, Prisma_CriticalLeak = 0, Prisma_DeepSleep = 0, Prisma_TimedBreath = 0, Prisma_HumidifierEmpty = 0;
 
 // epoch events
 // The device evaluates 2 minute long epochs, and catagorizes them based on the events that occur during that epoch.
@@ -173,6 +174,17 @@ void PrismaImport::run()
     // set session parameters
     auto parameters = eventFile->getParameters();
 
+    // Humidifier status (PRISMA_LINE_HUMIDSTATUS) is written either as a static parameter or,
+    // on some firmware (e.g. prisma20A), only as runtime events starting at Time=0.
+    // -1 means the device reported no status for this session.
+    auto humidTransitions = eventFile->getDynamicParameters(PRISMA_LINE_HUMIDSTATUS);
+    int humidStatusAtStart = -1;
+    if (parameters.contains(PRISMA_LINE_HUMIDSTATUS)) {
+        humidStatusAtStart = parameters[PRISMA_LINE_HUMIDSTATUS];
+    } else if (!humidTransitions.isEmpty() && humidTransitions.first().first == 0) {
+        humidStatusAtStart = humidTransitions.first().second;
+    }
+
     // TODO AXT: extract
     if (parameters.contains(PRISMA_SMART_MODE)) {
         switch(parameters[PRISMA_SMART_MODE]) {
@@ -210,12 +222,21 @@ void PrismaImport::run()
 
         session->settings[Prisma_PMaxOA] = parameters[PRISMA_SMART_PMAXOA] / 100;
 
-        // TODO
-        // session->settings[Prisma_HumidifierLevel] = parameters[PRISMA_SMART_HUMIDLEVEL];
+        if (parameters.contains(PRISMA_SMART_HUMIDLEVEL)) {
+            session->settings[Prisma_HumidifierLevel] = parameters[PRISMA_SMART_HUMIDLEVEL];
+        }
     }
 
     bool found = true;
     if (parameters.contains(PRISMA_LINE_MODE)) {
+        if (parameters.contains(PRISMA_LINE_HUMIDLEVEL)) {
+            // When humidifier is removed and blank plate is installed, PRISMA_LINE_HUMIDSTATUS is 0 (PRISMA_HUMID_ABSENT)
+            if (humidStatusAtStart == PRISMA_HUMID_ABSENT) {
+                session->settings[Prisma_HumidifierLevel] = 0;
+            } else {
+                session->settings[Prisma_HumidifierLevel] = parameters[PRISMA_LINE_HUMIDLEVEL];
+            }
+        }
 
         if (parameters[PRISMA_LINE_MODE] == PRISMA_MODE_AUTO_ST ||
             parameters[PRISMA_LINE_MODE] == PRISMA_MODE_AUTO_S) {
@@ -326,8 +347,10 @@ void PrismaImport::run()
                         session->settings[Prisma_Mode] = (int)PRISMA_COMBINED_MODE_APAP_DYN;
                     break;
                 }
+                // In APAP mode IPAP (1200) equals EPAP (the minimum); the upper limit of the
+                // auto range is IPAP_MAX (1199), which matches EEPAP_MAX (1139) on the 20A.
                 session->settings[CPAP_PressureMin] = parameters[PRISMA_LINE_EPAP] / 100.0;
-                session->settings[CPAP_PressureMax] = parameters[PRISMA_LINE_IPAP] / 100.0;
+                session->settings[CPAP_PressureMax] = parameters[PRISMA_LINE_IPAP_MAX] / 100.0;
                 session->settings[Prisma_AutoStart] = parameters[PRISMA_LINE_AUTOSTART];
                 session->settings[Prisma_SoftPAP] = parameters[PRISMA_LINE_SOFT_PAP_LEVEL];
                 session->settings[Prisma_Softstart_Time] = parameters[PRISMA_LINE_SOFT_START_TIME];
@@ -339,6 +362,7 @@ void PrismaImport::run()
 
         case PRISMA_MODE_CPAP:
             session->settings[CPAP_Mode] = (int)MODE_CPAP;
+            session->settings[Prisma_Mode] = (int)PRISMA_COMBINED_MODE_CPAP;
 
             session->settings[CPAP_Pressure] = parameters[PRISMA_LINE_EPAP] / 100.0;
             session->settings[Prisma_AutoStart] = parameters[PRISMA_LINE_AUTOSTART];
@@ -429,6 +453,51 @@ void PrismaImport::run()
     AddEvents(Prisma_DeepSleep, PRISMA_EVENT_EPOCH_DEEPSLEEP);
     AddEvents(Prisma_TimedBreath, PRISMA_EVENT_TIMED_BREATH);
 
+    // Humidifier empty detection (Smart Aqua Control / WL water empty state).
+    // Each span runs from the transition to PRISMA_HUMID_EMPTY until the next transition to
+    // another state, or until the end of the session.
+    const qint64 session_dur_ms = enddate - startdate;
+    EventList *emptyList = nullptr;
+
+    auto addEmptySpan = [&](qint64 startMs, qint64 endMs) {
+        if ((endMs - startMs) / 1000 <= 0) return;
+        if (emptyList == nullptr) {
+            emptyList = session->AddEventList(Prisma_HumidifierEmpty, EVL_Event);
+        }
+        // EventStoreType is qint16 (max 32767 s, about 9.1 h), so split long spans into
+        // consecutive sub-spans that each fit.
+        const qint64 maxSpanSec = 30000;
+        qint64 curStartMs = startMs;
+        while (curStartMs < endMs) {
+            qint64 chunkSec = qMin((endMs - curStartMs) / 1000, maxSpanSec);
+            if (chunkSec <= 0) break;
+            qint64 chunkEndMs = curStartMs + chunkSec * 1000;
+            emptyList->AddEvent(startdate + chunkEndMs, EventDataType(chunkSec));
+            curStartMs = chunkEndMs;
+        }
+    };
+
+    qint64 emptyStartMs = (humidStatusAtStart == PRISMA_HUMID_EMPTY) ? 0 : -1;
+    for (const auto & tr : humidTransitions) {
+        // Clamp to the session: the final status events are logged at or just after its end.
+        const qint64 t_ms = qMin(qint64(tr.first), session_dur_ms);
+        const int state = tr.second;
+        if (state == PRISMA_HUMID_EMPTY && emptyStartMs < 0) {
+            emptyStartMs = t_ms;
+        } else if (state != PRISMA_HUMID_EMPTY && emptyStartMs >= 0) {
+            addEmptySpan(emptyStartMs, t_ms);
+            emptyStartMs = -1;
+        }
+    }
+    if (emptyStartMs >= 0) {
+        addEmptySpan(emptyStartMs, session_dur_ms);
+    }
+    // Keep an (empty) list only when the device reports humidifier status, so devices that
+    // don't (e.g. Prisma Smart) don't get a phantom channel.
+    if (emptyList == nullptr && (humidStatusAtStart >= 0 || !humidTransitions.isEmpty())) {
+        session->AddEventList(Prisma_HumidifierEmpty, EVL_Event);
+    }
+
     session->SetChanged(true);
     loader->context()->AddSession(session);
 }
@@ -462,7 +531,12 @@ void PrismaImport::AddEvents(ChannelID channel, QList<Prisma_Event_Type> eventTy
             eventList ->AddEvent(startdate + event.endTime(), event.duration(), event.strength());
         }
     }
-    session->AddEventList(channel, EVL_Event);
+    // Every channel keeps an (empty) list so it appears in the events list from the first
+    // import — except OH and CH, whose presence is read as "this device splits hypopneas
+    // by mechanism". Those two exist only once an event has been seen (GitLab #261).
+    if (channel != CPAP_ObstructiveHypopnea && channel != CPAP_CentralHypopnea) {
+        session->AddEventList(channel, EVL_Event);
+    }
 }
 
 //********************************************************************************************
@@ -476,11 +550,21 @@ PrismaEventFile::PrismaEventFile(QByteArray &buffer) {
     {
         QDomElement node=deviceEventNodelist.item(i).toElement();
         int eventId = node.attribute("DeviceEventID").toInt();
+        int parameterId = node.attribute("ParameterID").toInt();
+        int value = node.attribute("NewValue").toInt();
         if (eventId == 0) {
-            int parameterId = node.attribute("ParameterID").toInt();
-            int value = node.attribute("NewValue").toInt();
             m_parameters[parameterId] = value;
+        } else if (eventId == 1) {
+            const int time_quantum = 10;
+            int time_ms = node.attribute("Time").toInt() * 1000 / time_quantum;
+            m_dynamicParameters[parameterId].append(qMakePair(time_ms, value));
         }
+    }
+
+    // Keep runtime transitions in time order; stable so same-time events keep file order.
+    for (auto & transitions : m_dynamicParameters) {
+        std::stable_sort(transitions.begin(), transitions.end(),
+            [](const QPair<int, int> & x, const QPair<int, int> & y) { return x.first < y.first; });
     }
 
     QDomNodeList  respEventNodelist = root.elementsByTagName("RespEvent");
@@ -510,8 +594,11 @@ struct PrismaTestedModel
 static const PrismaTestedModel s_PrismaTestedModels[] = {
     { "0x92", "Prisma Smart" },
     { "0x91", "Prisma Soft" },
-    {"22" , "prisma25S" },
-    {"23" , "prisma25ST" },
+    // The LINE models are identified by the decimal DeviceType string in device.xml;
+    // the hex ids above come from the Firefly platform's JSON "devid" field instead.
+    { "10"  , "prisma20A" },
+    { "22"  , "prisma25S" },
+    { "23"  , "prisma25ST" },
     { "", ""}
 };
 
@@ -559,7 +646,25 @@ bool PrismaLoader::Detect(const QString & selectedPath)
     return prismaSmartConfigFile.exists() || prismaLineConfigFile.exists();
 }
 
-int PrismaLoader::Open(const QString & selectedPath)
+QString PrismaLoader::findCardPath(const QString & path)
+{
+    if (Detect(path)) {
+        return path;
+    }
+    // Open() backs the card up into a subfolder of the device's Backup folder named after the
+    // imported folder, but Rebuild CPAP Data opens the Backup folder itself (GitLab #321).
+    QDir dir(path);
+    const QStringList subdirs = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+    for (const QString & sub : subdirs) {
+        const QString subPath = dir.absoluteFilePath(sub);
+        if (Detect(subPath)) {
+            return subPath;
+        }
+    }
+    return path;
+}
+
+int PrismaLoader::Open(const QString & path)
 {
     if (m_ctx == nullptr) {
         qWarning() << "PrismaLoader::Open() called without a valid m_ctx object present";
@@ -567,6 +672,7 @@ int PrismaLoader::Open(const QString & selectedPath)
     }
     Q_ASSERT(m_ctx);
 
+    const QString selectedPath = findCardPath(path);
     qDebug() << "Prisma opening" << selectedPath;
 
 
@@ -672,15 +778,25 @@ int PrismaLoader::Open(const QString & selectedPath)
         }
         qDebug() << sessions;
 
+        // Extract one archive member, or return an empty QByteArray when it is absent (a session
+        // may have only an event or only a signal file). PrismaImport::run() copes with empty
+        // buffers, exactly as it does for the directory-based import in ImportDataDir().
+        auto extractMember = [&zip_archive](const QString & name) -> QByteArray {
+            if (name.isEmpty()) return QByteArray();
+            size_t uncomp_size = 0;
+            void *extracted = mz_zip_reader_extract_file_to_heap(&zip_archive, name.toLocal8Bit(), &uncomp_size, 0);
+            if (extracted == nullptr) {
+                qWarning() << "Could not extract" << name << "from therapy archive";
+                return QByteArray();
+            }
+            QByteArray data((const char*)extracted, static_cast<qsizetype>(uncomp_size));
+            free(extracted);
+            return data;
+        };
+
         for(auto & sid : sessions) {
-            size_t uncomp_size_events;
-            void *extract_events = mz_zip_reader_extract_file_to_heap(&zip_archive, eventFiles[sid].toLocal8Bit(), &uncomp_size_events, 0);
-            QByteArray eventData((const char*)extract_events, uncomp_size_events);
-            free(extract_events);
-            size_t uncomp_size_signals;
-            void *extract_signals = mz_zip_reader_extract_file_to_heap(&zip_archive, signalFiles[sid].toLocal8Bit(), &uncomp_size_signals, 0);
-            QByteArray signalData((const char*)extract_signals, uncomp_size_signals);
-            free(extract_signals);
+            QByteArray eventData = extractMember(eventFiles.value(sid));
+            QByteArray signalData = extractMember(signalFiles.value(sid));
             queTask(new PrismaImport(this, info,  sid, eventData, signalData));
         }
         mz_zip_reader_end(&zip_archive);
@@ -705,51 +821,89 @@ int PrismaLoader::Open(const QString & selectedPath)
     return tasks;
 }
 
-MachineInfo PrismaLoader::PeekInfo(const QString & selectedPath)
+MachineInfo PrismaLoader::PeekInfo(const QString & path)
 {
+    const QString selectedPath = findCardPath(path);
     qDebug() << "PeekInfo " << selectedPath;
     if (!Detect(selectedPath))
         return MachineInfo();
 
-    return PeekInfoFromConfig(selectedPath + QDir::separator() + PRISMA_SMART_CONFIG_FILE);
+    // PeekInfoFromConfig() expects the card's root folder and locates the config file itself.
+    return PeekInfoFromConfig(selectedPath);
 }
 
-MachineInfo PrismaLoader::PeekInfoFromPrismaLineConfig(const QString & selectedPath){
+MachineInfo PrismaLoader::PeekInfoFromPrismaLineConfig(const QString & selectedPath)
+{
+    // Every failure path returns a default-constructed MachineInfo (type MT_UNKNOWN) so that
+    // Open() rejects the card instead of creating a machine with an empty serial, matching
+    // the Prisma SMART branch of PeekInfoFromConfig().
     QFile prismaLineConfigFile(selectedPath + QDir::separator() + PRISMA_LINE_CONFIG_FILE);
-        MachineInfo info = newInfo();
     if (!prismaLineConfigFile.open(QIODevice::ReadOnly)) {
-        return info;
+        qWarning() << "Prisma LINE config file not readable" << prismaLineConfigFile.fileName();
+        return MachineInfo();
     }
     QByteArray configDataZip = prismaLineConfigFile.readAll();
     prismaLineConfigFile.close();
 
-    mz_bool status;
+    // config.pcfg is a zip archive; the device identity lives in mnt/flash/conf/device.xml.
+    // The reader works directly on configDataZip's buffer, so that must outlive it.
     mz_zip_archive zip_archive;
-
-
     memset(&zip_archive, 0, sizeof(zip_archive));
 
-    status = mz_zip_reader_init_mem(&zip_archive, (const void*)configDataZip.constData(), configDataZip.size(), 0);
-    if (!status)
-    {
-        qDebug() <<  "mz_zip_reader_init_file() failed!";
-        return info;
+    if (!mz_zip_reader_init_mem(&zip_archive, (const void*)configDataZip.constData(), configDataZip.size(), 0)) {
+        qWarning() << "mz_zip_reader_init_mem() failed for" << prismaLineConfigFile.fileName();
+        return MachineInfo();
     }
-    size_t uncomp_size_config;
-    void *extract_config = mz_zip_reader_extract_file_to_heap( &zip_archive, "mnt/flash/conf/device.xml", &uncomp_size_config, 0);
-    QByteArray configData((const char*)extract_config, uncomp_size_config);
+    size_t uncomp_size_config = 0;
+    void *extract_config = mz_zip_reader_extract_file_to_heap(&zip_archive, "mnt/flash/conf/device.xml", &uncomp_size_config, 0);
+    mz_zip_reader_end(&zip_archive);   // the extracted copy is independent of the reader
+    if (extract_config == nullptr) {
+        qWarning() << "mnt/flash/conf/device.xml missing from" << prismaLineConfigFile.fileName();
+        return MachineInfo();
+    }
+    QByteArray configData((const char*)extract_config, static_cast<qsizetype>(uncomp_size_config));
     free(extract_config);
 
     QDomDocument dom;
-    dom.setContent(configData);
+    if (!dom.setContent(configData)) {
+        qWarning() << "device.xml in" << prismaLineConfigFile.fileName() << "is not valid XML";
+        return MachineInfo();
+    }
 
     QDomElement root = dom.documentElement();
     QDomNodeList  configNodelist = root.elementsByTagName("DeviceType");
 
+    MachineInfo info = newInfo();
     info.modelnumber = configNodelist.item(0).attributes().item(0).nodeValue();
     info.model = s_PrismaModelInfo.Name(info.modelnumber);
     configNodelist = dom.elementsByTagName("DeviceSerialNumber");
     info.serial = configNodelist.item(0).attributes().item(0).nodeValue();
+
+    // A device.xml without a serial cannot be matched to a machine record; treat it as unreadable.
+    if (info.serial.isEmpty()) {
+        qWarning() << "device.xml in" << prismaLineConfigFile.fileName() << "has no DeviceSerialNumber";
+        return MachineInfo();
+    }
+
+    // Firmware belongs in properties, not in series: series is a lookup key (it selects the
+    // device pixmap and is matched against in the card warnings), so a version string there
+    // would make it impossible to ever key a Prisma icon off it.  device.xml splits the
+    // version across two elements — FWVersion "5.07" and FWRevision "0002" — which the
+    // vendor's prismaTS report shows joined as "FW 5.07.0002".
+    auto firstAttribute = [&root](const QString & tag) -> QString {
+        QDomNodeList list = root.elementsByTagName(tag);
+        if (list.isEmpty() || list.item(0).attributes().count() == 0) return QString();
+        return list.item(0).attributes().item(0).nodeValue();
+    };
+    QString firmware = firstAttribute("FWVersion");
+    const QString fwRevision = firstAttribute("FWRevision");
+    if (!firmware.isEmpty() && !fwRevision.isEmpty()) {
+        firmware += "." + fwRevision;
+    }
+    if (!firmware.isEmpty()) {
+        // Key spelled as in bmcg3x_loader.cpp, which reads it back to flag untested firmware.
+        info.properties["firmware"] = firmware;
+    }
 
     // TODO AXT load props
     info.properties["cica"] = "mica";
@@ -965,13 +1119,14 @@ void PrismaLoader::initChannels()
         QObject::tr("EEPAPMax"),
         STR_UNIT_CMH2O, DEFAULT, Qt::green));
 
-    channel.add(GRP_CPAP, new Channel(Prisma_HumidifierLevel=0xe40b, SETTING,  MT_CPAP,  SESSION,
+    channel.add(GRP_CPAP, chan = new Channel(Prisma_HumidifierLevel=0xe40b, SETTING,  MT_CPAP,  SESSION,
         "Prisma_HumidLevel",
         QObject::tr("Humidifier level"),
         QObject::tr("Humidifier level"),
         // Displayed label standardised across loaders — see GitLab #263.
         QObject::tr("Humidity Level"),
-        "", DEFAULT, Qt::green));
+        "", INTEGER, Qt::green));
+    chan->addOption(0, STR_TR_Off);
 
     channel.add(GRP_CPAP, new Channel(Prisma_TubeType=0xe40c, SETTING,  MT_CPAP,  SESSION,
         "Prisma_TubeType",
@@ -1110,6 +1265,13 @@ void PrismaLoader::initChannels()
     chan->addOption(Prisma_BiSoft_1, QObject::tr("BiSoft 1"));
     chan->addOption(Prisma_BiSoft_2, QObject::tr("BiSoft 2"));
     chan->addOption(Prisma_TriLevel, QObject::tr("TriLevel"));
+
+    channel.add(GRP_CPAP, chan = new Channel(Prisma_HumidifierEmpty=0xe44f, SPAN,  MT_CPAP,   SESSION,
+        "Prisma_HumidEmpty",
+        QObject::tr("Humidifier Empty"),
+        QObject::tr("Humidifier water ran out during therapy"),
+        QObject::tr("HE"),
+        STR_UNIT_Percentage, DEFAULT, QColor("gold")));
 
 }
 

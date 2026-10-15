@@ -33,12 +33,18 @@
 #include <QRegularExpression>
 #include <QStyleHints>
 #include <QStyleFactory>
+#include <QElapsedTimer>
 #include <QLockFile>
 #include <QProcess>
+#include <QPushButton>
+#include <QDateTime>
+#include <functional>
 
 #include "version.h"
 #include "logger.h"
 #include "mainwindow.h"
+#include "importhandover.h"
+#include "datafolderdialog.h"
 #include "SleepLib/profiles.h"
 #include "translation.h"
 #include "speedcheck.h"
@@ -58,6 +64,7 @@
 #include "SleepLib/loader_plugins/md300w1_loader.h"
 #include "SleepLib/loader_plugins/zeo_loader.h"
 #include "SleepLib/loader_plugins/somnopose_loader.h"
+#include "SleepLib/loader_plugins/dreem_loader.h"
 #include "SleepLib/loader_plugins/resmed_loader.h"
 #include "SleepLib/loader_plugins/intellipap_loader.h"
 #include "SleepLib/loader_plugins/icon_loader.h"
@@ -506,6 +513,200 @@ int main(int argc, char* argv[])
 
 #else
 
+/*
+ * Run a blocking job on a worker thread while the caller's event loop keeps the
+ * UI (a wait or progress dialog) responsive. Returns when the job has finished.
+ */
+static void runOnWorkerThread(const std::function<void()>& work)
+{
+    QThread* worker = QThread::create(work);
+    QEventLoop loop;
+    QObject::connect(worker, &QThread::finished, &loop, &QEventLoop::quit);
+    worker->start();
+    loop.exec();
+    worker->wait();
+    delete worker;
+}
+
+/*
+ * Gate an irreversible database schema upgrade behind the user's consent.
+ *
+ * Mirrors Profile::DataFormatError(), which does the same when a loader's data
+ * format changes: explain what is about to happen, let the user exit instead,
+ * and only then proceed. Here the user can also have OSCAR write a complete
+ * single-file copy of the database first (VACUUM INTO folds the WAL in, so
+ * nothing is missed the way a hand copy of oscar.db alone would be).
+ *
+ * The copy and the migrations run on a worker thread behind an application-modal
+ * progress dialog. The dialog has no Cancel button: each migration is one atomic
+ * transaction that cannot be interrupted, and the decision to stop was offered
+ * before anything was touched.
+ *
+ * Returns true when the database is upgraded and DatabaseManager is ready;
+ * false when the user chose to exit or the upgrade failed. Failures have been
+ * reported to the user before returning; the caller only needs to exit.
+ */
+static bool confirmAndUpgradeDatabase(const QString& dbPath, int fromVersion, bool autoUpgrade = false, bool batchMode = false)
+{
+    DatabaseManager& dbMgr = DatabaseManager::instance();
+    const int toVersion = DatabaseSchema::CURRENT_SCHEMA_VERSION;
+    const QString folder = QDir::toNativeSeparators(QFileInfo(dbPath).absolutePath());
+
+    if (batchMode && !autoUpgrade) {
+        qCritical().noquote() << QString("Database requires schema upgrade from version %1 to version %2. "
+                                          "Run with --upgrade-database to perform the upgrade in batch mode, or launch OSCAR interactively.")
+                                     .arg(fromVersion).arg(toVersion);
+        return false;
+    }
+
+    if (autoUpgrade) {
+        QString backupError;
+        QString backupPath = QFileInfo(dbPath).dir().filePath(
+            QString("oscar-backup-v%1-%2.db").arg(fromVersion)
+                .arg(QDateTime::currentDateTime().toString("yyyyMMdd-HHmmss")));
+        qInfo().noquote() << QString("Creating database backup at %1 before schema upgrade...").arg(backupPath);
+        bool backupOk = false;
+        runOnWorkerThread([&]() {
+            backupOk = dbMgr.snapshotTo(backupPath, &backupError);
+        });
+        if (!backupOk) {
+            qCritical().noquote() << QString("Database backup failed before schema upgrade: %1. Upgrade aborted.").arg(backupError);
+            return false;
+        }
+        qInfo().noquote() << QString("Upgrading database schema from version %1 to version %2...").arg(fromVersion).arg(toVersion);
+        bool upgradeOk = false;
+        runOnWorkerThread([&]() {
+            upgradeOk = dbMgr.upgradeSchema([](int step, int stepCount, int from, int to) {
+                qDebug() << "Upgrading schema step" << step << "of" << stepCount << "from" << from << "to" << to;
+            });
+        });
+        if (upgradeOk) {
+            upgradeOk = dbMgr.completeInitialization();
+        }
+        if (!upgradeOk) {
+            qCritical().noquote() << QString("Database schema upgrade failed. Backup copy preserved at: %1").arg(backupPath);
+            return false;
+        }
+        qInfo().noquote() << QString("Database schema successfully upgraded to version %1.").arg(toVersion);
+        return true;
+    }
+
+    QString msg = "<font size=+1>"
+        + QObject::tr("OSCAR %1 needs to upgrade its database from version %2 to version %3.")
+              .arg(getVersion().displayString()).arg(fromVersion).arg(toVersion)
+        + "</font><br/><br/>"
+        + "<font size=+1>" + QObject::tr("Important:") + "</font> "
+        + QObject::tr("Once upgraded, this database <font size=+1>cannot</font> be opened by earlier versions of OSCAR, and the upgrade cannot be undone.")
+        + "<br/><br/>"
+        + QObject::tr("<b>Back up and upgrade</b> first saves a complete copy of the current database in %1, so you can go back to it if needed.").arg(folder)
+        + "<br/><br/>"
+        + QObject::tr("<b>Exit</b> leaves the database unchanged, so you can back it up yourself before starting OSCAR again.")
+        + "<br/><br/>"
+        + "<font size=+1>" + QObject::tr("Are you ready to upgrade?") + "</font>";
+
+    QMessageBox question(QMessageBox::Warning, QObject::tr("Database Upgrade Required"), msg);
+    QPushButton* backupButton = question.addButton(QObject::tr("Back up and upgrade"), QMessageBox::AcceptRole);
+    question.addButton(QObject::tr("Upgrade"), QMessageBox::AcceptRole);
+    QPushButton* exitButton = question.addButton(QObject::tr("Exit"), QMessageBox::RejectRole);
+    question.setDefaultButton(backupButton);
+    question.setEscapeButton(exitButton);
+    question.exec();
+
+    if (question.clickedButton() == exitButton) {
+        qDebug() << "Main: User declined the schema upgrade from" << fromVersion << "to" << toVersion;
+        return false;
+    }
+    const bool makeBackup = (question.clickedButton() == backupButton);
+
+    // Busy indicator (range 0,0) plus a label naming the current step: each step is
+    // a single transaction, so there is no finer-grained progress to show.
+    QProgressDialog progress(QString(), QString(), 0, 0, nullptr,
+                             Qt::Dialog | Qt::CustomizeWindowHint | Qt::WindowTitleHint);
+    progress.setWindowTitle(QObject::tr("Upgrading Database"));
+    progress.setWindowModality(Qt::ApplicationModal);
+    progress.setCancelButton(nullptr);
+    progress.setMinimumDuration(0);
+    progress.setMinimumWidth(450);
+    progress.setAutoClose(false);
+    progress.setAutoReset(false);
+
+    // The worker thread reports through this; the dialog must only be touched
+    // on the GUI thread, so queue the update.
+    auto setStatus = [&progress](const QString& text) {
+        QMetaObject::invokeMethod(&progress, [&progress, text]() {
+            progress.setLabelText(text);
+        }, Qt::QueuedConnection);
+    };
+
+    QString backupPath;
+    if (makeBackup) {
+        backupPath = QFileInfo(dbPath).dir().filePath(
+            QString("oscar-backup-v%1-%2.db").arg(fromVersion)
+                .arg(QDateTime::currentDateTime().toString("yyyyMMdd-HHmmss")));
+        progress.setLabelText(QObject::tr("Backing up the database to %1...").arg(QFileInfo(backupPath).fileName()));
+        progress.show();
+        QApplication::processEvents();
+
+        bool backupOk = false;
+        QString backupError;
+        runOnWorkerThread([&]() {
+            backupOk = dbMgr.snapshotTo(backupPath, &backupError);
+        });
+
+        if (!backupOk) {
+            progress.hide();
+            QMessageBox retry(QMessageBox::Warning, QObject::tr("Database Backup Failed"),
+                QObject::tr("OSCAR could not save a copy of the database:") + "\n\n" + backupError + "\n\n"
+                    + QObject::tr("You can upgrade without a backup, or exit and back up the database yourself first."));
+            QPushButton* noBackupButton = retry.addButton(QObject::tr("Upgrade without backup"), QMessageBox::AcceptRole);
+            QPushButton* retryExitButton = retry.addButton(QObject::tr("Exit"), QMessageBox::RejectRole);
+            retry.setDefaultButton(retryExitButton);
+            retry.setEscapeButton(retryExitButton);
+            retry.exec();
+            if (retry.clickedButton() != noBackupButton) {
+                qDebug() << "Main: User exited after backup failure:" << backupError;
+                return false;
+            }
+            backupPath.clear();
+        }
+        qDebug() << "Main: Pre-upgrade database copy:" << (backupPath.isEmpty() ? "none" : backupPath);
+    }
+
+    progress.setLabelText(QObject::tr("Upgrading database from version %1 to version %2...").arg(fromVersion).arg(toVersion));
+    progress.show();
+    QApplication::processEvents();
+
+    bool upgradeOk = false;
+    runOnWorkerThread([&]() {
+        upgradeOk = dbMgr.upgradeSchema([&](int step, int stepCount, int from, int to) {
+            setStatus(QObject::tr("Upgrading database from version %1 to version %2 (step %3 of %4)...")
+                          .arg(from).arg(to).arg(step).arg(stepCount));
+        });
+    });
+    progress.hide();
+
+    if (upgradeOk) {
+        upgradeOk = dbMgr.completeInitialization();
+    }
+    if (!upgradeOk) {
+        qCritical() << "Main: Database schema upgrade failed";
+        QString text = QObject::tr("OSCAR could not upgrade your database from version %1 to version %2.")
+                           .arg(fromVersion).arg(toVersion) + "\n\n";
+        if (!backupPath.isEmpty()) {
+            text += QObject::tr("The copy made before the upgrade is unchanged:") + "\n"
+                    + QDir::toNativeSeparators(backupPath) + "\n\n";
+        }
+        text += QObject::tr("Each completed step has been kept, and OSCAR will try the remaining steps the next time it starts. "
+                            "If the problem persists, restore the database from a backup or delete oscar.db and re-import your CPAP data.")
+                + "\n\n" + QObject::tr("OSCAR will now close.");
+        QMessageBox::critical(nullptr, QObject::tr("Database Upgrade Failed"), text);
+        return false;
+    }
+
+    qDebug() << "Main: Database schema upgraded from" << fromVersion << "to" << toVersion;
+    return true;
+}
+
 #ifndef Q_OS_LINUX
 // Due to a bug in Qt, creating multiple QApplication instances in a process
 // causes subsequent native file dialog boxes to hang on Fedora 35.
@@ -534,15 +735,106 @@ void optionExit(int exitCode, QString error) {
     Help Menu
     Option                   Description
     -p                       Pauses execution for 1 second
-    --profile  <name>        Name of profile. if name does not exist then uses profile tab.
+    --profile  <name>        Name of profile to open. If omitted in batch mode,
+                             auto-selects if exactly 1 profile exists.
     --l or --language        Force language prompt
-    --datadir  <folderName>  Use folderName as Oscar Data folder. For relatve paths: <Documents folder>/<relative path>.
+    --datadir  <folderName>  Use folderName as OSCAR Data folder. For relative paths: <Documents folder>/<relative path>.
                              If folder does not exist then prompts user.
     --legacy                 Use software graphics engine
     --OpenGL                 Use OpenGL graphics engine (case-insensitive)
+    --batch, -b              Run the requested imports without showing the GUI, then exit.
+    --import-and-exit        Same as --batch.
+                             OSCAR still needs a Qt platform plugin: on Linux without an
+                             X/Wayland display, pass '-platform offscreen' (or set
+                             QT_QPA_PLATFORM=offscreen).
+    --import <loader> <path> Import a file or folder with the named loader. Implies --batch.
+                             May be repeated. Loader names are case-insensitive; accepted
+                             aliases are shown in [brackets]:
+                               CPAP:     CPAP (auto-detect), PRS1 [Philips, Respironics],
+                                         ResMed, FPIcon [Icon, F&P-Icon],
+                                         SleepStyle [F&P-SleepStyle],
+                                         Intellipap [DeVilbiss], Prisma, Weinmann, BMC,
+                                         BMCG3X [BMC-G3X, BMC_G3X], Resvent, vREM, Apex,
+                                         Sefam, Yuwell
+                               Oximetry: Viatom, CMS50, CMS50F37, MD300W1
+                               Sleep:    ZEO, Dreem, Somnopose, AppleHealth [Apple-Health]
+                             Not yet safe unattended (may show a dialog on bad or
+                             unexpected data): BMC, BMCG3X, CMS50, CMS50F37, FPIcon,
+                             MD300W1, ResMed, SleepStyle, Yuwell.
+                             If OSCAR is already running on the same data folder, the
+                             import is handed to that instance: it imports, refreshes
+                             its views and reports back. Exit code 0 = imported,
+                             1 = failed, 75 = the running OSCAR cannot import now (a
+                             dialog or menu is open, no profile is open, it was closed
+                             before it got to the import, or it does not respond) -
+                             try again later. A request that arrives while the running
+                             OSCAR is importing waits until that import is done.
+                             If another batch import has the folder, OSCAR waits up to
+                             60 seconds for it to finish.
+    --upgrade-database       Automatically back up and upgrade database schema (batch mode only).
     --help                   Displays this menu and exits.
     )" );
     exit (exitCode);
+}
+
+/*! \brief The data folder is in use and imports were requested: have them done anyway.
+
+    Either the instance that holds the folder is a running OSCAR window, which takes the
+    request and reports the result (\a exitCode is then set, >= 0), or it is another batch
+    import, which ends by itself - then wait for the lock.
+    \return true if \a lockFile was obtained and this process should import itself. */
+static bool handOverImportsOrWaitForLock(QLockFile &lockFile, const QString &profile,
+                                         const QList<QPair<QString, QString>> &importTasks, int &exitCode)
+{
+    if (!profile.isEmpty() && profile.trimmed().isEmpty()) {
+        // "--profile" without a name: a batch import refuses that, so does a handed-over one.
+        qCritical().noquote() << QString("Specified profile '%1' does not exist in OSCAR database.").arg(profile);
+        exitCode = ImportHandover::ExitFailed;
+        return false;
+    }
+    ImportHandover::Request request;
+    request.profile = profile.trimmed();
+    for (const auto &task : importTasks) {
+        // The running instance has its own working directory.
+        request.tasks.append(qMakePair(task.first, QFileInfo(task.second).absoluteFilePath()));
+    }
+
+    const int waitMs = 60 * 1000;
+    bool saidWaiting = false;
+    QElapsedTimer waited;
+    waited.start();
+    do {
+        ImportHandover::Reply reply;
+        switch (ImportHandover::send(GetAppData(), request, reply)) {
+        case ImportHandover::SendResult::Replied:
+            if (reply.exitCode == ImportHandover::ExitOk) {
+                qInfo().noquote() << reply.message;
+            } else {
+                qCritical().noquote() << reply.message;
+            }
+            exitCode = reply.exitCode;
+            return false;
+        case ImportHandover::SendResult::ConnectionLost:
+            qCritical() << "The running OSCAR closed the connection before the import was reported as done.";
+            exitCode = ImportHandover::ExitFailed;
+            return false;
+        case ImportHandover::SendResult::NotResponding:
+            qCritical() << "The running OSCAR does not respond. Nothing was imported; try again later.";
+            exitCode = ImportHandover::ExitBusy;
+            return false;
+        case ImportHandover::SendResult::NoInstanceListening:
+            // A batch import, or a window that is still starting up.
+            break;
+        }
+        if (!saidWaiting) {
+            qInfo().noquote() << QString("The OSCAR data folder is in use by another OSCAR process; waiting up to %1 seconds for it.").arg(waitMs / 1000);
+            saidWaiting = true;
+        }
+        if (lockFile.tryLock(1000)) {
+            return true;
+        }
+    } while (waited.elapsed() < waitMs);
+    return false;
 }
 
 #ifdef Q_OS_WIN
@@ -642,10 +934,26 @@ int main(int argc, char *argv[]) {
     }
 
     QApplication mainapp(argc, argv);
+    // The application name above keeps its historical " 2.0" because it keys the QSettings
+    // store and AppDataLocation; changing it would orphan existing settings. The name users
+    // see (e.g. appended to window titles on Linux) covers every 2.x release.
+    QGuiApplication::setApplicationDisplayName(getAppName() + " 2");
 #if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
     mainapp.styleHints()->setColorScheme(Qt::ColorScheme::Light);
 #endif
     QStringList args = mainapp.arguments();
+
+    // Everything shown before the preferences are loaded (language choice, data folder
+    // setup, startup warnings) would otherwise use the platform default font, which on
+    // Windows is a point smaller than OSCAR's own default. Use OSCAR's default size now;
+    // setApplicationFont() applies the user's preference once it is available.
+    {
+        QFont startupFont = QApplication::font();
+        if (startupFont.pointSize() < DefaultApplicationFontSize) {
+            startupFont.setPointSize(DefaultApplicationFontSize);
+            QApplication::setFont(startupFont);
+        }
+    }
 
 #ifdef Q_OS_WIN
     // QMessageBox must come after the application is created. The graphics engine has to be selected before.
@@ -673,6 +981,12 @@ int main(int argc, char *argv[]) {
     ////////////////////////////////////////////////////////////////////////////////////////////
     bool force_data_dir = false;
     QString load_profile; // null profile means no --profile param
+    QString dataDirArg;   // resolved --datadir path, empty if not given
+    bool batchMode = false;
+    bool autoUpgrade = false;
+    QList<QPair<QString, QString>> importTasks;
+    // Data folder recorded before this launch, so a cancelled first-time setup can put it back.
+    const QString appDataAtLaunch = settings.value("Settings/AppData").toString();
     for (int i = 1; i < args.size(); i++) {
         if ((args[i] == "--language") || (args[i] == "--l") ) {
             settings.setValue(LangSetting,"");
@@ -686,6 +1000,18 @@ int main(int argc, char *argv[]) {
             else {
                 // Just view all profiles.
                 load_profile = " ";
+            }
+        } else if (args[i] == "--batch" || args[i] == "-b" || args[i] == "--import-and-exit") {
+            batchMode = true;
+        } else if (args[i] == "--upgrade-database") {
+            autoUpgrade = true;
+        } else if (args[i] == "--import") {
+            if (i + 2 < args.size()) {
+                QString ldr = args[++i];
+                QString pth = args[++i];
+                importTasks.append(qMakePair(ldr, pth));
+            } else {
+                optionExit(2, "Missing argument(s) to --import: expected <loader> <path>\n");
             }
         } else if (args[i] == "--datadir") { // mltam's idea
             QString datadir, datadirwas ;
@@ -701,7 +1027,11 @@ int main(int argc, char *argv[]) {
                     datadir = homeDocs+datadir;
                     qDebug() << "--datadir was:" << datadirwas << "; --datadir is:" << datadir;
                 }
-                SetAppData(datadir);
+                // In memory only for now: the folder is recorded in settings once it is
+                // known to exist (or has been created), so that cancelling the setup
+                // dialogs for a missing folder leaves the previously recorded one in place.
+                dataDirArg = datadir;
+                SetAppData(datadir, false);
 //            force_data_dir = true;
             } else {
                 optionExit(2,"Missing argument to --datadir\n");
@@ -714,7 +1044,24 @@ int main(int argc, char *argv[]) {
 
     }   // end of for args loop
 
+    if (!importTasks.isEmpty()) {
+        batchMode = true;
+    }
+
+    if (autoUpgrade && !batchMode) {
+        qWarning() << "Main: --upgrade-database is only supported in batch mode. Ignoring flag.";
+        autoUpgrade = false;
+    }
+
     qDebug().noquote() << "OSCAR starting" << QDateTime::currentDateTime().toString();
+    // Record how OSCAR was started, so a log from a scripted or batch run can be told
+    // apart from an interactive one. Arguments containing spaces are quoted.
+    QStringList quotedArgs;
+    for (int i = 1; i < args.size(); i++)
+        quotedArgs << (args[i].contains(' ') ? "\"" + args[i] + "\"" : args[i]);
+    qDebug().noquote() << "Command line:" << (quotedArgs.isEmpty() ? QString("(no arguments)") : quotedArgs.join(' '));
+    if (batchMode)
+        qDebug().noquote() << "Running in batch mode: no GUI; OSCAR exits when the imports finish";
     qDebug() << "APP-NAME:" << QCoreApplication::applicationName();
     qDebug() << "APP-PATH:" << QCoreApplication::applicationDirPath();
     qDebug() << "APP-RESOURCES:" << appResourcePath();
@@ -737,7 +1084,7 @@ int main(int argc, char *argv[]) {
     ////////////////////////////////////////////////////////////////////////////////////////////
     // Language Selection
     ////////////////////////////////////////////////////////////////////////////////////////////
-    initTranslations();
+    initTranslations(batchMode);
 
     initializeStrings(); // This must be called AFTER translator is installed, but before mainwindow is setup
 
@@ -808,74 +1155,101 @@ int main(int argc, char *argv[]) {
     ////////////////////////////////////////////////////////////////////////////////////////////
     bool haveNewFolder = false;
 
-    if (!settings.contains("Settings/AppData")) {       // This is first time execution
-        SetAppData(homeDocs + getModifiedAppData());    // set up new data directory path
-        qDebug() << "First time: Setting " + GetAppData();
+    // GetAppData() is now --datadir if given, else the folder recorded in settings, else
+    // (first run) a fallback that is never used: the setup dialog decides. Nothing has been
+    // written to settings yet: that happens only once a folder is confirmed below, so
+    // cancelling here leaves the previously recorded folder — or a genuine first-run
+    // state — untouched.
+    const bool firstRun = dataDirArg.isEmpty() && !settings.contains("Settings/AppData");
+    if (firstRun)
+        qDebug() << "First time: no data folder recorded";
+
+    // A recorded folder that still exists and holds files, but no oscar.db and no OSCAR 1.x
+    // data, has lost its database (moved, deleted, or removed by a cloud sync or clean-up
+    // tool). Opening it as it is would make DatabaseManager create a new, empty oscar.db
+    // without a word, and the user's data would appear to have vanished (GitLab #316).
+    // An empty folder is not a loss: it is a new data folder and carries on as before.
+    const bool databaseMissing = !firstRun && classifyDataFolder(GetAppData()) == DataFolderStatus::Other;
+    if (databaseMissing)
+        qWarning().noquote() << "Data folder" << GetAppData() << "exists but has no oscar.db";
+
+    if (!force_data_dir && (firstRun || databaseMissing || !QDir(GetAppData()).exists())) {
+        // Either a first run, or the recorded folder or its database has gone (moved,
+        // deleted, drive or cloud mirror not mounted). Creating a folder and finding one
+        // are separate paths: the single "choose or create" picker used before led many
+        // users to hand back the intended parent folder, putting the database in Documents.
+        if (batchMode) {
+            if (databaseMissing)
+                qCritical().noquote() << "Main: Data folder" << GetAppData() << "has no oscar.db. Run OSCAR interactively to resolve this.";
+            else
+                qCritical() << "Main: No OSCAR data folder configured. Please specify --datadir <path> or run OSCAR interactively first.";
+            return 1;
+        }
+        const QString missingPath = firstRun ? QString() : QDir::cleanPath(GetAppData());
+        // The setup dialog always suggests the default folder name; the location is where
+        // the missing folder used to be, or Documents on a first run.
+        const QString suggestedLocation = missingPath.isEmpty() ? QDir::cleanPath(homeDocs)
+                                                                : QFileInfo(missingPath).absolutePath();
+        QString chosen;
+
+        while (chosen.isEmpty()) {
+            const StartupChoice choice = databaseMissing ? showDatabaseMissingChoice(missingPath)
+                                                         : showStartupChoice(missingPath);
+
+            if (choice == StartupChoice::Cancel) {
+                QMessageBox::information(nullptr, QObject::tr("Exiting"),
+                                         (databaseMissing ? QObject::tr("OSCAR will exit without changing your data folder.")
+                                                          : QObject::tr("As you did not select a data folder, OSCAR will exit.")) + "\n" +
+                                         QObject::tr("Next time you run OSCAR, you will be asked again."));
+                return 0;
+            }
+
+            if (choice == StartupChoice::UseThisFolder) {
+                // The user has chosen, knowingly, to start again with an empty database here.
+                chosen = missingPath;
+                qWarning().noquote() << "User chose to create a new empty database in" << chosen;
+                continue;
+            }
+
+            if (choice == StartupChoice::FirstUse) {
+                DataFolderCreateDialog dlg(DataFolderCreateDialog::Mode::Startup,
+                                           suggestedLocation, STR_AppData);
+                if (dlg.exec() == QDialog::Accepted)
+                    chosen = dlg.folderPath();
+                continue;                       // Cancel returns to the startup choice
+            }
+
+            // StartupChoice::FindExisting — locate an existing OSCAR 2 data folder.
+            QString startDir = missingPath.isEmpty() ? homeDocs : QFileInfo(missingPath).absolutePath();
+            for (;;) {
+                QString datadir = QFileDialog::getExistingDirectory(nullptr,
+                                      QObject::tr("Locate your OSCAR 2 data folder"), startDir,
+                                      QFileDialog::ShowDirsOnly | nativeDialogOption());
+                if (datadir.isEmpty())
+                    break;                      // Cancel returns to the startup choice
+
+                const DataFolderStatus status = classifyDataFolder(datadir);
+                if (status == DataFolderStatus::Oscar2) {
+                    chosen = datadir;
+                    break;
+                }
+                QString why = (status == DataFolderStatus::Oscar1)
+                                  ? QObject::tr("This folder contains OSCAR 1.x data, not OSCAR 2 data.")
+                                  : QObject::tr("This folder does not contain an OSCAR 2 database.");
+                QMessageBox::warning(nullptr, QObject::tr("Not an OSCAR 2 data folder"),
+                                     why + "\n\n" + QDir::toNativeSeparators(datadir) + "\n\n" +
+                                     QObject::tr("Choose another folder, or Cancel to return to the previous screen."));
+                startDir = datadir;
+            }
+        }
+
+        SetAppData(chosen);
+        qDebug() << "Data folder selected:" << chosen;
     }
-
-    QDir dir(GetAppData());
-
-    if ( ! dir.exists() ) {             // directory doesn't exist, verify user's choice
-        if ( ! force_data_dir ) {       // unless they explicitly selected it by --datadir param
-            if (QMessageBox::question(nullptr, STR_MessageBox_Question,
-                                      QObject::tr("OSCAR will set up a folder for your data.")+"\n"+
-                                      QObject::tr("If you have been using an older version of OSCAR 1.x,") + "\n" +
-                                      QObject::tr("OSCAR can copy your old data to this folder later.")+"\n"+
-                                      QObject::tr("We suggest you use this folder: ")+QDir::toNativeSeparators(GetAppData())+"\n"+
-                                      QObject::tr("Click Ok to accept this, or No if you want to use a different folder.") + "\n",
-                                      QMessageBox::Ok | QMessageBox::No, QMessageBox::Ok) == QMessageBox::No) {
-                // User wants a different folder for data
-                bool change_data_dir = true;
-                while (change_data_dir) {           // Create or select an acceptable folder
-                    QString datadir = QFileDialog::getExistingDirectory(nullptr,
-                                      QObject::tr("Choose or create a new folder for OSCAR data"), homeDocs, QFileDialog::ShowDirsOnly | nativeDialogOption());
-
-                    if (datadir.isEmpty()) {        // User hit Cancel instead of selecting or creating a folder
-                        QMessageBox::information(nullptr, QObject::tr("Exiting"),
-                                                 QObject::tr("As you did not select a data folder, OSCAR will exit.")+"\n"+
-                                                 QObject::tr("Next time you run OSCAR, you will be asked again."));
-                        return 0;
-                    } else {                        // We have a folder, see if is already an OSCAR folder
-                        QDir dir(datadir);
-                        QFile prefFile(datadir + "/Preferences.xml");
-                        QDir  dirProfiles(datadir + "/Profiles");
-                        QFile dbFile(datadir + "/oscar.db");
-
-                        if (dbFile.exists() && dirProfiles.exists()) {     // It has a database file and a Profiles directory
-                            SetAppData(datadir);
-                            qDebug() << "Changing data folder to" << datadir;
-                            break;       // It is an OSCAR 2.0 folder. Use it.
-                        }
-
-                        if (prefFile.exists() && dirProfiles.exists()) {     // It has a Preferences.xml file and a Profiles directory
-                            // It's an OSCAR 1.x directory -- cannot use it
-                            QMessageBox::question(nullptr, STR_MessageBox_Warning,
-                                                      QObject::tr("The folder you chose is for OSCAR 1.x. You must use a different folder for OSCAR 2.0.") +
-                                                          +"\n\n" + datadir, QMessageBox::Ok);
-                            continue;   // Nope, don't use it, go around the loop again
-                        }
-
-                        if (!dirProfiles.exists() || !dbFile.exists()) {       // It doesn't have a database or a Profiles directory in it
-                            if (dir.count() > 2) {  // but it has more than dot and dotdot
-                                // Not a new OSCAR 2.0 directory.. nag the user.
-                                if (QMessageBox::question(nullptr, STR_MessageBox_Warning,
-                                                          QObject::tr("The folder you chose is not empty, nor does it already contain valid OSCAR data.") +
-                                                          "\n\n"+QObject::tr("Are you sure you want to use this folder?")+"\n\n" +
-                                                          datadir, QMessageBox::Yes, QMessageBox::No) == QMessageBox::No) {
-                                    continue;   // If no, don't use it, go around the loop again
-                                } // User responded "yes"
-                            }
-                            SetAppData(datadir);
-                            qDebug() << "Changing data folder to" << datadir;
-                            break;
-                        }
-                    }
-                }           // the while loop
-            }           // user wants a different folder
-        }           // user used --datadir folder to select a folder
-    }           // The folder doesn't exist
     else {
         qDebug() << "AppData folder already exists, so ...";
+        if (!dataDirArg.isEmpty())
+            SetAppData(dataDirArg);         // --datadir folder exists: record it for next time
     }
     qDebug().noquote() << "Using " + GetAppData() + " as OSCAR data folder";
 
@@ -904,9 +1278,11 @@ int main(int argc, char *argv[]) {
         QString errMsg = QObject::tr("Unable to write to OSCAR data directory") + " " + GetAppData() + "\n\n" +
                          QObject::tr("Error code") + ": " + QString::number(testFile.error()) + " - " + testFile.errorString() + "\n\n" +
                          QObject::tr("OSCAR cannot continue and is exiting.") + "\n";
-        qCritical() << errMsg;
-        QMessageBox::critical(nullptr, QObject::tr("Exiting"), errMsg);
-        return 0;
+        qCritical().noquote() << errMsg;
+        if (!batchMode) {
+            QMessageBox::critical(nullptr, QObject::tr("Exiting"), errMsg);
+        }
+        return (batchMode ? 1 : 0);
     }
     else
         testFile.remove();
@@ -915,7 +1291,16 @@ int main(int argc, char *argv[]) {
     // time — concurrent access would cause SQLite write conflicts and profile corruption.
     QLockFile lockFile(GetAppData() + "/oscar.lock");
     lockFile.setStaleLockTime(0);  // never treat a lock as stale
-    if (!lockFile.tryLock()) {
+    bool haveLock = lockFile.tryLock();
+    if (!haveLock && !importTasks.isEmpty()) {
+        // "OSCAR --import" while OSCAR is open: the running instance does the import.
+        int handedOverExitCode = -1;
+        haveLock = handOverImportsOrWaitForLock(lockFile, load_profile, importTasks, handedOverExitCode);
+        if (handedOverExitCode >= 0) {
+            return handedOverExitCode;
+        }
+    }
+    if (!haveLock) {
         qint64 pid = 0;
         QString hostname, appname;
         lockFile.getLockInfo(&pid, &hostname, &appname);
@@ -924,14 +1309,21 @@ int main(int argc, char *argv[]) {
                       QObject::tr("Close the other OSCAR instance before opening this database.");
         if (pid > 0)
             msg += "\n\n" + QObject::tr("(Other instance process ID: %1)").arg(pid);
-        QMessageBox::warning(nullptr, STR_MessageBox_Warning, msg);
-        return 0;
+        qCritical().noquote() << msg;
+        if (!batchMode) {
+            QMessageBox::warning(nullptr, STR_MessageBox_Warning, msg);
+        }
+        return (batchMode ? 1 : 0);
     }
 
     // Begin logging to file now that there's a data folder.
     if (!logger->logToFile()) {
-        QMessageBox::warning(nullptr, STR_MessageBox_Warning,
-             QObject::tr("Unable to write to debug log. You can still use the debug pane (Help/Troubleshooting/Show Debug Pane) but the debug log will not be written to disk."));
+        if (!batchMode) {
+            QMessageBox::warning(nullptr, STR_MessageBox_Warning,
+                 QObject::tr("Unable to write to debug log. You can still use the debug pane (Help/Troubleshooting/Show Debug Pane) but the debug log will not be written to disk."));
+        } else {
+            qWarning() << "Unable to write to debug log.";
+        }
     }
 
     ///////////////////////////////////////////////////////////////////////////////////////////
@@ -951,16 +1343,31 @@ int main(int argc, char *argv[]) {
     settings.setValue(DBLastPathKey, dbPath);
     settings.sync();
 
-    QObject::connect(&DatabaseManager::instance(), &DatabaseManager::databaseError,
-                     [](const QString& error) {
-                         qCritical() << "Database Manager Error:" << error;
-                         QMessageBox::critical(nullptr, STR_MessageBox_Error,
-                                               QObject::tr("Database Error") + "\n\n" + error);
+    // qApp as context: the schema upgrade runs on a worker thread and may emit
+    // this (via checkQueryError), so the dialog must be queued to the GUI thread.
+    QObject::connect(&DatabaseManager::instance(), &DatabaseManager::databaseError, qApp,
+                     [batchMode](const QString& error) {
+                         qCritical().noquote() << "Database Manager Error:" << error;
+                         if (!batchMode) {
+                             QMessageBox::critical(nullptr, STR_MessageBox_Error,
+                                                   QObject::tr("Database Error") + "\n\n" + error);
+                         }
                      });
 
     if (!DatabaseManager::instance().initialize(dbPath)) {
         qCritical() << "Main: Database initialization failed";
-        return 0;
+        return (batchMode ? 1 : 0);
+    }
+
+    // An older schema was found. The upgrade is irreversible, so ask first (and
+    // offer a copy of the database); the user may exit instead, as with a loader
+    // data-format change. Either way the connection is closed in order, so the
+    // shutdown counts as clean and no integrity check runs on the next launch.
+    const int pendingFrom = DatabaseManager::instance().pendingSchemaUpgradeFrom();
+    if (pendingFrom > 0 && !confirmAndUpgradeDatabase(dbPath, pendingFrom, autoUpgrade, batchMode)) {
+        DatabaseManager::instance().close();
+        DatabaseManager::markCleanShutdown(dbPath);
+        return (batchMode || autoUpgrade) ? 1 : 0;
     }
 
     qDebug() << "Main: Database initialized successfully!";
@@ -977,34 +1384,37 @@ int main(int argc, char *argv[]) {
         qDebug() << "Main: Previous session ended unexpectedly — running integrity check";
 
         QDialog integrityWait;
-        integrityWait.setWindowTitle(QObject::tr("Check Database Integrity"));
-        integrityWait.setWindowModality(Qt::ApplicationModal);
-        integrityWait.setWindowFlags(Qt::Dialog | Qt::CustomizeWindowHint | Qt::WindowTitleHint);
+        // Layout and label must outlive the if block: the dialog stays on screen during checkIntegrity().
         QVBoxLayout waitLayout(&integrityWait);
         QLabel waitLabel(QObject::tr("Checking database integrity, please wait..."), &integrityWait);
         waitLabel.setMargin(20);
         waitLayout.addWidget(&waitLabel);
-        integrityWait.setMinimumWidth(400);
-        integrityWait.adjustSize();
-        integrityWait.setFixedSize(integrityWait.size());
-        integrityWait.show();
-        QApplication::processEvents();
+        if (!batchMode) {
+            integrityWait.setWindowTitle(QObject::tr("Check Database Integrity"));
+            integrityWait.setWindowModality(Qt::ApplicationModal);
+            integrityWait.setWindowFlags(Qt::Dialog | Qt::CustomizeWindowHint | Qt::WindowTitleHint);
+            integrityWait.setMinimumWidth(400);
+            integrityWait.adjustSize();
+            integrityWait.setFixedSize(integrityWait.size());
+            integrityWait.show();
+            QApplication::processEvents();
+        }
 
         bool integrityOk = false;
-        QThread* checkThread = QThread::create([&integrityOk]() {
+        runOnWorkerThread([&integrityOk]() {
             integrityOk = DatabaseManager::instance().checkIntegrity();
         });
-        QEventLoop waitLoop;
-        QObject::connect(checkThread, &QThread::finished, &waitLoop, &QEventLoop::quit);
-        checkThread->start();
-        waitLoop.exec();
-        checkThread->wait();
-        delete checkThread;
 
-        integrityWait.hide();
+        if (!batchMode) {
+            integrityWait.hide();
+        }
 
         if (!integrityOk) {
             qCritical() << "Main: Database integrity check failed after unclean shutdown";
+            if (batchMode) {
+                DatabaseManager::instance().close();
+                return 1;
+            }
             QMessageBox::StandardButton btn = QMessageBox::critical(
                 nullptr,
                 QObject::tr("Database Integrity Warning"),
@@ -1050,7 +1460,9 @@ int main(int argc, char *argv[]) {
 
     QString language = settings.value(LangSetting, "").toString();
     AppSetting->setLanguage(language);
-    if (!load_profile.isEmpty()) AppSetting->setProfileName(load_profile);
+    // GUI: "--profile" with no name stores " " so Startup() shows the profile selector.
+    // Batch resolves the profile from load_profile directly and rejects " ".
+    if (!batchMode && !load_profile.isEmpty()) AppSetting->setProfileName(load_profile);
 
     // Set fonts from preferences file
     qDebug() << "Main: App font before Prefs setting" << QApplication::font();
@@ -1096,12 +1508,44 @@ int main(int argc, char *argv[]) {
     ///////////////////////////////////////////////////////////////////////////////////////////
     // Migrate from OSCAR 1.x if needed
     ///////////////////////////////////////////////////////////////////////////////////////////
-    if (haveNewFolder)
+    if (haveNewFolder && !batchMode)
     {
-        if (QMessageBox::question(nullptr, QObject::tr("Migrate Data from OSCAR 1.x?"),
-                                  QObject::tr("On the next screen OSCAR will ask you to select a folder with OSCAR 1.x data") +"\n" +
-                                  QObject::tr("Click [OK] to go to the next screen or [No] if you do not wish to use any OSCAR 1.x data."),
-                                  QMessageBox::Ok|QMessageBox::No, QMessageBox::Ok) == QMessageBox::Ok) {
+        const MigrationChoice choice = showMigrationChoice();
+
+        if (choice == MigrationChoice::Cancel) {
+            // The user has backed out of setting up this folder. Release everything that
+            // holds a file open inside it, remove it, and point settings back at whatever
+            // was in use before, so the next launch does not come straight back here.
+            const QString newFolder = GetAppData();
+            qDebug() << "Setup cancelled at the migration step; removing new data folder" << newFolder;
+            DatabaseManager::instance().close();
+            lockFile.unlock();
+            shutdownLogger();                   // closes the debug log inside the folder
+            if (!QDir(newFolder).removeRecursively())
+                qWarning() << "Unable to remove" << newFolder;
+            RecentDatabases::remove(newFolder);
+
+            // Prefer the folder recorded before this launch (after a Database ▸ New relaunch
+            // that is the database the user came from). If nothing was recorded, or it was
+            // this same folder, fall back to the most recently used remaining database, and
+            // to a first run if there is none.
+            QString restore = appDataAtLaunch;
+            if (restore.isEmpty() || QDir::cleanPath(restore).compare(QDir::cleanPath(newFolder), Qt::CaseInsensitive) == 0) {
+                const QStringList recent = RecentDatabases::entries();
+                restore = recent.isEmpty() ? QString() : recent.first();
+            }
+            if (restore.isEmpty())
+                settings.remove("Settings/AppData");
+            else
+                settings.setValue("Settings/AppData", restore);
+            // Put the dirty-shutdown flags back as they were for the previous database.
+            settings.setValue(DBCleanShutdownKey, prevShutdownClean);
+            settings.setValue(DBLastPathKey, prevShutdownPath);
+            settings.sync();
+            return 0;
+        }
+
+        if (choice == MigrationChoice::Migrate) {
             migrateFromOSCAR( GetAppData() );              // doesn't matter if no migration
             // Migrate any .shg files copied in by the 1.x importer
             importLegacyNamedLayouts();
@@ -1188,6 +1632,79 @@ int main(int argc, char *argv[]) {
     Profiles::Scan();
     sc.check();
 
+    if (batchMode) {
+        for (auto & loader : GetLoaders()) {
+            loader->setParent(mainwin);
+        }
+
+        auto cleanupApp = [&]() {
+            lockFile.unlock();
+            DeviceConnectionManager::getInstance().record(nullptr);
+            for (auto & loader : GetLoaders()) {
+                loader->setParent(nullptr);
+            }
+            delete mainwin;
+            mainwin = nullptr;
+            Profiles::Done();
+            DestroyGraphGlobals();
+            DatabaseManager::instance().close();
+            DatabaseManager::markCleanShutdown(dbPath);
+        };
+
+        mainwin->SetupGUI(true);
+
+        QString profileToOpen;
+        if (!load_profile.isEmpty()) {
+            QString trimmed = load_profile.trimmed();
+            if (trimmed.isEmpty() || !Profiles::profiles.contains(trimmed)) {
+                qCritical().noquote() << QString("Specified profile '%1' does not exist in OSCAR database.").arg(load_profile);
+                cleanupApp();
+                return 1;
+            }
+            profileToOpen = trimmed;
+        } else {
+            if (Profiles::profiles.isEmpty()) {
+                qCritical() << "No profiles found in OSCAR database.";
+                cleanupApp();
+                return 1;
+            } else if (Profiles::profiles.size() == 1) {
+                profileToOpen = Profiles::profiles.keys().first();
+                qDebug() << "Batch: single profile found, using" << profileToOpen;
+            } else if (AppSetting->autoOpenLastUsed() && Profiles::profiles.contains(AppSetting->profileName())) {
+                profileToOpen = AppSetting->profileName();
+                qDebug() << "Batch: multiple profiles found, using default" << profileToOpen;
+            } else {
+                qCritical().noquote() << QString("Ambiguous profile in batch mode: multiple profiles exist (%1). Specify one with --profile <name>.")
+                    .arg(Profiles::profiles.keys().join(", "));
+                cleanupApp();
+                return 1;
+            }
+        }
+
+        if (!mainwin->OpenProfile(profileToOpen)) {
+            qCritical() << "Batch: Failed to open profile" << profileToOpen;
+            cleanupApp();
+            return 1;
+        }
+
+        int exitCode = 0;
+        for (const auto &task : importTasks) {
+            const QString &loader = task.first;
+            const QString &path = task.second;
+            qInfo().noquote() << QString("Batch: Importing %1 from %2").arg(loader, path);
+            bool ok = mainwin->importFromPath(loader, path, true);
+            if (!ok) {
+                qCritical().noquote() << QString("Batch: Import failed for loader '%1' from '%2'").arg(loader, path);
+                exitCode = 1;
+                break;
+            }
+        }
+
+        mainwin->CloseProfile();
+        cleanupApp();
+        return exitCode;
+    }
+
 #ifndef NO_CHECKUPDATES
     if (check_updates) {
         mainwin->CheckForUpdates(false);
@@ -1195,11 +1712,21 @@ int main(int argc, char *argv[]) {
 #endif
 
     sc.restart(400,"SetupGUI");
-    mainwin->SetupGUI();
+    mainwin->SetupGUI(false);
     sc.check();
     mainwin->show();
 
+    // From here on "OSCAR --import <loader> <path>" started by this user for this data
+    // folder is carried out by this instance (see importhandover.h).
+    ImportHandover::Server importRequests;
+    if (!importRequests.listen(GetAppData(), [](const ImportHandover::Request &request) {
+            return mainwin->importOnRequest(request);
+        })) {
+        qWarning().noquote() << "Main: Not accepting import requests from other OSCAR processes:" << importRequests.errorString();
+    }
+
     int result = mainapp.exec();
+    importRequests.close();
 
     // Release the lock immediately so a restarted instance (e.g. after a language change)
     // can acquire it without racing against our potentially-slow widget/DB cleanup below.

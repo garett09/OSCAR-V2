@@ -10,6 +10,7 @@
  * for more details. */
 
 #include "database_schema.h"
+#include "session_summaries_repository.h"
 #include "database_manager.h"
 #include "reports_initializer.h"
 #include <QSqlQuery>
@@ -210,8 +211,9 @@ int DatabaseSchema::getSchemaVersion(QSqlDatabase& db)
  * Upgrade database schema to current version
  *
  * Parameters:
- *   db - Database connection to use
+ *   db - Database connection to use (any thread; need not be DatabaseManager's)
  *   fromVersion - Current version in database
+ *   progress - Optional callback invoked before each migration step
  *
  * Returns: true if upgrade succeeded, false otherwise
  *
@@ -219,60 +221,62 @@ int DatabaseSchema::getSchemaVersion(QSqlDatabase& db)
  * Each step calls the relevant createXxx / ALTER TABLE helpers and then advances
  * the stored schema version before moving to the next step.
  */
-bool DatabaseSchema::upgradeSchema(QSqlDatabase& db, int fromVersion)
+bool DatabaseSchema::upgradeSchema(QSqlDatabase& db, int fromVersion,
+                                   const UpgradeProgress& progress)
 {
     qDebug() << "DatabaseSchema::upgradeSchema: from" << fromVersion << "to" << CURRENT_SCHEMA_VERSION;
 
-    if (fromVersion == 13) {
-        if (!migrateV13ToV14(db)) {
-            qCritical() << "DatabaseSchema: v13->v14 migration failed";
-            return false;
-        }
-        fromVersion = 14;
+    if (fromVersion == CURRENT_SCHEMA_VERSION) {
+        return true;
     }
 
-    if (fromVersion == 14) {
-        if (!migrateV14ToV15(db)) {
-            qCritical() << "DatabaseSchema: v14->v15 migration failed";
-            return false;
+    // One entry per consecutive version pair, in ascending order; each takes the
+    // schema from `from` to `from + 1`. Add a new entry here for every new version.
+    struct MigrationStep {
+        int from;
+        bool (*migrate)(QSqlDatabase&);
+    };
+    static const MigrationStep steps[] = {
+        { 13, &migrateV13ToV14 },
+        { 14, &migrateV14ToV15 },
+        { 15, &migrateV15ToV16 },
+        { 16, &migrateV16ToV17 },
+        { 17, &migrateV17ToV18 },
+        { 18, &migrateV18ToV19 },
+        { 19, &migrateV19ToV20 },
+    };
+    const int stepsAvailable = int(sizeof(steps) / sizeof(steps[0]));
+
+    // Locate the first step that applies; versions older than the table have no path.
+    int first = -1;
+    for (int i = 0; i < stepsAvailable; ++i) {
+        if (steps[i].from == fromVersion) {
+            first = i;
+            break;
         }
-        fromVersion = 15;
+    }
+    if (first < 0) {
+        qCritical() << "DatabaseSchema: No migration path from version" << fromVersion;
+        return false;
     }
 
-    if (fromVersion == 15) {
-        if (!migrateV15ToV16(db)) {
-            qCritical() << "DatabaseSchema: v15->v16 migration failed";
+    const int stepCount = stepsAvailable - first;
+    for (int i = first; i < stepsAvailable; ++i) {
+        const int from = steps[i].from;
+        const int to = from + 1;
+        if (progress) {
+            progress(i - first + 1, stepCount, from, to);
+        }
+        if (!steps[i].migrate(db)) {
+            qCritical() << "DatabaseSchema: v" << from << "->v" << to << "migration failed";
             return false;
         }
-        fromVersion = 16;
-    }
-
-    if (fromVersion == 16) {
-        if (!migrateV16ToV17(db)) {
-            qCritical() << "DatabaseSchema: v16->v17 migration failed";
-            return false;
-        }
-        fromVersion = 17;
-    }
-
-    if (fromVersion == 17) {
-        if (!migrateV17ToV18(db)) {
-            qCritical() << "DatabaseSchema: v17->v18 migration failed";
-            return false;
-        }
-        fromVersion = 18;
-    }
-
-    if (fromVersion == 18) {
-        if (!migrateV18ToV19(db)) {
-            qCritical() << "DatabaseSchema: v18->v19 migration failed";
-            return false;
-        }
-        fromVersion = 19;
+        fromVersion = to;
     }
 
     if (fromVersion != CURRENT_SCHEMA_VERSION) {
-        qCritical() << "DatabaseSchema: No migration path from version" << fromVersion;
+        qCritical() << "DatabaseSchema: migration table ends at version" << fromVersion
+                    << "but CURRENT_SCHEMA_VERSION is" << CURRENT_SCHEMA_VERSION;
         return false;
     }
 
@@ -1816,13 +1820,16 @@ bool DatabaseSchema::createNightClockOffsetsTable(QSqlDatabase& db)
  * Adds all_apnea_count as well, which contributes to AHI but had never been stored.
  *
  * Purely additive: five ALTER TABLE ADD COLUMNs per table, each with a DEFAULT so
- * existing rows stay valid. No backfill — pre-existing rows read 0 in the new columns
- * until the day is recalculated or re-imported, which is a deliberate decision
- * (recalculating every historical day at upgrade time would be slow and, for days
- * whose original card is long gone, would not recover the OH/CH split anyway).
+ * existing rows stay valid. The OH/CH columns are not backfilled — pre-v18 rows read
+ * 0 in them until the day is recalculated or re-imported, which is a deliberate
+ * decision (recalculating every historical day at upgrade time would be slow and,
+ * for days whose original card is long gone, would not recover the OH/CH split
+ * anyway).
  *
- * Idempotent: an already-present column is tolerated, so this may be re-applied.
- * The caller owns the surrounding transaction and any rollback.
+ * The #285 recompute of session_summaries (all_apnea_count from session_channels;
+ * ahi/rdi/oahi/cahi as the sum of session_channels.cph) was originally done here. It
+ * now lives in migrateV18ToV19, so that databases already at v18 — which never ran
+ * it — are corrected as well.
  */
 bool DatabaseSchema::addHypopneaSummaryColumns(QSqlDatabase& db)
 {
@@ -1883,6 +1890,7 @@ bool DatabaseSchema::migrateV17ToV18(QSqlDatabase& db)
         return false;
     }
 
+
     if (!setSchemaVersion(db, 18)) {
         qCritical() << "DatabaseSchema: migrateV17ToV18: setSchemaVersion failed";
         db.rollback();
@@ -1900,18 +1908,8 @@ bool DatabaseSchema::migrateV17ToV18(QSqlDatabase& db)
 }
 
 /*
- * Migrate database from schema version 18 to 19
- *
- * Repairs databases that were stamped v18 by only one of two branches. Schema
- * version 18 was assigned twice independently: one branch's v18 created the
- * night_clock_offsets table, the other's added the hypopnea columns to the
- * summary tables. A database upgraded by either branch therefore reports v18
- * while holding only half of that schema, and the version gate would never let
- * the missing half be applied.
- *
- * This migration re-applies both operations. Both are idempotent (CREATE TABLE
- * IF NOT EXISTS, and a duplicate column is tolerated), so a database that
- * already has both halves is left unchanged and only its version advances.
+ * Migrate database from schema version 18 to 19.
+ * Repair both independently introduced v18 schema additions idempotently.
  */
 bool DatabaseSchema::migrateV18ToV19(QSqlDatabase& db)
 {
@@ -1947,5 +1945,120 @@ bool DatabaseSchema::migrateV18ToV19(QSqlDatabase& db)
     }
 
     qDebug() << "DatabaseSchema: Migration v18->v19 complete";
+    return true;
+}
+
+/* Reconcile both branches' v19 schemas and apply upstream metric repairs. */
+bool DatabaseSchema::migrateV19ToV20(QSqlDatabase& db)
+{
+    qDebug() << "DatabaseSchema: Migrating v19 -> v20";
+
+    if (!db.transaction()) {
+        qCritical() << "DatabaseSchema: migrateV19ToV20: failed to start transaction";
+        return false;
+    }
+
+    // v19 was assigned independently by both branches. Repair both schema
+    // additions before rebuilding metrics, regardless of which branch upgraded it.
+    if (!createNightClockOffsetsTable(db) || !addHypopneaSummaryColumns(db)) {
+        db.rollback();
+        return false;
+    }
+
+    if (!SessionSummariesRepository::rebuildFromChannels(db, 0)) {
+        qCritical() << "DatabaseSchema: migrateV19ToV20: session_summaries rebuild failed";
+        db.rollback();
+        return false;
+    }
+
+    // One pass over session_channels builds the two lookup tables every later statement
+    // keys on; both are indexed so each per-row EXISTS is a point lookup. Channel ids
+    // follow schema.cpp: ClearAirway 4097, Obstructive 4098, Hypopnea 4099, Apnea 4100,
+    // RERA 4102, AllApnea 4112, ObstructiveHypopnea 4113, CentralHypopnea 4114.
+    QStringList sql;
+    sql << "DROP TABLE IF EXISTS temp.machine_reported"
+        << "CREATE TEMP TABLE machine_reported AS"
+           " SELECT DISTINCT s.machine_id, sc.channel_id"
+           " FROM session_channels sc JOIN sessions s ON s.id = sc.session_id"
+           " WHERE sc.count > 0 AND sc.channel_id IN (4097, 4098, 4099, 4100, 4102, 4112, 4113, 4114)"
+        << "CREATE INDEX temp.idx_machine_reported ON machine_reported(machine_id, channel_id)"
+        << "DROP TABLE IF EXISTS temp.profile_reported"
+        << "CREATE TEMP TABLE profile_reported AS"
+           " SELECT DISTINCT m.profile_id, mr.channel_id"
+           " FROM machine_reported mr JOIN machines m ON m.id = mr.machine_id"
+        << "CREATE INDEX temp.idx_profile_reported ON profile_reported(profile_id, channel_id)";
+
+    // session_channels: zero-count OH/CH rows of machines that never scored either.
+    sql << "DELETE FROM session_channels WHERE channel_id IN (4113, 4114) AND count = 0"
+           " AND session_id IN (SELECT s.id FROM sessions s WHERE NOT EXISTS"
+           "   (SELECT 1 FROM machine_reported mr WHERE mr.machine_id = s.machine_id"
+           "    AND mr.channel_id IN (4113, 4114)))";
+
+    // daily_summaries: NULL where no device of the profile reports the channel.
+    const QString profileReported =
+        "EXISTS (SELECT 1 FROM profile_reported pr"
+        " WHERE pr.profile_id = daily_summaries.profile_id AND pr.channel_id %1)";
+    struct DailyCol { const char * column; const char * channel; };
+    static const DailyCol dailyCols[] = {
+        { "clear_airway_count", "= 4097" }, { "obstructive_count",  "= 4098" },
+        { "hypopnea_count",     "= 4099" }, { "unclassified_count", "= 4100" },
+        { "rera_count",         "= 4102" }, { "all_apnea_count",    "= 4112" },
+        { "obstructive_hypopnea_count", "= 4113" }, { "central_hypopnea_count", "= 4114" },
+        { "rdi",  "= 4102" },
+        { "oahi", "IN (4113, 4114)" }, { "cahi", "IN (4113, 4114)" },
+    };
+    for (const DailyCol & c : dailyCols) {
+        sql << QString("UPDATE daily_summaries SET %1 = NULL WHERE NOT %2")
+               .arg(QString::fromLatin1(c.column))
+               .arg(profileReported.arg(QString::fromLatin1(c.channel)));
+    }
+    // Continuous statistics on daily rows were written as 0 when the day had no such
+    // channel. Therapy pressure and pulse are never 0, and a night with zero average
+    // and zero maximum leak does not occur on a real device, so 0 across the group is
+    // "no data". leak_unintentional_avg is left alone: 0 can be genuine there.
+    sql << "UPDATE daily_summaries SET pressure_avg = NULL, pressure_min = NULL, pressure_max = NULL,"
+           " pressure_95th = NULL WHERE pressure_avg = 0 AND pressure_max = 0"
+        << "UPDATE daily_summaries SET leak_total_avg = NULL, leak_total_95th = NULL, leak_total_max = NULL"
+           " WHERE leak_total_avg = 0 AND leak_total_max = 0"
+        << "UPDATE daily_summaries SET spo2_avg = NULL, spo2_min = NULL WHERE spo2_avg = 0"
+        << "UPDATE daily_summaries SET pulse_avg = NULL, pulse_min = NULL, pulse_max = NULL WHERE pulse_avg = 0";
+
+    // Profiles whose CPAP devices (those with sessions) disagree on some channel: a daily
+    // row there cannot be rewritten in SQL, so the rows go and are regenerated on open.
+    sql << "DELETE FROM daily_summaries WHERE profile_id IN ("
+           "WITH mach AS (SELECT id, profile_id FROM machines WHERE machine_type = 1"
+           "   AND id IN (SELECT DISTINCT machine_id FROM sessions)),"
+           " per AS (SELECT mach.profile_id, mr.channel_id, COUNT(DISTINCT mr.machine_id) AS n"
+           "   FROM mach JOIN machine_reported mr ON mr.machine_id = mach.id"
+           "   GROUP BY mach.profile_id, mr.channel_id),"
+           " tot AS (SELECT profile_id, COUNT(*) AS total FROM mach GROUP BY profile_id)"
+           " SELECT DISTINCT per.profile_id FROM per JOIN tot ON tot.profile_id = per.profile_id"
+           " WHERE per.n < tot.total)"
+        << "DROP TABLE IF EXISTS temp.profile_reported"
+        << "DROP TABLE IF EXISTS temp.machine_reported";
+
+    QSqlQuery q(db);
+    for (const QString & statement : sql) {
+        if (!q.exec(statement)) {
+            qCritical() << "DatabaseSchema: migrateV19ToV20:" << statement.left(80)
+                        << "failed:" << q.lastError().text();
+            DatabaseManager::instance().checkQueryError("DatabaseSchema::migrateV19ToV20", q);
+            db.rollback();
+            return false;
+        }
+    }
+
+    if (!setSchemaVersion(db, 20)) {
+        qCritical() << "DatabaseSchema: migrateV19ToV20: setSchemaVersion failed";
+        db.rollback();
+        return false;
+    }
+    if (!db.commit()) {
+        qCritical() << "DatabaseSchema: migrateV19ToV20: commit failed";
+        db.rollback();
+        return false;
+    }
+
+    qDebug() << "DatabaseSchema: Migration v19->v20 complete";
     return true;
 }

@@ -140,6 +140,21 @@ bool isAppleWatchSleepSource(const QString &sourceName)
            && normalized.contains(QStringLiteral("Watch"));
 }
 
+bool isAppleFirstPartySource(const QString &sourceName)
+{
+    QString normalized = sourceName;
+    normalized.replace(QChar(0x00A0), QLatin1Char(' '));
+    // Apple can attribute watch-measured SpO2 to the iPhone.
+    return isAppleWatchSleepSource(sourceName)
+           || normalized.contains(QStringLiteral("iPhone"));
+}
+
+bool isAllowedVitalsSource(const QString &sourceName, const QString &chosenSleepSource)
+{
+    return (!chosenSleepSource.isEmpty() && sourceName == chosenSleepSource)
+           || isAppleFirstPartySource(sourceName);
+}
+
 QString autoMatchedSleepSource(const QHash<QString, int> &sourceCounts)
 {
     QString matchedSource;
@@ -211,6 +226,7 @@ bool AppleHealthParser::parse(const QString &path, AppleHealthData &out)
 
     QXmlStreamReader xml(&file);
     QSet<QString> unknownSleepValues;
+    QHash<QString, int> sourceIds;
     int malformedWarnings = 0;
     const auto warnMalformed = [&malformedWarnings](const QString &message) {
         if (malformedWarnings < 10) {
@@ -301,6 +317,17 @@ bool AppleHealthParser::parse(const QString &path, AppleHealthData &out)
         }
 
         const QStringView valueText = attributes.value(QStringLiteral("value"));
+        const auto vitalsSourceId = [&]() {
+            const QString sourceName = attributes.value(QStringLiteral("sourceName")).toString();
+            auto it = sourceIds.find(sourceName);
+            if (it == sourceIds.end()) {
+                const int sourceId = out.sourceNames.size();
+                out.sourceNames.append(sourceName);
+                it = sourceIds.insert(sourceName, sourceId);
+            }
+            ++out.vitalsSourceCounts[sourceName];
+            return it.value();
+        };
         bool ok = false;
         switch (kind) {
         case RecordKind::HeartRate: {
@@ -311,7 +338,7 @@ bool AppleHealthParser::parse(const QString &path, AppleHealthData &out)
                                       .arg(valueText.toString()));
                     return;
                 }
-                out.heartRate.append(AppleHealthSample{startMs, value});
+                out.heartRate.append(AppleHealthSample{startMs, value, vitalsSourceId()});
             }
             break;
         }
@@ -334,7 +361,7 @@ bool AppleHealthParser::parse(const QString &path, AppleHealthData &out)
                                       .arg(valueText.toString()));
                     return;
                 }
-                out.spo2.append(AppleHealthSample{startMs, value});
+                out.spo2.append(AppleHealthSample{startMs, value, vitalsSourceId()});
             }
             break;
         }
@@ -346,7 +373,7 @@ bool AppleHealthParser::parse(const QString &path, AppleHealthData &out)
                                       .arg(valueText.toString()));
                     return;
                 }
-                out.respRate.append(AppleHealthSample{startMs, value});
+                out.respRate.append(AppleHealthSample{startMs, value, vitalsSourceId()});
             }
             break;
         }
@@ -358,7 +385,7 @@ bool AppleHealthParser::parse(const QString &path, AppleHealthData &out)
                                       .arg(valueText.toString()));
                     return;
                 }
-                out.hrv.append(AppleHealthSample{startMs, value});
+                out.hrv.append(AppleHealthSample{startMs, value, vitalsSourceId()});
             }
             break;
         }
@@ -370,7 +397,7 @@ bool AppleHealthParser::parse(const QString &path, AppleHealthData &out)
                                       .arg(valueText.toString()));
                     return;
                 }
-                out.breathingDisturbances.append(AppleHealthNightScalar{startMs, endMs, value});
+                out.breathingDisturbances.append(AppleHealthNightScalar{startMs, endMs, value, vitalsSourceId()});
             }
             break;
         }
@@ -392,7 +419,7 @@ bool AppleHealthParser::parse(const QString &path, AppleHealthData &out)
                                       .arg(valueText.toString()));
                     return;
                 }
-                out.wristTemp.append(AppleHealthNightScalar{startMs, endMs, value});
+                out.wristTemp.append(AppleHealthNightScalar{startMs, endMs, value, vitalsSourceId()});
             }
             break;
         }

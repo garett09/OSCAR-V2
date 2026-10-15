@@ -113,7 +113,12 @@ unix:!macx:!haiku {
 
 TEMPLATE = app
 
-gitinfotarget.target = git_info.h
+# The rule's target must be spelled exactly as qmake spells version.o's dependency on
+# git_info.h: relative to the build directory (e.g. ../../git_info.h in a shadow build).
+# Otherwise make treats them as different files, judges version.o against the old
+# git_info.h, and the version tag lags one build behind a change in git state.
+GIT_INFO_FILE = $$relative_path($$_PRO_FILE_PWD_/git_info.h, $$OUT_PWD)
+gitinfotarget.target = $$GIT_INFO_FILE
 gitinfotarget.depends = FORCE
 
 win32 {
@@ -129,7 +134,7 @@ win32 {
     gitinfotarget.commands = "/bin/bash $$_PRO_FILE_PWD_/update_gitinfo.sh"
 }
 
-PRE_TARGETDEPS += git_info.h
+PRE_TARGETDEPS += $$GIT_INFO_FILE
 QMAKE_EXTRA_TARGETS += gitinfotarget
 
 # Regenerate exports/system_report_strings.cpp from docs/system_reports.orf when the .orf changes.
@@ -328,8 +333,10 @@ SOURCES += \
     sqleditor.cpp \
     reportmanager.cpp \
     reportvarietyeditor.cpp \
+    datafolderdialog.cpp \
     importprofile.cpp \
     profileimporter.cpp \
+    importhandover.cpp \
     logger.cpp \
     main.cpp \
     mainwindow.cpp \
@@ -349,6 +356,7 @@ SOURCES += \
     staticQMessageBox.cpp \
     statistics.cpp \
     translation.cpp \
+    treecheckdelegate.cpp \
     version.cpp \
     welcome.cpp \
     zip.cpp \
@@ -428,6 +436,7 @@ SOURCES += \
     SleepLib/schema.cpp \
     SleepLib/serialoximeter.cpp \
     SleepLib/session.cpp \
+    SleepLib/session_split.cpp \
     SleepLib/thirdparty/miniz.c \
     SleepLib/xmlreplay.cpp \
     database/database_manager.cpp \
@@ -522,6 +531,7 @@ HEADERS  += \
     sqleditor.h \
     reportmanager.h \
     reportvarietyeditor.h \
+    datafolderdialog.h \
     importprofile.h \
     profileimporter.h \
     mainwindow.h \
@@ -533,6 +543,7 @@ HEADERS  += \
     reports.h \
     sessionbar.h \
     speedcheck.h \
+    treecheckdelegate.h \
 #    updateparser.h \
     version.h \
     VERSION \
@@ -570,6 +581,7 @@ HEADERS  += \
     SleepLib/profiles.h \
     SleepLib/schema.h \
     SleepLib/session.h \
+    SleepLib/session_split.h \
     SleepLib/loader_plugins/applehealthDataParsing.h \
     SleepLib/loader_plugins/applehealth_loader.h \
     SleepLib/loader_plugins/apexDataParsing.h \
@@ -614,6 +626,7 @@ HEADERS  += \
     SleepLib/xmlreplay.h \
     SleepLib/serialoximeter.h \
     SleepLib/loader_plugins/md300w1_loader.h \
+    importhandover.h \
     logger.h \
     SleepLib/loader_plugins/weinmann_loader.h \
     Graphs/gdailysummary.h \
@@ -839,6 +852,7 @@ test {
         tests/rawdatatests.cpp \
         tests/resmedtests.cpp \
         tests/sessiontests.cpp \
+        tests/importhandovertests.cpp \
         tests/versiontests.cpp \
         tests/viatomtests.cpp \
         tests/deviceconnectiontests.cpp \
@@ -848,7 +862,9 @@ test {
         tests/zeotests.cpp \
         tests/clocksynctests.cpp \
         tests/clockdrifthistorytests.cpp \
-        tests/applehealthtests.cpp
+        tests/applehealthtests.cpp \
+        tests/machinetests.cpp \
+        tests/sessionsplittests.cpp
 
     HEADERS += \
         tests/AutoTest.h \
@@ -857,6 +873,7 @@ test {
         tests/rawdatatests.h \
         tests/resmedtests.h \
         tests/sessiontests.h \
+        tests/importhandovertests.h \
         tests/versiontests.h \
         tests/viatomtests.h \
         tests/deviceconnectiontests.h \
@@ -866,7 +883,9 @@ test {
         tests/zeotests.h \
         tests/clocksynctests.h \
         tests/clockdrifthistorytests.h \
-        tests/applehealthtests.h
+        tests/applehealthtests.h \
+        tests/machinetests.h \
+        tests/sessionsplittests.h
 }
 
 macx {

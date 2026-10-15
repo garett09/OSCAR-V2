@@ -12,6 +12,7 @@
 #include <QString>
 #include <QDate>
 #include <QList>
+#include <optional>
 
 // Forward declarations
 class Day;
@@ -29,38 +30,41 @@ struct DailySummaryData {
     double totalHours = 0.0;
     double maskOnHours = 0.0;
     
-    // Respiratory events
+    // Respiratory events. An absent optional is stored as SQL NULL and means "not
+    // applicable to this day's device" (schema v19, GitLab #261); see
+    // Notes/specs/2026-09-14-oh-ch-capability-gating-design.md §5.2. ahi is always present.
     double ahi = 0.0;
-    double rdi = 0.0;
-    double oahi = 0.0;                  // Obstructive AHI (schema v18); oahi + cahi == ahi
-    double cahi = 0.0;                  // Central AHI (schema v18)
-    int obstructiveCount = 0;
-    int unclassifiedCount = 0;
-    int hypopneaCount = 0;
-    int reraCount = 0;
-    int clearAirwayCount = 0;
-    int obstructiveHypopneaCount = 0;   // Schema v18
-    int centralHypopneaCount = 0;       // Schema v18
-    int allApneaCount = 0;              // Schema v18; CPAP_AllApnea, an AHI contributor
+    std::optional<double> rdi;                   // NULL unless the device reports RERA
+    std::optional<double> oahi;                  // Obstructive AHI (v18); NULL unless the device splits hypopneas by mechanism
+    std::optional<double> cahi;                  // Central AHI (v18); oahi + cahi == ahi when present
+    // Event counts. NULL when the device has never reported the channel; 0 = scored none.
+    std::optional<int> obstructiveCount;
+    std::optional<int> unclassifiedCount;
+    std::optional<int> hypopneaCount;
+    std::optional<int> reraCount;
+    std::optional<int> clearAirwayCount;
+    std::optional<int> obstructiveHypopneaCount; // Schema v18
+    std::optional<int> centralHypopneaCount;     // Schema v18
+    std::optional<int> allApneaCount;            // Schema v18; CPAP_AllApnea, an AHI contributor
 
-    // Pressure statistics
-    double pressureAvg = 0.0;
-    double pressureMin = 0.0;
-    double pressureMax = 0.0;
-    double pressure95th = 0.0;
-    
-    // Leak statistics
-    double leakTotalAvg = 0.0;
-    double leakTotal95th = 0.0;
-    double leakTotalMax = 0.0;
-    double leakUnintentionalAvg = 0.0;
-    
-    // Oximetry (if available)
-    double spo2Avg = 0.0;
-    double spo2Min = 0.0;
-    double pulseAvg = 0.0;
-    double pulseMin = 0.0;
-    double pulseMax = 0.0;
+    // Pressure statistics. NULL when the day has no pressure data.
+    std::optional<double> pressureAvg;
+    std::optional<double> pressureMin;
+    std::optional<double> pressureMax;
+    std::optional<double> pressure95th;
+
+    // Leak statistics. NULL when the day has no leak data.
+    std::optional<double> leakTotalAvg;
+    std::optional<double> leakTotal95th;
+    std::optional<double> leakTotalMax;
+    std::optional<double> leakUnintentionalAvg;
+
+    // Oximetry. NULL when the day has no oximetry data.
+    std::optional<double> spo2Avg;
+    std::optional<double> spo2Min;
+    std::optional<double> pulseAvg;
+    std::optional<double> pulseMin;
+    std::optional<double> pulseMax;
     
     // Flags
     bool isCompliant = false;

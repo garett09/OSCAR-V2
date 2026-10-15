@@ -396,9 +396,11 @@ void BmcLoader::setSessionRespiratoryEvents(BmcSession* bmcSession, Session* osc
     EventList* oscarCsaList  = oscarSession->AddEventList(CPAP_ClearAirway, EVL_Event);
     EventList* oscarHypList  = oscarSession->AddEventList(CPAP_Hypopnea,    EVL_Event);
     // Only the G3X parser produces OH/CH; legacy BMC cards report a single
-    // undifferentiated hypopnea, so these lists simply stay empty for them.
-    EventList* oscarOhList   = oscarSession->AddEventList(CPAP_ObstructiveHypopnea, EVL_Event);
-    EventList* oscarChList   = oscarSession->AddEventList(CPAP_CentralHypopnea,     EVL_Event);
+    // undifferentiated hypopnea. The lists are created on the first such event: an
+    // empty list would be stored as a zero-count session_channels row and make the
+    // device look able to score them (GitLab #261).
+    EventList* oscarOhList   = nullptr;
+    EventList* oscarChList   = nullptr;
     EventList* oscarUaList   = oscarSession->AddEventList(CPAP_Apnea,       EVL_Event);
     EventList* oscarPbList   = ExportPeriodicBreathing()
                                ? oscarSession->AddEventList(CPAP_PB, EVL_Event)
@@ -412,8 +414,12 @@ void BmcLoader::setSessionRespiratoryEvents(BmcSession* bmcSession, Session* osc
         case BmcRespiratoryEventType::OSA:  oscarOsaList->AddEvent(bmcEvent.EndTime.toMSecsSinceEpoch(),   bmcEvent.DurationSeconds); break;
         case BmcRespiratoryEventType::CSA:  oscarCsaList->AddEvent(bmcEvent.EndTime.toMSecsSinceEpoch(),   bmcEvent.DurationSeconds); break;
         case BmcRespiratoryEventType::HYP:  oscarHypList->AddEvent(bmcEvent.EndTime.toMSecsSinceEpoch(),   bmcEvent.DurationSeconds); break;
-        case BmcRespiratoryEventType::OH:   oscarOhList->AddEvent(bmcEvent.EndTime.toMSecsSinceEpoch(),    bmcEvent.DurationSeconds); break;
-        case BmcRespiratoryEventType::CH:   oscarChList->AddEvent(bmcEvent.EndTime.toMSecsSinceEpoch(),    bmcEvent.DurationSeconds); break;
+        case BmcRespiratoryEventType::OH:
+            if (!oscarOhList) oscarOhList = oscarSession->AddEventList(CPAP_ObstructiveHypopnea, EVL_Event);
+            oscarOhList->AddEvent(bmcEvent.EndTime.toMSecsSinceEpoch(), bmcEvent.DurationSeconds); break;
+        case BmcRespiratoryEventType::CH:
+            if (!oscarChList) oscarChList = oscarSession->AddEventList(CPAP_CentralHypopnea, EVL_Event);
+            oscarChList->AddEvent(bmcEvent.EndTime.toMSecsSinceEpoch(), bmcEvent.DurationSeconds); break;
         case BmcRespiratoryEventType::UA:   oscarUaList->AddEvent(bmcEvent.EndTime.toMSecsSinceEpoch(),    bmcEvent.DurationSeconds); break;
         case BmcRespiratoryEventType::PB:   if (oscarPbList) oscarPbList->AddEvent(bmcEvent.EndTime.toMSecsSinceEpoch(),   bmcEvent.DurationSeconds); break;
         case BmcRespiratoryEventType::RERA: oscarReraList->AddEvent(bmcEvent.EndTime.toMSecsSinceEpoch(),  bmcEvent.DurationSeconds); break;

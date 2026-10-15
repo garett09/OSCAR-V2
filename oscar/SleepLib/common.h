@@ -189,6 +189,10 @@ const QString getModifiedAppData();
  */
 QString findLegacyOscarDataFolder();
 
+/*! \brief Point size of the application font when no preference has been set; also used
+ *         for dialogs shown before the preferences are available. */
+constexpr int DefaultApplicationFontSize = 10;
+
 void validateAllFonts ();
 void validateFont (QString which, int size, bool bold, bool italic);
 void setApplicationFont ();

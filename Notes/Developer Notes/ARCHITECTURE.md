@@ -1,7 +1,8 @@
 # OSCAR Architecture Guide
 
-**Last updated:** 2026-04-13
+**Last updated:** 2026-10-05 (schema v19)
 **Purpose:** Help developers (and AI assistants) understand how the pieces fit together.
+For a shorter orientation aimed at new developers, start with `NEW_DEVELOPER_GUIDE.md`.
 
 ---
 
@@ -54,15 +55,22 @@ The startup sequence in `main.cpp` is:
 
 1. **QApplication** created, graphics engine selected (OpenGL/ANGLE/Software)
 2. **Logger** initialized
-3. **Command-line args** parsed (`--datadir`, `--profile`, `--legacy`, etc.)
-4. **Data folder** located or created (`GetAppData()` → typically `Documents/OSCAR20_Data/`)
-5. **Preferences** loaded (`p_pref` global, `AppSetting` global)
-6. **Database** initialized (`DatabaseManager::instance().initialize(dbPath)`)
-7. **Migration** from OSCAR 1.x offered if data folder is new
-8. **Schema** initialized (`schema::init()`) — defines all channels
-9. **Loaders registered** — each loader plugin calls `::Register()` which calls `RegisterLoader()`
+3. **Command-line args** parsed (`--datadir`, `--profile`/`-p`, `--language`, `--legacy`, etc.)
+4. **Data folder** located or created (`GetAppData()` → by default `Documents/OSCAR20_Data`,
+   no trailing separator); a `QLockFile` (`oscar.lock`) keeps a second instance out
+5. **Database** opened (`DatabaseManager::instance().initialize(dbPath)`). If the stored
+   schema is older than `CURRENT_SCHEMA_VERSION`, `confirmAndUpgradeDatabase()` asks the
+   user (*Back up and upgrade* / *Upgrade* / *Exit*) and runs the migrations on a worker
+   thread. A database newer than the build is refused. After an unclean shutdown an
+   integrity check runs.
+6. **Preferences** loaded (`p_pref` global, `AppSetting` global) from the `app_preferences` table
+7. **Schema** initialized (`schema::init()`) — defines all built-in channels
+8. **Loaders registered** — each CPAP/oximeter loader's `::Register()` calls `RegisterLoader()`.
+   Steps 7–8 must precede step 9: the 1.x importer needs the channel schema.
+9. **Migration** from OSCAR 1.x offered if the data folder is new
 10. **Profiles scanned** (`Profiles::Scan()`) — discovers all profiles in the database
-11. **MainWindow** `SetupGUI()` called — creates the tab widgets (Daily, Overview, Welcome, etc.)
+11. **MainWindow** `SetupGUI()` called — creates the Profile tab; Welcome/Daily/Overview are
+    created per profile in `OpenProfile()`
 12. **Event loop** starts (`mainapp.exec()`)
 
 On shutdown: `closeEvent()` → `Profiles::Done()` → `DestroyGraphGlobals()` → `DatabaseManager::close()`
@@ -155,27 +163,35 @@ detectCPAPCards()  ← scans drives, each registered
 importCPAPDataCards()
         │
         ▼
-For each detected card:
+For each detected card, MainWindow::importCPAP():
+  new ProfileImportContext, loader->SetContext(ctx)
+  DatabaseManager::transaction()   ← one transaction for the whole import
+        │
+        ▼
   MachineLoader::Open(path)
+    Loader reads SD card files, creates Sessions
+    with EventLists (waveforms, events, settings)
         │
         ▼
-  Loader reads SD card files, creates Sessions
-  with EventLists (waveforms, events, settings)
+  ImportContext::AddSession() → Session::UpdateSummaries()
+                              → writes session + events to database
         │
         ▼
-  ImportContext::AddSession() → Session::StoreToDatabase()
-                              → Session::StoreEventsToDatabase()
+  ImportContext::Commit() → Machine::AddSession() for each session
+                            (links into Machine::sessionlist, creates/updates
+                             Day in Profile::daylist), refreshes daily_summaries
         │
         ▼
-  ImportContext::Commit() → finalizes in database
+  DatabaseManager::commit()  (rollback on failure)
         │
         ▼
-  Machine::AddSession() → links session into Machine::sessionlist
-                        → creates/updates Day in Profile::daylist
-        │
-        ▼
-finishCPAPImport() → recalculates summaries, reloads UI
+finishCPAPImport() → regenerates statistics, reloads UI
 ```
+
+Some loaders (BMC, G3X, Resvent) call `Machine::AddSession()` directly instead of
+`ImportContext::AddSession()`. `importCPAP()` detects this via
+`MachineLoader::dailySummariesCalculated()` and refreshes `daily_summaries` for them.
+The progress dialog's Abort button calls `MachineLoader::abortImport()`.
 
 ### Loader Registration
 
@@ -202,19 +218,26 @@ MachineLoader (QObject)
        ├── BmcG3xLoader
        └── ... (all CPAP loaders)
   Also direct subclasses for non-CPAP:
-  ├── CMS50Loader (oximeter)
-  ├── ZeoLoader (sleep stage)
+  ├── CMS50Loader, CMS50F37Loader, MD300W1Loader, ViatomLoader (oximeters)
+  ├── ZEOLoader, DreemLoader, AppleHealthLoader (sleep stage)
   ├── SomnoposeLoader (position)
   └── ... etc.
 ```
+
+The CPAP loaders, oximeter loaders, and `AppleHealthLoader` are registered in `main.cpp`.
+The ZEO, Dreem, Somnopose, and M-Series loaders are not; their *Data* menu actions in
+`mainwindow.cpp` instantiate them on demand (Apple Health import also runs from a menu
+action).
 
 ### ImportContext
 
 `ImportContext` is an abstraction layer between loaders and the storage system. The primary implementation is `ProfileImportContext`. Key methods:
 - `CreateMachineFromInfo()` — looks up or creates a Machine for the device
 - `CreateSession()` — creates an in-memory Session for the loader to populate
-- `AddSession()` — writes the session to database
-- `Commit()` — finalizes the batch
+- `SessionExists()` — lets the loader skip sessions already imported
+- `AddSession()` — computes summaries and writes the session to the database
+- `Commit()` — attaches the batch's sessions to their Machines/Days and refreshes
+  `daily_summaries` for the affected dates
 
 ---
 
@@ -244,13 +267,15 @@ Loaders often define additional channels specific to their CPAP machine.
 ### Tab Structure
 
 MainWindow contains a QTabWidget with these tabs:
+0. **Profile** (`ProfileSelector`) — profile list; shown when no profile is open
 1. **Welcome** (`Welcome`) — startup page
 2. **Daily** (`Daily`) — single-day view with detailed graphs
 3. **Overview** (`Overview`) — multi-day summary charts
-4. **Statistics** — HTML-based statistical reports
-5. ~~**Help** — documentation browser~~ NOT IMPLEMENTED
+4. **Statistics** — HTML page generated by `statistics.cpp` into `ui->statisticsView`
+   (the tab itself is defined in `mainwindow.ui`)
 
-Plus the **ProfileSelector** which is shown when no profile is open.
+A **Help Browser** tab exists in code but is compiled out (`DEFINES += helpless` in
+`oscar.pro`). A left-hand `QToolBox` holds the navigation, bookmarks, and records pages.
 
 ### Profile Open/Close Flow
 
@@ -279,7 +304,7 @@ MainWindow::CloseProfile()
 Located in `oscar/Graphs/`. Key classes:
 
 ```
-gGraphView (QOpenGLWidget)
+gGraphView (QOpenGLWidget; QWidget in BROKEN_OPENGL_BUILD)
   ├── Contains a list of gGraph objects
   ├── Handles scrolling, zooming, mouse interaction
   └── Renders all graphs in a vertical stack
@@ -302,7 +327,8 @@ Layer (base class)
 ```
 
 **Data Flow to Graphs:**
-1. `Daily::LoadDate(date)` gets the `Day*` from `profile->GetDay(date)`
+1. `Daily::LoadDate(date)` selects the date on the calendar; `Daily::Load(date)` gets the
+   `Day*` from `profile->GetDay(date)` and closes the previous day's events
 2. Calls `day->OpenEvents()` to load event data from database into memory
 3. Each `gGraph` has layers, each layer is given the `Day*` via `Layer::SetDay(day)`
 4. Layers query the Day/Sessions for their specific ChannelID data
@@ -331,17 +357,54 @@ Each database table has a corresponding repository class in `oscar/database/`:
 | `EventListRepository` | `event_lists` | EventList metadata |
 | `EventDataRepository` | `event_data` | Waveform/event BLOB storage |
 | `RespiratoryEventsRepository` | `respiratory_events` | Individual respiratory events |
-| `DailySummaryRepository` | `daily_summaries` | Pre-calculated daily stats |
-| `ChannelRepository` | `channel_options` | Channel display preferences |
+| `SessionSlicesRepository` | `session_slices` | Mask-on/off periods |
+| `SessionChannelValuesRepository` | `session_channel_values` | Value/time summaries for weighted averages |
+| `DailySummaryRepository` | `daily_summaries` | Pre-calculated daily stats; one row per `(profile_id, date)` across all devices |
+| `ChannelRepository` | `channels` | Channel definitions |
+| `ChannelOptionsRepository` | `channel_options` | Channel display preferences |
 | `UserInfoRepository` | `user_info` | Personal information |
 | `DoctorInfoRepository` | `doctor_info` | Doctor information |
 | `PreferencesRepository` | `profile_preferences` | Key-value profile settings |
-| `ReportRepository` | `reports`, `report_contents` | CSV export report definitions |
-| `ReportTreeRepository` | `report_tree` | Hierarchical report tree |
+| `AppPreferencesRepository` | `app_preferences` | Application-wide settings (replaced `Preferences.xml` in v14) |
+| `GraphLayoutsRepository` | `graph_layouts` | Saved graph layouts (replaced `.shg` files in v14) |
+| `DeviceTimeCorrectionRepository` | `device_time_corrections` | Per-device, per-night clock corrections (v17) |
+| `ReportTreeRepository` | `report_tree` | Hierarchical CSV-export report tree |
 
-### Schema Versioning
+`ReportRepository` and `ReportContentsRepository` target the pre-v13
+`reports`/`report_contents` tables, which are no longer created. Only the legacy
+`ReportManager` dialog uses them, and its menu action is hidden.
 
-Current schema version: **13** (see `database_schema.h`). The policy since v12 is **no-migration**: if the schema version doesn't match, the database is recreated from scratch. Schema history is in `Notes/DATABASE_SCHEMA_REFERENCE.md`.
+### Schema Versioning and Migrations
+
+Current schema version: **19** (`DatabaseSchema::CURRENT_SCHEMA_VERSION` in
+`database_schema.h`). Full table/column reference and version history:
+`Notes/Database/DATABASE_SCHEMA_REFERENCE.md`.
+
+**Policy: every schema change requires a migration that preserves user data.** OSCAR 2.0
+is released, so recreating or wiping the database on a version mismatch is not allowed.
+
+How upgrades work:
+
+- `DatabaseManager::initialize()` reads the stored version. If it is older than
+  `CURRENT_SCHEMA_VERSION`, it records `pendingSchemaUpgradeFrom()` and does not finish
+  opening. If it is newer, it refuses to open and tells the user to update OSCAR.
+- `main.cpp` (`confirmAndUpgradeDatabase()`) asks the user before upgrading and offers to
+  copy the database to `oscar-backup-v<N>-<timestamp>.db` first.
+- `DatabaseSchema::upgradeSchema()` walks a table of consecutive steps
+  (`migrateV13ToV14` … `migrateV18ToV19`), advancing the stored version after each one.
+  Migrations are additive; no existing data is destroyed. There is no upgrade path from
+  versions below 13.
+- Backups restore into the current schema if their version is within
+  `[MIN_RESTORE_SCHEMA_VERSION, CURRENT_SCHEMA_VERSION]` (currently 12–19).
+
+To change the schema:
+
+1. Bump `CURRENT_SCHEMA_VERSION`.
+2. Update the `createXxx` table functions so new databases get the new shape.
+3. Write `migrateV<N>ToV<N+1>()` and add it to the `steps[]` table in `upgradeSchema()`.
+   Existing rows must keep their data; backfill new columns where the old data allows.
+4. Check that backup/restore still handles the previous version.
+5. Update `DATABASE_SCHEMA_REFERENCE.md`.
 
 ---
 
@@ -350,7 +413,10 @@ Current schema version: **13** (see `database_schema.h`). The policy since v12 i
 ### Two-Level Architecture
 
 1. **Application-wide** (`p_pref` global, `Preferences` class)
-   - Stored in `Preferences.xml` in the data folder
+   - Stored in the `app_preferences` table (since schema v14). A leftover
+     `Preferences.xml` in the data folder is imported once on first launch and deleted.
+   - `QSettings` holds only bootstrap values, such as the data-folder location and the
+     recent-databases list
    - Wrapped by `AppSetting` (`AppWideSetting` class) for typed access
    - Contains: language, UI settings, graph settings, etc.
 
@@ -388,10 +454,10 @@ main.cpp
       → DatabaseManager
       → *Repository classes
       → MigrationManager
-  → Network (optional cloud sync)
-      → CloudUploader/Downloader
+  → Network (profile sharing; used by ShareDialog)
+      → CloudUploader (0x0.st) / CloudDownloader (fetches shared links)
       → OAuth2Handler
-      → Dropbox/OneDrive/GoogleDrive uploaders
+      → Dropbox / Google Drive uploaders
 ```
 
 ### Key Global Variables
@@ -431,10 +497,12 @@ main.cpp
 | Graph engine | `oscar/Graphs/gGraphView.{h,cpp}`, `gGraph.{h,cpp}`, `layer.{h,cpp}` |
 | Graph types | `oscar/Graphs/gLineChart.{h,cpp}`, `gSummaryChart.{h,cpp}`, etc. |
 | Backup/Restore | `oscar/database/backup/profile_backup.{h,cpp}`, `profile_restore.{h,cpp}` |
-| Network/Cloud | `oscar/network/cloud_uploader.h`, etc. |
+| Network/Cloud | `oscar/network/cloud_uploader.h`, etc.; `oscar/sharedialog.{h,cpp}` |
 | Journal | `oscar/SleepLib/journal.{h,cpp}` |
-| CSV export | `oscar/exportcsv.{h,cpp}`, `oscar/reportmanager.{h,cpp}` |
-| Profile import | `oscar/profileimporter.{h,cpp}` |
+| CSV export | `oscar/exports/report_exporter.{h,cpp}` (CSV Export Wizard), `oscar/database/report_tree_repository.{h,cpp}`, `oscar/database/orf_file_io.{h,cpp}`, `oscar/docs/system_reports.orf`; 1.7.x-style export: `oscar/exports/exportcsv.*` |
+| Profile import (OSCAR 1.x) | `oscar/profileimporter.{h,cpp}`, `oscar/importprofile.{h,cpp}`, `oscar/database/migration_manager.{h,cpp}` |
+| Schema upgrades | `oscar/database/database_schema.cpp` (`upgradeSchema()`), `confirmAndUpgradeDatabase()` in `oscar/main.cpp` |
+| Time corrections | `oscar/devicetimecorrectiondialog.*`, `oscar/driftanalysisdialog.*`, `oscar/database/device_time_correction_repository.*` |
 | Build config | `oscar/oscar.pro` |
 
 ---

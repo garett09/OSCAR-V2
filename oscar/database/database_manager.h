@@ -18,6 +18,8 @@
 #include <QMutex>
 #include <QString>
 
+#include "database_schema.h"
+
 /*!
  * \class DatabaseManager
  * \brief Singleton class that manages the SQLite database connection
@@ -55,8 +57,58 @@ public:
      * - Opens a connection with WAL mode enabled
      * - Enables foreign key constraints
      * - Creates the schema if needed
+     *
+     * An existing database whose schema is older than
+     * DatabaseSchema::CURRENT_SCHEMA_VERSION is opened but NOT upgraded: this
+     * returns true, pendingSchemaUpgradeFrom() reports the on-disk version, and
+     * isOpen() stays false until the caller runs upgradeSchema(). The caller is
+     * expected to warn the user (the upgrade is irreversible) before doing so.
      */
     bool initialize(const QString& databasePath);
+
+    /*!
+     * \brief Schema version awaiting upgrade after initialize()
+     * \return The on-disk schema version if it is older than the current one,
+     *         otherwise 0 (nothing pending)
+     */
+    int pendingSchemaUpgradeFrom() const;
+
+    /*!
+     * \brief Write a consistent single-file copy of the database
+     * \param destPath Full path of the copy to create; must not already exist
+     * \param error Receives a human-readable reason on failure
+     * \return true if the copy was written
+     *
+     * Uses VACUUM INTO on a private connection, so the copy includes everything
+     * committed to the WAL and needs no -wal/-shm companions. Safe to call from a
+     * background thread and while a schema upgrade is pending. Fails fast when the
+     * destination volume has less free space than the current database occupies.
+     */
+    bool snapshotTo(const QString& destPath, QString* error = nullptr);
+
+    /*!
+     * \brief Run the pending schema upgrade
+     * \param progress Optional per-migration progress callback
+     * \return true if the database is now at the current schema version
+     *
+     * Applies DatabaseSchema::upgradeSchema() on a private connection, so it may
+     * run on a background thread while the UI shows progress; it never touches
+     * the main connection. On success pendingSchemaUpgradeFrom() becomes 0 and
+     * the caller must call completeInitialization() on the thread that called
+     * initialize(). On failure the database is left at the last schema version
+     * that completed; the caller should close() and exit.
+     */
+    bool upgradeSchema(const DatabaseSchema::UpgradeProgress& progress = DatabaseSchema::UpgradeProgress());
+
+    /*!
+     * \brief Finish initialization after a successful upgradeSchema()
+     * \return true if the database is ready for use
+     *
+     * Runs the startup checks initialize() performs once the schema is current
+     * (CSV report versions) and makes isOpen() true. Must be called on the thread
+     * that called initialize(). Returns false if an upgrade is still pending.
+     */
+    bool completeInitialization();
 
     /*!
      * \brief Close the database connection
@@ -182,16 +234,27 @@ private:
     DatabaseManager& operator=(const DatabaseManager&) = delete;
 
     /*!
-     * \brief Configure database connection settings
+     * \brief Configure per-connection settings on any open connection
+     * \param db The connection to configure
      *
-     * Sets up WAL mode, foreign keys, cache size, etc.
+     * Sets up WAL mode, foreign keys, cache size, etc. Used for the main
+     * connection and for the private connection upgradeSchema() opens.
      */
-    bool configureDatabaseSettings();
+    static bool configureConnection(QSqlDatabase& db);
+
+    /*!
+     * \brief Common tail of initialize() and completeInitialization()
+     *
+     * Runs the CSV report-version check and marks the manager initialized.
+     * Caller must hold m_mutex.
+     */
+    bool finishInitialization();
 
     QSqlDatabase m_database;
     QString m_connectionName;
     QString m_databasePath;
     bool m_initialized;
+    int m_pendingUpgradeFrom;
     bool m_inTransaction;
     bool m_corruptionReported;
     mutable QMutex m_mutex;

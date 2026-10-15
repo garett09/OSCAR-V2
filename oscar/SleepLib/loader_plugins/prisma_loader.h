@@ -48,6 +48,7 @@ enum Prisma_Parameters {
     PRISMA_SMART_TUBE_TYPE = 21,
     PRISMA_SMART_PMAXOA = 38,
 
+    PRISMA_LINE_HUMIDSTATUS = 271,
     PRISMA_LINE_MODE = 1003,
     PRISMA_LINE_TI = 1011,
     PRISMA_LINE_TE = 1012,
@@ -73,6 +74,19 @@ enum Prisma_Parameters {
     PRISMA_LINE_EXTRA_OBSTRUCTION_PROTECTION = 1154, // BiSoft off = 0, BiSoft1 = 2, BiSoft2 = 3, TriLevel = 1
     PRISMA_LINE_AUTO_PDIFF = 1219
 
+};
+
+/*! \enum Prisma_HumidState
+    \brief Runtime states for PRISMA_LINE_HUMIDSTATUS (parameter 271) evaluated by Smart Aqua Control.
+
+    Depending on firmware, the status at session start is a static parameter (DeviceEventID 0)
+    or a runtime event (DeviceEventID 1) at Time=0; later changes are always runtime events.
+*/
+enum Prisma_HumidState {
+    PRISMA_HUMID_ABSENT  = 0, //!< Humidifier not attached / blank side cover installed
+    PRISMA_HUMID_EMPTY   = 1, //!< Water chamber empty (WL / WasserLeer)
+    PRISMA_HUMID_STANDBY = 2, //!< Standby / inactive (blower on or off, heating inactive)
+    PRISMA_HUMID_HEATING = 3, //!< Active humidification / heating
 };
 
 // NOTE: Modes should be reverse engineered. Based on the samples we had, for now I didn't saw any overlap,
@@ -251,6 +265,10 @@ class PrismaLoader : public CPAPLoader
 
     MachineInfo PeekInfoFromConfig(const QString & selectedPath);
 
+    //! \brief Returns the folder holding the Prisma config file: \a path itself, or one of its
+    //! immediate subfolders (where Open() puts the backup copy). Returns \a path if neither.
+    QString findCardPath(const QString & path);
+
     void ImportDataDir(QDir& dataDir, QSet<SessionID>& sessions, QHash<SessionID, QString>& eventFiles, QHash<SessionID, QString>& signalFiles);
 
     //! \brief Scans the given directories for session data and create an import task for each logical session.
@@ -278,10 +296,16 @@ public:
     PrismaEventFile(QByteArray &buffer);
     QHash<int, int> getParameters() {return m_parameters; }
     QList<PrismaEvent> getEvents(int eventId) {return m_events.contains(eventId) ? m_events[eventId] : QList<PrismaEvent>(); }
+    /*! \brief Returns list of (time_ms, new_value) runtime parameter transitions (DeviceEventID == 1). */
+    QList<QPair<int, int>> getDynamicParameters(int paramId) {
+        return m_dynamicParameters.contains(paramId) ? m_dynamicParameters[paramId] : QList<QPair<int, int>>();
+    }
 
 protected:
     QHash<int, int> m_parameters;
     QHash<int, QList<PrismaEvent>> m_events;
+    //! \brief Stores dynamic parameter updates (DeviceEventID == 1) mapped by parameter ID to (time_ms, value) pairs.
+    QHash<int, QList<QPair<int, int>>> m_dynamicParameters;
 };
 
 //********************************************************************************************

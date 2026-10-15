@@ -15,6 +15,7 @@
 
 #include <QSqlDatabase>
 #include <QString>
+#include <functional>
 
 /*!
  * \class DatabaseSchema
@@ -39,6 +40,23 @@ public:
      * Increment this when schema changes. Used to determine if
      * database upgrades are needed.
      *
+     * Version 20: Reconcile independently assigned v19 schemas. Ensure clock
+     * offset and hypopnea schema additions exist, then apply the metric repairs
+     * below to databases upgraded by either branch.
+     *
+     * Version 19 (upstream; applied here in v20): NULL for summary metrics that do not apply (GitLab #261)
+     * - No column changes. session_summaries and daily_summaries now store NULL, not 0,
+     *   for counts of channels the device has never reported, for oahi/cahi unless the
+     *   device splits hypopneas by mechanism, for rdi unless it reports RERA, and for
+     *   pressure/leak/oximetry statistics a row has no data for.
+     * - The #285 index recompute that v18 used to carry runs here instead, so v18
+     *   databases that never received it are corrected.
+     * - Zero-count OH/CH session_channels rows of devices that never scored either are
+     *   removed (the loaders no longer create them).
+     * - daily_summaries rows are rewritten in SQL at profile level; profiles whose CPAP
+     *   devices disagree on some channel have their rows deleted and regenerated on
+     *   next open.
+     *
      * Version 18: Central / Obstructive hypopnea split
      * - session_summaries and daily_summaries each gained five columns:
      *   obstructive_hypopnea_count, central_hypopnea_count, all_apnea_count
@@ -46,8 +64,11 @@ public:
      * - all_apnea_count closes a pre-existing gap: CPAP_AllApnea contributes to
      *   AHI but was never stored, so SQL could not reproduce the app's AHI for
      *   devices that report an undifferentiated apnea.
-     * - Purely additive. Pre-v18 rows keep 0 in all five columns until the day is
-     *   recalculated or re-imported; no backfill is performed.
+     * - Purely additive. Pre-v18 rows keep 0 in the OH/CH columns until the day is
+     *   recalculated or re-imported. all_apnea_count is backfilled from
+     *   session_channels, and session_summaries.ahi/rdi/oahi/cahi are recomputed
+     *   from the count columns / mask_on_hours (#285: earlier rows stored the
+     *   rolling AHI graph's average, not events per hour).
      *
      * Version 17: Per-device per-night time corrections (all device types)
      * - Added device_time_corrections table
@@ -81,7 +102,7 @@ public:
      * - Added type field to channels
      * - Removed events_file and summary_file from sessions (no longer needed)
      */
-    static const int CURRENT_SCHEMA_VERSION = 19;
+    static const int CURRENT_SCHEMA_VERSION = 20;
 
     /*!
      * \brief Oldest schema version that can be restored into the current database.
@@ -121,15 +142,32 @@ public:
     static int getSchemaVersion(QSqlDatabase& db);
 
     /*!
+     * \brief Progress callback for upgradeSchema()
+     * \param step        1-based index of the migration about to run
+     * \param stepCount   Total number of migrations this upgrade will run
+     * \param fromVersion Schema version the migration starts from
+     * \param toVersion   Schema version the migration produces
+     *
+     * Called on the thread running upgradeSchema(), immediately before each
+     * migration starts. A migration is a single transaction, so this is the only
+     * granularity at which progress can be reported.
+     */
+    using UpgradeProgress = std::function<void(int step, int stepCount, int fromVersion, int toVersion)>;
+
+    /*!
      * \brief Upgrade database schema to current version
      * \param db Database connection to use
      * \param fromVersion Current version in database
+     * \param progress Optional callback invoked before each migration step
      * \return true if successful, false otherwise
      *
      * Applies incremental migrations until the database is at CURRENT_SCHEMA_VERSION.
      * Each version-specific migration is additive; no existing data is destroyed.
+     * Each migration runs in its own transaction, so a failure leaves the database
+     * at the last version that completed.
      */
-    static bool upgradeSchema(QSqlDatabase& db, int fromVersion);
+    static bool upgradeSchema(QSqlDatabase& db, int fromVersion,
+                              const UpgradeProgress& progress = UpgradeProgress());
 
     /*!
      * \brief Check and update CSV report version
@@ -203,6 +241,9 @@ private:
 
     // Migration from v17 to v18
     static bool migrateV17ToV18(QSqlDatabase& db);
+
+    // Version 20 reconciles both branches' v19 schemas and repairs summary metrics.
+    static bool migrateV19ToV20(QSqlDatabase& db);
 
     // Migration from v18 to v19
     static bool migrateV18ToV19(QSqlDatabase& db);

@@ -40,12 +40,15 @@ public:
     // TODO: Eventually backup (and rebuild) should be handled invisibly to loaders.
     virtual QString GetBackupPath();
 
+    // True if the session is already in the device's database, or has been added to this
+    // context and is waiting to be committed.
     virtual bool SessionExists(SessionID sid);
     
     // Create an in-memory Session object for the importer to fill out.
     virtual Session* CreateSession(SessionID sid);
 
     // Write the session to disk and release its memory, adding it to the queue to be committed.
+    // Takes ownership of the session: a session rejected as a duplicate is deleted.
     virtual bool AddSession(Session* session);
     
     // Update the database to include all the newly added sessions.
@@ -103,7 +106,7 @@ class ImportUI : public QObject
 {
     Q_OBJECT
 public:
-    ImportUI(Profile* profile);
+    ImportUI(Profile* profile, bool batchMode = false);
     virtual ~ImportUI() {}
 
 public slots:
@@ -114,6 +117,7 @@ public slots:
 
 protected:
     Profile* m_profile;
+    bool m_batchMode;
 };
 
 

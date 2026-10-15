@@ -27,6 +27,11 @@
 #include <QWindow>
 #include <QMessageBox>
 #include <QFile>
+#include <QApplication>
+#include <QLineEdit>
+#include <QTextEdit>
+#include <QPlainTextEdit>
+#include <QAbstractSpinBox>
 #include "Graphs/gGraphView.h"
 
 
@@ -1610,10 +1615,6 @@ void gGraphView::paintGL()
         // wtf is this even getting CALLED??
         return;
     }
-#ifdef DEBUG_EFFICIENCY
-    QElapsedTimer time;
-    time.start();
-#endif
 
     if (redrawtimer->isActive()) {
         redrawtimer->stop();
@@ -1627,6 +1628,52 @@ void gGraphView::paintGL()
 
 // Create QPainter object, note this is only valid from paintGL events!
     QPainter painter(this);
+    bool graphs_drawn = paintView(painter);
+    painter.end();
+
+//        qDebug() << "Break 4";
+//        sleep(3);
+
+#ifndef BROKEN_OPENGL_BUILD
+#if QT_VERSION < QT_VERSION_CHECK(5,4,0)
+    swapBuffers();
+#endif
+#endif
+    if (this->isVisible() && !graphs_drawn && render_cube) { // keep the cube spinning
+        redrawtimer->setInterval(1000.0 / 50); // 50 FPS
+        redrawtimer->setSingleShot(true);
+        redrawtimer->start();
+    }
+
+//        qDebug() << "Break 5";
+//        sleep(3);
+
+}
+
+QPixmap gGraphView::renderToRasterPixmap()
+{
+    // A QPixmap is a raster paint device, so the QPainter below never reaches OpenGL.
+    // The graph layers draw only through QPainter, so this is the same picture paintGL()
+    // puts on screen. Tagging the pixmap with the widget's ratio keeps the logical
+    // coordinates the layers use while rendering at the display's native resolution.
+    // (gGraphView::size() is the graph count, so the widget size is built explicitly.)
+    const qreal dpr = devicePixelRatioF();
+    QPixmap pixmap((QSizeF(width(), height()) * dpr).toSize());
+    pixmap.setDevicePixelRatio(dpr);
+    pixmap.fill(Qt::white);
+
+    QPainter painter(&pixmap);
+    paintView(painter);
+    painter.end();
+    return pixmap;
+}
+
+bool gGraphView::paintView(QPainter &painter)
+{
+#ifdef DEBUG_EFFICIENCY
+    QElapsedTimer time;
+    time.start();
+#endif
     #if QT_VERSION < QT_VERSION_CHECK(6,0,0)
         painter.setRenderHint(QPainter::HighQualityAntialiasing, true);
         painter.setRenderHint(QPainter::TextAntialiasing, true);
@@ -1750,25 +1797,7 @@ void gGraphView::paintGL()
 
 #endif
 
-    painter.end();
-
-//        qDebug() << "Break 4";
-//        sleep(3);
-
-#ifndef BROKEN_OPENGL_BUILD
-#if QT_VERSION < QT_VERSION_CHECK(5,4,0)
-    swapBuffers();
-#endif
-#endif
-    if (this->isVisible() && !graphs_drawn && render_cube) { // keep the cube spinning
-        redrawtimer->setInterval(1000.0 / 50); // 50 FPS
-        redrawtimer->setSingleShot(true);
-        redrawtimer->start();
-    }
-
-//        qDebug() << "Break 5";
-//        sleep(3);
-
+    return graphs_drawn;
 }
 
 QString gGraphView::getRangeInDaysString()
@@ -1852,6 +1881,15 @@ QString gGraphView::getRangeString()
 */
 }
 
+/*! Qt also sends this when the graphs are shown under a cursor that has not moved, e.g. after
+ *  switching to the Daily tab. Without it, arrow keys went to the tab bar and changed tabs.
+ */
+void gGraphView::enterEvent(QEnterEvent * event)
+{
+    Q_UNUSED(event);
+    takeHoverFocus();
+}
+
 void gGraphView::leaveEvent(QEvent * event)
 {
     Q_UNUSED(event);
@@ -1859,7 +1897,44 @@ void gGraphView::leaveEvent(QEvent * event)
         m_metaselect = false;
         timedRedraw(0);
     }
-    releaseKeyboard();
+
+    // Hand focus back to whatever had it before hovering. If nothing did, the graph keeps it.
+    QWidget * previous = m_focusBeforeHover;
+    m_focusBeforeHover = nullptr;
+    if (hasFocus() && previous && previous->isVisible() && previous->isEnabled()) {
+        previous->setFocus(Qt::OtherFocusReason);
+    }
+}
+
+/*! Hovering used to call grabKeyboard(), which on X11 becomes a server-wide keyboard grab
+ *  that also swallows window-manager keys such as Alt+Tab (GitLab #305). Plain focus gives
+ *  the same "keys reach the graph without a click" behaviour on every platform.
+ */
+void gGraphView::takeHoverFocus()
+{
+    if (hasFocus() || !isActiveWindow()) {
+        return;
+    }
+
+    QWidget * current = QApplication::focusWidget();
+    if (current) {
+        // Never pull focus out of a field the user may be typing in: it would interrupt
+        // typing, drop the selection, and fire editingFinished/valueChanged handlers.
+        QLineEdit * line = qobject_cast<QLineEdit *>(current);
+        QTextEdit * text = qobject_cast<QTextEdit *>(current);
+        QPlainTextEdit * plain = qobject_cast<QPlainTextEdit *>(current);
+        QComboBox * combo = qobject_cast<QComboBox *>(current);
+        if ((line && !line->isReadOnly())
+                || (text && !text->isReadOnly())
+                || (plain && !plain->isReadOnly())
+                || (combo && combo->isEditable())
+                || qobject_cast<QAbstractSpinBox *>(current)) {
+            return;
+        }
+    }
+
+    m_focusBeforeHover = current;
+    setFocus(Qt::MouseFocusReason);
 }
 
 
@@ -1883,7 +1958,7 @@ void gGraphView::setOffsetX(int offsetX)
 
 void gGraphView::mouseMoveEvent(QMouseEvent *event)
 {
-    grabKeyboard();
+    takeHoverFocus();
 
     #if QT_VERSION < QT_VERSION_CHECK(6,0,0)
         int x = event->x();
@@ -2794,6 +2869,9 @@ void gGraphView::onLinesClicked(QAction *action)
 
 void gGraphView::mousePressEvent(QMouseEvent *event)
 {
+    // An explicit click claims focus for good, so leaving the graph must not hand it back.
+    m_focusBeforeHover = nullptr;
+
     #if QT_VERSION < QT_VERSION_CHECK(6,0,0)
         int x = event->x();
         int y = event->y();

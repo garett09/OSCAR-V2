@@ -11,6 +11,7 @@
 
 #include <QHash>
 #include <QString>
+#include <QStringList>
 #include <QVector>
 #include <QtGlobal>
 
@@ -20,6 +21,7 @@ struct AppleHealthSample
 {
     qint64 timeMs;
     float value;
+    int sourceId;
 };
 
 struct AppleHealthInterval
@@ -35,6 +37,7 @@ struct AppleHealthNightScalar
     qint64 startMs;
     qint64 endMs;
     double value;
+    int sourceId;
 };
 
 struct AppleHealthWeight
@@ -54,11 +57,15 @@ struct AppleHealthData
     QVector<AppleHealthNightScalar> wristTemp;
     QVector<AppleHealthWeight> weights;
     QHash<QString, int> sleepSourceCounts;
+    QStringList sourceNames;
+    QHash<QString, int> vitalsSourceCounts;
     QHash<QString, qint64> typeCounts;
     qint64 recordsSeen = 0;
 };
 
 bool isAppleWatchSleepSource(const QString &sourceName);
+bool isAppleFirstPartySource(const QString &sourceName);
+bool isAllowedVitalsSource(const QString &sourceName, const QString &chosenSleepSource);
 QString autoMatchedSleepSource(const QHash<QString, int> &sourceCounts);
 
 class AppleHealthParser

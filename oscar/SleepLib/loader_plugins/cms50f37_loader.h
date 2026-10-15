@@ -132,11 +132,19 @@ protected:
 
     unsigned char current_command;
 
-    volatile int session_count;
-    volatile int duration;
-    volatile int userCount;
-    volatile int userIdx;
-    volatile int protocolVersion;
+    // The reply fields below are written by processBytes() and polled by the
+    // get*() helpers, both on the GUI thread via QApplication::processEvents().
+
+    //! \brief Number of stored sessions from the last session-count reply; -1 while awaiting it.
+    int session_count;
+    //! \brief Raw session duration from the last duration reply; -1 while awaiting it.
+    int duration;
+    //! \brief Number of users from the last user-count reply; -1 while awaiting it.
+    int userCount;
+    //! \brief User index from the last user-info or session-count reply.
+    int userIdx;
+    //! \brief Device protocol version from the last version reply.
+    int protocolVersion;
     int device_info;
     QString model;
     QString vendor;

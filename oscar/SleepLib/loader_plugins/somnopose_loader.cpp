@@ -243,8 +243,6 @@ int SomnoposeLoader::OpenFile(const QString & filename)
 
     if (session_count) {
         mach->Save();
-        // Adding these to hopefully make data persistent...
-        mach->SaveSummaryCache();
         p_profile->StoreMachines();
     }
 

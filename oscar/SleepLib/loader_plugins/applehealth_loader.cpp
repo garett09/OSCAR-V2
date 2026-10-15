@@ -27,6 +27,15 @@
 
 namespace {
 
+template <typename T>
+static void keepAllowedSamples(QVector<T> &samples, const QVector<bool> &allowedSource)
+{
+    samples.erase(std::remove_if(samples.begin(), samples.end(),
+                                 [&allowedSource](const T &sample) {
+                                     return !allowedSource.at(sample.sourceId);
+                                 }), samples.end());
+}
+
 static QVector<AppleHealthSample> samplesInWindow(
     const QVector<AppleHealthSample> &samples, qint64 startMs, qint64 endMs)
 {
@@ -61,6 +70,7 @@ int AppleHealthLoader::Open(const QStringList &paths)
 {
     m_lastImportSummary = AppleHealthImportSummary();
     m_chosenSleepSources.clear();
+    m_importedVitalsSources.clear();
     m_importSkippedNights.clear();
     const bool previousForwarding = m_forwardParserProgress;
     const bool previousAccumulating = m_accumulatingImportSummary;
@@ -77,6 +87,7 @@ int AppleHealthLoader::OpenFile(const QString & filename)
     if (!m_accumulatingImportSummary) {
         m_lastImportSummary = AppleHealthImportSummary();
         m_chosenSleepSources.clear();
+        m_importedVitalsSources.clear();
         m_importSkippedNights.clear();
     }
     m_data = AppleHealthData();
@@ -211,6 +222,26 @@ int AppleHealthLoader::OpenFile(const QString & filename)
         }
     }
     m_data.sleepStages = selectedStages;
+    QVector<bool> allowedSource;
+    allowedSource.reserve(m_data.sourceNames.size());
+    for (const QString &sourceName : m_data.sourceNames) {
+        const bool allowed = isAllowedVitalsSource(sourceName, chosenSource);
+        allowedSource.append(allowed);
+        if (allowed) {
+            if (!m_importedVitalsSources.contains(sourceName)) {
+                m_importedVitalsSources.append(sourceName);
+            }
+        } else {
+            m_lastImportSummary.ignoredVitalsCounts[sourceName] += m_data.vitalsSourceCounts.value(sourceName);
+        }
+    }
+    keepAllowedSamples(m_data.heartRate, allowedSource);
+    keepAllowedSamples(m_data.spo2, allowedSource);
+    keepAllowedSamples(m_data.respRate, allowedSource);
+    keepAllowedSamples(m_data.hrv, allowedSource);
+    keepAllowedSamples(m_data.breathingDisturbances, allowedSource);
+    keepAllowedSamples(m_data.wristTemp, allowedSource);
+    m_lastImportSummary.importedVitalsSources = m_importedVitalsSources;
     m_lastImportSummary.validFile = true;
     for (auto it = m_data.sleepSourceCounts.cbegin(); it != m_data.sleepSourceCounts.cend(); ++it) {
         m_lastImportSummary.sleepSourceCounts[it.key()] += it.value();
@@ -244,6 +275,7 @@ int AppleHealthLoader::OpenFile(const QString & filename)
     }
     qDebug() << "AppleHealthLoader::OpenFile: recordsSeen:" << m_data.recordsSeen;
     qDebug() << "AppleHealthLoader::OpenFile: sleepSourceCounts:" << m_data.sleepSourceCounts;
+    qDebug() << "AppleHealthLoader::OpenFile: vitalsSourceCounts:" << m_data.vitalsSourceCounts;
 
     QMap<QDate, QVector<AppleHealthInterval>> stagesByNight;
     QMap<QDate, QVector<AppleHealthSample>> heartRateByNight;
@@ -458,15 +490,12 @@ int AppleHealthLoader::OpenFile(const QString & filename)
 
     if (sleepChanged) {
         sleepMach->Save();
-        sleepMach->SaveSummaryCache();
     }
     if (oxiChanged) {
         oxiMach->Save();
-        oxiMach->SaveSummaryCache();
     }
     if (journalChanged) {
         journalMach->Save();
-        journalMach->SaveSummaryCache();
     }
     if (imported > 0) {
         p_profile->StoreMachines();

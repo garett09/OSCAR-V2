@@ -13,6 +13,7 @@
 #include <QApplication>
 #include <QFile>
 #include <QDir>
+#include <QSet>
 #include <QThreadPool>
 
 #include "session.h"
@@ -38,6 +39,7 @@ MachineLoader::MachineLoader() :QObject(nullptr)
     m_type = MT_UNKNOWN;
     m_status = NEUTRAL;
     m_ctx = nullptr;
+    m_dailySummariesCalculated = false;
 }
 
 MachineLoader::~MachineLoader()
@@ -73,18 +75,28 @@ void MachineLoader::finishAddingSessions()
     }
     
     // Using a map specifically so they are inserted in order.
+    QSet<Machine *> touched;
     for (auto it=new_sessions.begin(), end=new_sessions.end(); it != end; ++it) {
         Session * sess = it.value();
         Machine * mach = sess->machine();
         mach->AddSession(sess);
+        touched.insert(mach);
     }
-    
+
+    // Rows written before the device's reported-channel set was complete carry NULL in
+    // columns the device does report. AddSession() above has settled the set, so put
+    // them right before the daily rollup below reads it (GitLab #313).
+    for (Machine * mach : touched) {
+        mach->repairStoredSummaries();
+    }
+
     // Calculate daily summaries for all sessions that have been added to machines
     // This runs during import, not on every profile load
     // Note: Some loaders add sessions directly to machines (not via new_sessions map),
     // so we always call calculateDailySummaries() regardless of new_sessions state
     if (p_profile) {
         p_profile->calculateDailySummaries();
+        m_dailySummariesCalculated = true;
         qDebug() << "MachineLoader::finishAddingSessions: Calculated daily summaries for imported data";
     }
 
@@ -211,10 +223,34 @@ MachineLoader * lookupLoader(Machine * m)
 
 MachineLoader * lookupLoader(QString loaderName)
 {
+    // Keys are lower-case; values must match a registered loaderName() exactly.
+    static const QHash<QString, QString> aliases = {
+        {"philips", "PRS1"},
+        {"respironics", "PRS1"},
+        {"devilbiss", "Intellipap"},
+        {"bmc-g3x", "BMCG3X"},
+        {"bmc_g3x", "BMCG3X"},
+        {"icon", "FPIcon"},
+        {"f&p-icon", "FPIcon"},
+        {"f&p-sleepstyle", "SleepStyle"},
+        {"apple-health", "AppleHealth"}
+    };
+
+    QString target = loaderName.trimmed();
+    QString alias = aliases.value(target.toLower());
+    if (!alias.isEmpty()) {
+        target = alias;
+    }
+
     for (int i=0; i < m_loaders.size(); ++i) {
         MachineLoader * loader = m_loaders.at(i);
-        if (loader->loaderName() == loaderName)
+        if (loader->loaderName().compare(target, Qt::CaseInsensitive) == 0)
             return loader;
+        // Also support names without "Loader" suffix (e.g. Apex -> ApexLoader, Sefam -> SefamLoader, Yuwell -> YuwellLoader)
+        if (loader->loaderName().endsWith("Loader", Qt::CaseInsensitive) &&
+            loader->loaderName().left(loader->loaderName().length() - 6).compare(target, Qt::CaseInsensitive) == 0) {
+            return loader;
+        }
     }
     return nullptr;
 }

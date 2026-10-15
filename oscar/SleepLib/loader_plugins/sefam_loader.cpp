@@ -447,7 +447,7 @@ MachineInfo SefamLoader::PeekInfo(const QString &path)
 
         // Firmware version, for diagnostics on untested models.
         const QString fw = ini.value("Create Info/Version").toString().trimmed();
-        if (!fw.isEmpty()) { info.properties[QStringLiteral("Firmware")] = fw; }
+        if (!fw.isEmpty()) { info.properties[QStringLiteral("firmware")] = fw; }
         break;
     }
     if (info.modelnumber.isEmpty()) {
@@ -592,6 +592,10 @@ static void clearSpans(QVector<bool> &valid,
     Both statuses are recorded, as prs1_loader does: `Day` counts only MaskOn,
     while gSessionTimesChart draws every slice and renders the off ones black.
 
+    A session in which the blower never ran gets only MaskOff slices, so it is
+    kept with zero usage, as the vendor software shows it. The per-hour indices
+    return 0 for a zero-hour session (GitLab #290).
+
     \param session   Session to append slices to.
     \param startMs   Session start.
     \param endMs     Session end.
@@ -599,7 +603,7 @@ static void clearSpans(QVector<bool> &valid,
 static void addMaskSlices(Session *session, qint64 startMs, qint64 endMs,
                           const QVector<QPair<qint64, qint64>> &offSpans)
 {
-    if (offSpans.isEmpty()) { return; }      // ran throughout: the fallback is correct
+    if (offSpans.isEmpty()) { return; }   // ran throughout: the fallback is correct
 
     QVector<SessionSlice> slices;
     qint64 cursor = startMs;
@@ -612,18 +616,6 @@ static void addMaskSlices(Session *session, qint64 startMs, qint64 endMs,
     }
     if (cursor < endMs) { slices.append(SessionSlice(cursor, endMs, MaskOn)); }
 
-    // An all-off session would leave hours() with nothing to sum, and an empty
-    // slice list silently means "no slice information" — which would report the
-    // full span, the opposite of the intent. Leave the slices off and say so.
-    bool anyOn = false;
-    for (const SessionSlice &s : slices) {
-        if (s.status == MaskOn) { anyOn = true; break; }
-    }
-    if (!anyOn) {
-        qWarning() << "Sefam: session" << session->session()
-                   << "is entirely blower-off; usage time will be its full span";
-        return;
-    }
     session->m_slices = slices;
 }
 
@@ -731,7 +723,7 @@ int SefamLoader::Open(const QString &path)
              << "model" << info.model
              << "serial" << info.serial
              << "modelcode" << info.properties.value(QStringLiteral("ModelCode"))
-             << "firmware" << info.properties.value(QStringLiteral("Firmware"));
+             << "firmware" << info.properties.value(QStringLiteral("firmware"));
 
     m_ctx->CreateMachineFromInfo(info);
     Machine *mach = p_profile->CreateMachine(info);
@@ -1025,8 +1017,10 @@ int SefamLoader::Open(const QString &path)
         if (!data.log.isEmpty() && data.header.utcEpoch != 0) {
             EventList *oa    = session->AddEventList(CPAP_Obstructive, EVL_Event);
             EventList *ca    = session->AddEventList(CPAP_ClearAirway, EVL_Event);
-            EventList *oh    = session->AddEventList(CPAP_ObstructiveHypopnea, EVL_Event);
-            EventList *ch    = session->AddEventList(CPAP_CentralHypopnea,     EVL_Event);
+            // OH/CH lists are created on the first event: an empty list would record
+            // the device as able to score them (GitLab #261).
+            EventList *oh    = nullptr;
+            EventList *ch    = nullptr;
             EventList *snore = session->AddEventList(CPAP_VSnore,      EVL_Event);
             EventList *fl    = session->AddEventList(CPAP_FlowLimit,   EVL_Event);
 
@@ -1057,8 +1051,10 @@ int SefamLoader::Open(const QString &path)
                 // report one; only the flag placement is corrected, using the vendor's
                 // published mean durations (see the constants above).
                 case SefamParsing::kLogObstructiveHypop:
+                    if (!oh) oh = session->AddEventList(CPAP_ObstructiveHypopnea, EVL_Event);
                     oh->AddEvent(when - kObstructiveHypopneaPlacementMs, 0); break;
                 case SefamParsing::kLogCentralHypopnea:
+                    if (!ch) ch = session->AddEventList(CPAP_CentralHypopnea, EVL_Event);
                     ch->AddEvent(when - kCentralHypopneaPlacementMs, 0); break;
                 case SefamParsing::kLogSnore:
                     snore->AddEvent(when, 0); break;
@@ -1077,8 +1073,9 @@ int SefamLoader::Open(const QString &path)
         if (summary) {
             EventList *oa    = session->AddEventList(CPAP_Obstructive, EVL_Event);
             EventList *ca    = session->AddEventList(CPAP_ClearAirway, EVL_Event);
-            EventList *oh    = session->AddEventList(CPAP_ObstructiveHypopnea, EVL_Event);
-            EventList *ch    = session->AddEventList(CPAP_CentralHypopnea,     EVL_Event);
+            // OH/CH lists are created on the first event, as in the log path (GitLab #261).
+            EventList *oh    = nullptr;
+            EventList *ch    = nullptr;
             EventList *snore = session->AddEventList(CPAP_VSnore,      EVL_Event);
             EventList *fl    = session->AddEventList(CPAP_FlowLimit,   EVL_Event);
 
@@ -1107,8 +1104,14 @@ int SefamLoader::Open(const QString &path)
                 place(ca,    minuteMs, r.centralApnea);
                 // The minute record counts the two hypopnea kinds separately, so each
                 // goes to its own channel — the same choice the log-based path makes.
-                place(oh,    minuteMs, r.obstructiveHypopnea);
-                place(ch,    minuteMs, r.centralHypopnea);
+                if (r.obstructiveHypopnea) {
+                    if (!oh) oh = session->AddEventList(CPAP_ObstructiveHypopnea, EVL_Event);
+                    place(oh, minuteMs, r.obstructiveHypopnea);
+                }
+                if (r.centralHypopnea) {
+                    if (!ch) ch = session->AddEventList(CPAP_CentralHypopnea, EVL_Event);
+                    place(ch, minuteMs, r.centralHypopnea);
+                }
                 place(snore, minuteMs, r.snore);
                 place(fl,    minuteMs, r.flowLimitation);
 
@@ -1149,9 +1152,19 @@ int SefamLoader::Open(const QString &path)
         }
 
         session->UpdateSummaries();
+        const qint64 usageMs = static_cast<qint64>(session->hours() * 3600000.0);
+
+        // AddSession() refuses a duplicate, a zero start time, or a session older
+        // than the profile's ignore-older-sessions cutoff, and takes no ownership
+        // when it does; it has already logged why. Counting it as imported would
+        // misreport the run, and dropping the pointer would leak the session.
+        if (!mach->AddSession(session)) {
+            delete session;
+            ++skipped;
+            continue;
+        }
         totalSpanMs  += endMs - startMs;
-        totalUsageMs += static_cast<qint64>(session->hours() * 3600000.0);
-        mach->AddSession(session);
+        totalUsageMs += usageMs;
         ++imported;
     }
 

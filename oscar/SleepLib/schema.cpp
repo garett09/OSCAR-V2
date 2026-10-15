@@ -24,21 +24,34 @@
 #include "SleepLib/day.h"
 #include "SleepLib/profiles.h"
 
-QColor adjustcolor(QColor color, float ar=1.0, float ag=1.0, float ab=1.0)
+/*! \brief Derive a dotted-line colour from a channel's base colour by rotating its hue.
+ *
+ * Each calc type (Min / Middle / Percentile / Max) is given a different \a hueShift so
+ * the four lines are distinguishable from each other and from the channel's own plot
+ * regardless of the base colour. Scaling RGB components (the previous approach) cannot
+ * separate lines for saturated primary bases such as SpO2's pure blue, because the
+ * other two components are zero and stay zero.
+ *
+ * Greyscale bases have no hue to rotate, so they are given a fixed saturated hue
+ * (which the shift then spreads out) and a lightened value so the lines are visible.
+ *
+ * \param base      The channel's default colour.
+ * \param hueShift  Rotation in degrees; may be negative.
+ */
+static QColor calcLineColor(QColor base, int hueShift)
 {
-    int r = color.red();
-    int g = color.green();
-    int b = color.blue();
+    int h, s, v, a;
+    base.getHsv(&h, &s, &v, &a);
 
-    r += rand() & 64;
-    g += rand() & 64;
-    b += rand() & 64;
+    if (h < 0 || s < 40) {
+        // Achromatic (or nearly so): pick a hue and saturation outright.
+        h = 0;
+        s = 200;
+        v = qMax(v, 160);
+    }
+    h = (h + hueShift + 360) % 360;
 
-    r = qMin(int(r * ar), 255);
-    g = qMin(int(g * ag), 255);
-    b = qMin(int(b * ab), 255);
-
-    return QColor(r,g,b, color.alpha());
+    return QColor::fromHsv(h, s, v, a);
 }
 
 
@@ -528,10 +541,12 @@ Channel::Channel(ChannelID id, ChanType type, MachineType machtype, ScopeType sc
     m_order(255)
 {
     if (type == WAVEFORM) {
-        calc[Calc_Min] = ChannelCalc(id, Calc_Min, adjustcolor(color, 0.25f, 1.0f, 1.3f), false);
-        calc[Calc_Middle] = ChannelCalc(id, Calc_Middle, adjustcolor(color, 1.3f, 1.0f, 1.0f), false);
-        calc[Calc_Perc] = ChannelCalc(id, Calc_Perc, adjustcolor(color, 1.1f, 1.2f, 1.0f), false);
-        calc[Calc_Max] = ChannelCalc(id, Calc_Max,  adjustcolor(color, 0.5f, 1.2f, 1.0f), false);
+        // Hue shifts are spaced 72 degrees apart so the four derived lines and the
+        // base colour occupy five distinct slots around the colour wheel.
+        calc[Calc_Min] = ChannelCalc(id, Calc_Min, calcLineColor(color, -72), false);
+        calc[Calc_Middle] = ChannelCalc(id, Calc_Middle, calcLineColor(color, 72), false);
+        calc[Calc_Perc] = ChannelCalc(id, Calc_Perc, calcLineColor(color, 144), false);
+        calc[Calc_Max] = ChannelCalc(id, Calc_Max, calcLineColor(color, 216), false);
         calc[Calc_Zero] = ChannelCalc(id, Calc_Zero, Qt::red, false);
         calc[Calc_LowerThresh] = ChannelCalc(id, Calc_LowerThresh, Qt::blue, false);
         calc[Calc_UpperThresh] = ChannelCalc(id, Calc_UpperThresh, Qt::red, false);

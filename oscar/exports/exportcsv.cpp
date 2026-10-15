@@ -291,8 +291,8 @@ void ExportCSV::on_exportButton_clicked()
                     int s = int(time) % 60;
                     data += sep + QString::asprintf("%02i:%02i:%02i", h, m, s);
 
-                    float ahi = sess->count(AllAhiChannels);
-                    ahi /= sess->hours();
+                    const double sessHours = sess->hours();
+                    float ahi = (sessHours > 0) ? sess->count(AllAhiChannels) / sessHours : 0;
                     data += sep + QString::number(ahi, 'f', 3);
 
                     for (int j = 0; j < countlist.size(); j++) {

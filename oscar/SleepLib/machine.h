@@ -21,6 +21,7 @@
 #include <QSemaphore>
 
 #include <QHash>
+#include <QSet>
 #include <QVector>
 
 #include "SleepLib/progressdialog.h"
@@ -75,18 +76,6 @@ protected:
     Machine * mach;
 };
 
-class LoadTask:public ImportTask
-{
-public:
-    LoadTask(Session * s, Machine * m): sess(s), mach(m) {}
-    virtual ~LoadTask() {}
-    virtual void run();
-
-protected:
-    Session * sess;
-    Machine * mach;
-};
-
 class MachineLoader;    // forward
 
 /*! \class Machine
@@ -103,17 +92,14 @@ class Machine
     Machine(Profile * _profile, MachineID id = 0);
     virtual ~Machine();
 
-    //! \brief Load all device summary data
+    //! \brief Load all device summary data from the database
     bool Load(ProgressDialog *progress);
 
-    bool LoadSummary(ProgressDialog *progress);
-    
     //! \brief Load sessions from database (for imported profiles)
     bool LoadSessionsFromDatabase(ProgressDialog *progress);
 
     //! \brief Save all Sessions where changed bit is set.
     bool Save();
-    bool SaveSummaryCache();
 
     //! \brief Save individual session
     bool SaveSession(Session *sess);
@@ -134,10 +120,49 @@ class Machine
         return m_availableSettings.contains(code);
     }
 
+    //! \brief True if any session of this device has ever recorded at least one event
+    //! on \p code. Unlike hasChannel(), an empty EventList is not evidence: loaders that
+    //! pre-create lists (BMC, SEFAM, prisma) make hasChannel() true for channels the
+    //! device has never scored.
+    inline bool hasReportedEvents(ChannelID code) const {
+        QMutexLocker locker(&m_reportedChannelsMutex);
+        return m_reportedChannels.contains(code);
+    }
+
+    //! \brief True once the device has scored an obstructive or central hypopnea, i.e. it
+    //! splits hypopneas by mechanism and OAHI/CAHI are meaningful for it. Derived from
+    //! the data, never declared by a loader (GitLab #261). See
+    //! Notes/specs/2026-09-14-oh-ch-capability-gating-design.md.
+    inline bool reportsHypopneaMechanism() const {
+        return hasReportedEvents(CPAP_ObstructiveHypopnea) || hasReportedEvents(CPAP_CentralHypopnea);
+    }
+
+    //! \brief Record which of \p sess's channels carry at least one event.
+    //! Reads both the in-memory EventLists (an import-time session) and m_cnt (a
+    //! session loaded from session_channels). Called from AddSession(), which several
+    //! loaders reach from their worker threads, so the set is mutex-guarded (GitLab #313).
+    void noteReportedChannels(Session * sess);
+
+    //! \brief Re-apply the "NULL when this device never reports the channel" rule to the
+    //! session_summaries rows already stored for this device, from session_channels.
+    //!
+    //! Loaders that store a session before adding it to the machine write their first
+    //! rows with an incomplete picture of what the device reports, so an import ends by
+    //! calling this (GitLab #313). Idempotent, and cheap: a few UPDATEs scoped to this
+    //! machine's sessions.
+    //! \return false if the machine is not in the database or a statement failed.
+    bool repairStoredSummaries();
+
     //! \brief Returns a pointer to a valid Session object if SessionID exists
     Session *SessionExists(SessionID session);
 
-    //! \brief Adds the session to this device object, and the Master Profile list. (used during load)
+    /*! \brief Adds the session to this device object, and the Master Profile list. (used during load)
+
+        A newly imported oximetry, sleep-stage or position session that crosses the day
+        split time is first cut there when the profile asks for it (see
+        splitAtDayBoundaries()); every piece is added, and the return value is that of
+        \a s, which keeps the earliest part and its session ID.
+        */
     bool AddSession(Session *s, bool allowOldSessions=false);
 
     //! \brief Find the date this session belongs in, according to profile settings
@@ -214,9 +239,6 @@ class Machine
     
     //! \brief Save this machine to the database
     bool SaveToDatabase();
-
-    bool saveSessionInfo();
-    bool loadSessionInfo();
 
     void setLoaderName(QString value);
 
@@ -303,6 +325,10 @@ class Machine
 
     QHash<ChannelID, bool> m_availableChannels;
     QHash<ChannelID, bool> m_availableSettings;
+    QSet<ChannelID> m_reportedChannels;   //!< channels with count > 0 on some session, ever
+    //! Guards m_reportedChannels: AddSession() is called from loader worker threads
+    //! (ResMed, BMC), while the summary writers read the set (GitLab #313).
+    mutable QMutex m_reportedChannelsMutex;
 
     QString m_summaryPath;
     QString m_eventsPath;
@@ -317,6 +343,24 @@ class Machine
     int skipped_sessions;
 
     QList<ImportTask *> m_tasklist;
+
+  private:
+    /*! \brief The body of AddSession() for one session.
+        \param splitPiece  true for a piece made by splitAtDayBoundaries(): it is placed
+                           on the day it starts in, never combined into the previous one,
+                           which would undo the cut.
+        */
+    bool addSessionImpl(Session *s, bool allowOldSessions, bool splitPiece);
+
+    /*! \brief Cuts a newly imported non-CPAP session at each day split time it crosses,
+        when the profile's "split non-CPAP sessions" option is on (GitLab #216).
+
+        Applies only to oximetry, sleep-stage and position sessions that still hold their
+        events and are not yet stored, so sessions loaded from the database or migrated
+        from another profile are never cut. \a s is truncated in place to the first piece.
+        \return the later pieces, in time order; empty if nothing was cut.
+        */
+    QList<Session *> splitAtDayBoundaries(Session *s);
 };
 
 

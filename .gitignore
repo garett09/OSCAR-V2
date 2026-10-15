@@ -21,6 +21,7 @@ git_info.h
 .code-review-graph/
 .superpowers/
 claude.md
+AGENTS.md
 Building/Linux/changelog
 
 notes/temp/

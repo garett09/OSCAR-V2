@@ -445,7 +445,7 @@ static QStringList installedFontFamilies;
 
 // Validate all fonts
 void validateAllFonts () {
-    validateFont("Application", 10, false, false);
+    validateFont("Application", DefaultApplicationFontSize, false, false);
     validateFont("Graph", 10, false, false);
     validateFont("Title", 12, true, false);
     validateFont("Big", 35, false, false);

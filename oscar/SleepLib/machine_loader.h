@@ -50,6 +50,15 @@ class MachineLoader: public QObject
     void SetContext(ImportContext* ctx) { m_ctx = ctx; }
     inline ImportContext* context() { return m_ctx; }
 
+    //! \brief True once finishAddingSessions() has refreshed daily_summaries during
+    //! the current import. Loaders that add sessions with Machine::AddSession()
+    //! directly never call finishAddingSessions(), so MainWindow::importCPAP() checks
+    //! this after Open() and runs the refresh itself when it is still false (#286).
+    bool dailySummariesCalculated() const { return m_dailySummariesCalculated; }
+
+    //! \brief Clear the flag before Open() so it reflects only the current import.
+    void resetDailySummariesCalculated() { m_dailySummariesCalculated = false; }
+
     //! \brief Detect if the given path contains a valid folder structure
     virtual bool Detect(const QString & path) = 0;
 
@@ -117,6 +126,8 @@ signals:
 protected:
     ImportContext* m_ctx;
     void finishAddingSessions();
+
+    bool m_dailySummariesCalculated;
 
     static QPixmap * genericCPAPPixmap;
 
