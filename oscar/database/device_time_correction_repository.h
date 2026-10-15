@@ -52,6 +52,10 @@ public:
     qint64  upsertDrift(qint64 machineId, const QString& dateFrom, const QString& dateTo,
                         qint64 c0Ms, double c1);
 
+    // Atomically replace corrections from dateFrom onward with one constant.
+    // Preserve historical corrections before dateFrom. Roll back on any error.
+    bool replaceWithConstant(qint64 machineId, const QString& dateFrom, qint64 offsetMs);
+
     bool    markUndone(qint64 id);
 
     QList<DeviceTimeCorrectionData> findManualOffsetRows(qint64 machineId);

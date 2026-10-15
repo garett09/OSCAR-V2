@@ -152,8 +152,10 @@ public:
                                                      const QDate& start, const QDate& end);
 
     //! \brief Robust constant offset (median midpoint + MAD outlier rejection).
-    //! Sets NightStartDiff::used in place. Pure — unit-testable.
-    static ConstantOffsetFit fitConstantOffset(QVector<NightStartDiff>& nights);
+    //! Sets NightStartDiff::used in place. Set rejectOutliers=false for an explicit
+    //! user selection, so preview and save do not silently reject more nights.
+    static ConstantOffsetFit fitConstantOffset(QVector<NightStartDiff>& nights,
+                                                 bool rejectOutliers = true);
 
     //! \brief Optional high-AHI cross-correlation cross-check for one night; fills the
     //! validator fields and compares against the night's window midpoint.

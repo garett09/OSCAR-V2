@@ -395,7 +395,7 @@ QVector<NightStartDiff> ClockSyncAnalyzer::collectStartDiffs(Machine* cpap, Mach
     return out;
 }
 
-ConstantOffsetFit ClockSyncAnalyzer::fitConstantOffset(QVector<NightStartDiff>& nights)
+ConstantOffsetFit ClockSyncAnalyzer::fitConstantOffset(QVector<NightStartDiff>& nights, bool rejectOutliers)
 {
     ConstantOffsetFit fit;
     QVector<qint64> mids;
@@ -416,7 +416,7 @@ ConstantOffsetFit ClockSyncAnalyzer::fitConstantOffset(QVector<NightStartDiff>& 
     QVector<qint64> keptMid, keptStart, keptEnd;
     int nOut = 0;
     for (NightStartDiff& n : nights) {
-        if (qAbs(n.midMs - med) > thr) { n.used = false; ++nOut; }
+        if (rejectOutliers && qAbs(n.midMs - med) > thr) { n.used = false; ++nOut; }
         else { keptMid.append(n.midMs); keptStart.append(n.startDiffMs); keptEnd.append(n.endDiffMs); }
     }
     if (keptMid.size() < MIN_OFFSET_NIGHTS) return fit;

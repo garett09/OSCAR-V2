@@ -18,6 +18,7 @@
 #include <QMessageBox>
 #include <QStringList>
 #include <QTableWidgetItem>
+#include <QEventLoop>
 
 ClockSyncDialog::ClockSyncDialog(QWidget *parent)
     : QDialog(parent)
@@ -29,6 +30,15 @@ ClockSyncDialog::ClockSyncDialog(QWidget *parent)
     connect(ui->btnFirstData, &QPushButton::clicked, this, &ClockSyncDialog::onFirstData);
     connect(ui->btnLastData,  &QPushButton::clicked, this, &ClockSyncDialog::onLastData);
     connect(ui->btnHistory,   &QPushButton::clicked, this, &ClockSyncDialog::onHistory);
+
+    connect(ui->startDate, &QDateEdit::dateChanged, this, &ClockSyncDialog::invalidateAnalysis);
+    connect(ui->endDate, &QDateEdit::dateChanged, this, &ClockSyncDialog::invalidateAnalysis);
+    connect(ui->cpapCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &ClockSyncDialog::invalidateAnalysis);
+    connect(ui->oxiCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &ClockSyncDialog::invalidateAnalysis);
+    connect(ui->chkValidate, &QCheckBox::toggled, this, &ClockSyncDialog::invalidateAnalysis);
+    ui->btnApply->setEnabled(false);
 
     ui->resultsTable->horizontalHeader()->setStretchLastSection(true);
     ui->resultsTable->verticalHeader()->setVisible(false);
@@ -47,6 +57,7 @@ ClockSyncDialog::~ClockSyncDialog()
 
 void ClockSyncDialog::setDate(const QDate& date)
 {
+    invalidateAnalysis();
     if (date.isValid()) {
         ui->endDate->setDate(date);
         ui->startDate->setDate(date.addDays(-30));
@@ -104,6 +115,7 @@ Machine* ClockSyncDialog::currentOxi() const
 
 void ClockSyncDialog::onAnalyze()
 {
+    invalidateAnalysis();
     Machine* cpap = currentCpap();
     Machine* oxi  = currentOxi();
     if (!cpap) { ui->statusLabel->setText(tr("No CPAP device selected.")); return; }
@@ -111,95 +123,114 @@ void ClockSyncDialog::onAnalyze()
 
     QDate start = ui->startDate->date();
     QDate end   = ui->endDate->date();
-    if (!start.isValid() || !end.isValid() || start >= end) {
+    if (!start.isValid() || !end.isValid() || start > end) {
         ui->statusLabel->setText(tr("Invalid date range."));
         return;
     }
 
     ui->statusLabel->setText(tr("Analyzing…"));
-    ui->btnAnalyze->setEnabled(false);
-    qApp->processEvents();
+    // Keep painting during expensive event loading without allowing user input
+    // to change the devices/range or re-enter this dialog during analysis.
+    setEnabled(false);
+    qApp->processEvents(QEventLoop::ExcludeUserInputEvents);
 
     // PRIMARY: constant offset from recording-window differences (all paired nights).
     m_nights = ClockSyncAnalyzer::collectStartDiffs(cpap, oxi, start, end);
     m_fit    = ClockSyncAnalyzer::fitConstantOffset(m_nights);
-    m_drift  = ClockSyncAnalyzer::fitDriftLine(m_nights);   // overlay on the kept nights
 
     // OPTIONAL: event cross-correlation sanity check on the nights kept by the fit.
     if (ui->chkValidate->isChecked()) {
         for (NightStartDiff& n : m_nights) {
             if (!n.used) continue;
             ClockSyncAnalyzer::validateNight(cpap, oxi, n);
-            qApp->processEvents();
+            qApp->processEvents(QEventLoop::ExcludeUserInputEvents);
         }
-        ClockSyncAnalyzer::anchorIntercept(m_nights, m_drift);
     }
 
-    ui->btnAnalyze->setEnabled(true);
+    setEnabled(true);
     populateTable();
+    m_hasAnalysis = true;
 
     // Persist nightly measurements for history view
     if (cpap && oxi)
         m_nightRepo.upsertNights(cpap->getDatabaseId(), oxi->getDatabaseId(), m_nights);
 
+    refreshSelection();
+}
+
+void ClockSyncDialog::invalidateAnalysis()
+{
+    m_hasAnalysis = false;
+    m_nights.clear();
+    m_fit = ConstantOffsetFit();
+    ui->resultsTable->setRowCount(0);
+    ui->btnApply->setEnabled(false);
+    ui->statusLabel->setText(tr("Inputs changed. Click Analyze Nights to calculate a new estimate."));
+}
+
+QVector<NightStartDiff> ClockSyncDialog::selectedNights() const
+{
+    QVector<NightStartDiff> selected;
+    for (int row = 0; row < m_nights.size(); ++row) {
+        QWidget* w = ui->resultsTable->cellWidget(row, 0);
+        QCheckBox* cb = w ? w->findChild<QCheckBox*>() : nullptr;
+        if (cb && cb->isChecked()) selected.append(m_nights[row]);
+    }
+    return selected;
+}
+
+void ClockSyncDialog::refreshSelection()
+{
+    if (!m_hasAnalysis) return;
+    // Checkbox state is the explicit selection; preserve the initial outlier
+    // classification only as context, not as a stale claim of exclusion.
+    for (int row = 0; row < m_nights.size(); ++row) {
+        auto* w = ui->resultsTable->cellWidget(row, 0);
+        auto* cb = w ? w->findChild<QCheckBox*>() : nullptr;
+        const bool included = cb && cb->isChecked();
+        const auto& n = m_nights[row];
+        QString note;
+        if (!included) note = tr("excluded (not selected)");
+        else if (!n.used) note = tr("included (initial pairing outlier)");
+        if (included && n.validated && !n.validatorAgrees) {
+            if (!note.isEmpty()) note += " — ";
+            note += tr("event cross-check disagrees — possible session mismatch");
+        }
+        ui->resultsTable->item(row, 6)->setText(note);
+        for (int col = 1; col <= 6; ++col)
+            ui->resultsTable->item(row, col)->setForeground(included ? QBrush() : QBrush(Qt::gray));
+    }
+    auto selected = selectedNights();
+    m_fit = ClockSyncAnalyzer::fitConstantOffset(selected, false);
+    ui->btnApply->setEnabled(m_fit.valid);
     if (!m_fit.valid) {
-        ui->statusLabel->setText(tr("Not enough paired nights (%1) — need at least %2 nights "
-                                    "where both devices recorded.")
-                                     .arg(m_nights.size())
-                                     .arg(ClockSyncAnalyzer::MIN_OFFSET_NIGHTS));
-        ui->btnApply->setEnabled(false);
+        ui->statusLabel->setText(tr("Need at least %1 checked paired nights; currently %2.")
+            .arg(ClockSyncAnalyzer::MIN_OFFSET_NIGHTS).arg(selected.size()));
         return;
     }
-
-    QString msg;
-    if (m_drift.valid && m_drift.significant) {
-        double sPerDay   = m_drift.slopeMsPerDay / 1000.0;
-        double minPerMon = m_drift.slopeMsPerDay * 30.0 / 60000.0;
-        qint64 today     = m_drift.offsetAtRefMs +
-                           qint64(m_drift.slopeMsPerDay * double(m_drift.refDate.daysTo(QDate::currentDate())));
-        msg = tr("Drift: %1 s/day (≈ %2 min/month). Offset today ≈ %3 min. "
-                 "Fitted over %4 nights, %5 to %6 (±%7 s scatter).")
-                  .arg(sPerDay, 0, 'f', 1)
-                  .arg(minPerMon, 0, 'f', 1)
-                  .arg(today / 60000.0, 0, 'f', 1)
-                  .arg(m_drift.nUsed)
-                  .arg(m_drift.refDate.toString(Qt::ISODate))
-                  .arg(m_drift.lastDate.toString(Qt::ISODate))
-                  .arg(m_drift.residualMadMs / 1000.0, 0, 'f', 1);
-        if (m_drift.anchored)
-            msg += " " + tr("Level anchored to event cross-correlation.");
-        else
-            msg += " " + tr("Level not anchored (few high-AHI nights) — may include a "
-                            "behavioural start/stop bias.");
-        if (m_drift.anchorSlopeDisagrees)
-            msg += " ⚠ " + tr("Cross-correlation slope disagrees — verify before saving.");
-        if (m_drift.hasJump)
-            msg += " ⚠ " + tr("Possible clock jump (~%1 s step) near %2 — the single drift "
-                              "line may be wrong across it; consider narrowing the range.")
-                              .arg(m_drift.jumpMs / 1000.0, 0, 'f', 0)
-                              .arg(m_drift.jumpDate.toString(Qt::ISODate));
-        msg += " " + tr("Nights before %1 are left uncorrected (the model is not extrapolated backward).")
-                         .arg(m_drift.refDate.toString(Qt::ISODate));
-        msg += " " + tr("Saves a drift correction to the CPAP. Re-run periodically as drift grows.");
-    } else {
-        msg = tr("Constant offset: %1 s (median of %2 nights, ± %3 s).")
-                  .arg(m_fit.offsetMs / 1000.0, 0, 'f', 1)
-                  .arg(m_fit.nUsed)
-                  .arg(m_fit.madMs / 1000.0, 0, 'f', 1);
-        if (m_fit.nOutliers > 0)
-            msg += " " + tr("%1 outlier night(s) excluded.").arg(m_fit.nOutliers);
-        if (m_fit.unstable)
-            msg += " ⚠ " + tr("WARNING: offset steps by ~%1 s mid-range — the reference clock "
-                              "likely drifted or re-synced. Narrow the date range to one stable "
-                              "period before saving.").arg(m_fit.shiftMs / 1000.0, 0, 'f', 0);
-        if (qAbs(m_fit.startEndSpreadMs) > 90000)
-            msg += " " + tr("Note: start/end differ by %1 s — some of this gap may be when you "
-                            "start/stop each device, not clock offset.")
-                             .arg(m_fit.startEndSpreadMs / 1000.0, 0, 'f', 0);
-        msg += " " + tr("Saves one correction to the CPAP. Uncheck nights to exclude, then Save.");
+    QString msg = tr("Estimated constant offset: %1 s (median of %2 checked nights). "
+                     "Night-to-night spread (MAD): %3 s; this is not an accuracy bound. "
+                     "Recording start/stop habits can bias the estimate. "
+                     "Save adds this amount to CPAP timestamps from the first checked night onward.")
+                     .arg(m_fit.offsetMs / 1000.0, 0, 'f', 1).arg(m_fit.nUsed)
+                     .arg(m_fit.madMs / 1000.0, 0, 'f', 1);
+    if (m_fit.unstable)
+        msg += " " + tr("The range is unstable; verify alignment before saving.");
+    if (qAbs(m_fit.startEndSpreadMs) > 90000)
+        msg += " " + tr("Start/end differences disagree by %1 s.")
+            .arg(m_fit.startEndSpreadMs / 1000.0, 0, 'f', 1);
+    const auto trend = ClockSyncAnalyzer::fitDriftLine(selected);
+    if (trend.valid && trend.significant)
+        msg += " " + tr("Recording windows show a trend; this does not establish clock drift. "
+                         "No drift model or extrapolation will be saved.");
+    int validated = 0, disagreed = 0;
+    for (const auto& n : selected) {
+        if (n.validated) { ++validated; if (!n.validatorAgrees) ++disagreed; }
     }
+    msg += " " + tr("Event cross-check: %1 validated, %2 disagree. "
+                     "Check alignment independently before using this estimate.")
+                     .arg(validated).arg(disagreed);
     ui->statusLabel->setText(msg);
-    ui->btnApply->setEnabled(true);
 }
 
 void ClockSyncDialog::populateTable()
@@ -227,6 +258,7 @@ void ClockSyncDialog::populateTable()
         lay->setContentsMargins(0,0,0,0);
         checkWidget->setLayout(lay);
         t->setCellWidget(row, 0, checkWidget);
+        connect(cb, &QCheckBox::toggled, this, &ClockSyncDialog::refreshSelection);
 
         t->setItem(row, 1, item(n.date.toString("yyyy-MM-dd")));
         t->setItem(row, 2, item(secs(n.startDiffMs)));
@@ -247,13 +279,6 @@ void ClockSyncDialog::populateTable()
         if (!n.used) note = tr("excluded (pairing outlier)");
         else if (n.validated && !n.validatorAgrees)
             note = tr("event cross-check disagrees — possible session mismatch");
-        if (n.used && m_drift.valid) {
-            qint64 fitVal = m_drift.offsetAtRefMs +
-                            qint64(m_drift.slopeMsPerDay * double(m_drift.refDate.daysTo(n.date)));
-            qint64 resid  = n.midMs - fitVal;
-            const QString r = tr("resid %1 s").arg(resid / 1000.0, 0, 'f', 1);
-            note = note.isEmpty() ? r : (note + " — " + r);
-        }
         t->setItem(row, 6, item(note));
 
         if (!n.used) {
@@ -292,110 +317,44 @@ void ClockSyncDialog::onLastData()
 
 void ClockSyncDialog::onApply()
 {
+    if (!m_hasAnalysis) return;
     Machine* cpap = currentCpap();
     if (!cpap || cpap->getDatabaseId() <= 0) return;
+    refreshSelection();
+    if (!m_fit.valid) return;
+    const auto checked = selectedNights();
+    const QDate from = checked.first().date;
 
-    // Recompute the constant over the nights the user left checked.
-    QTableWidget* t = ui->resultsTable;
-    QVector<NightStartDiff> checked;
-    for (int row = 0; row < m_nights.size(); ++row) {
-        QWidget* w = t->cellWidget(row, 0);
-        if (!w) continue;
-        QCheckBox* cb = w->findChild<QCheckBox*>();
-        if (cb && cb->isChecked()) checked.append(m_nights[row]);
-    }
-    ConstantOffsetFit fit = ClockSyncAnalyzer::fitConstantOffset(checked);
-    DriftLineFit drift = ClockSyncAnalyzer::fitDriftLine(checked);
-    if (ui->chkValidate->isChecked())
-        ClockSyncAnalyzer::anchorIntercept(checked, drift);
-    const bool useDrift = drift.valid && drift.significant;
-    if (!fit.valid) {
-        QMessageBox::information(this, tr("Auto-Detect CPAP Clock Offset"),
-            tr("Need at least %1 checked nights to fit a constant offset.")
-                .arg(ClockSyncAnalyzer::MIN_OFFSET_NIGHTS));
-        return;
-    }
-
-    // The offset is applied to the CPAP (the drifting device) to move it onto the
-    // reference clock — NOT to the reference, which the user trusts as correct.
-    DeviceTimeCorrectionRepository repo;
-    const QList<DeviceTimeCorrectionData> active = repo.findActive(cpap->getDatabaseId());
-
-    // Previously-applied constant (sum of active non-drift rows) for a cross-run check.
-    qint64 prevApplied = 0;
-    bool   hasPrev     = false;
-    for (const auto& r : active)
-        if (r.type != "drift") { prevApplied += r.offsetMs; hasPrev = true; }
-
-    // Guard: warn (and require confirmation) before overwriting on a suspicious change.
-    // We do NOT trust the reference clock blindly — if the new offset jumps versus what
-    // was saved, or is not constant across the range, the reference may have moved.
-    QStringList warnings;
-    if (fit.unstable)
-        warnings << tr("The offset is not constant over this range — it steps by about %1 s "
-                       "partway through. The reference clock may have drifted or re-synced, "
-                       "so the single value below may be wrong.")
-                       .arg(fit.shiftMs / 1000.0, 0, 'f', 0);
-    if (hasPrev && qAbs(fit.offsetMs - prevApplied) > ClockSyncAnalyzer::OFFSET_JUMP_MS)
-        warnings << tr("This offset (%1 s) differs from the previously saved %2 s by %3 s. "
-                       "If you expected the two clocks to stay in sync, the reference clock "
-                       "may have changed — verify before overwriting.")
-                       .arg(fit.offsetMs / 1000.0,  0, 'f', 1)
-                       .arg(prevApplied / 1000.0,   0, 'f', 1)
-                       .arg((fit.offsetMs - prevApplied) / 1000.0, 0, 'f', 1);
-    if (useDrift && drift.hasJump)
-        warnings << tr("A possible clock jump (~%1 s step) was detected near %2. A single "
-                       "drift line may be wrong across it — consider narrowing the range.")
-                       .arg(drift.jumpMs / 1000.0, 0, 'f', 0)
-                       .arg(drift.jumpDate.toString(Qt::ISODate));
-    if (useDrift && drift.anchorSlopeDisagrees)
-        warnings << tr("The event cross-correlation slope disagrees with the recording-window "
-                       "slope — the drift rate may be unreliable. Verify before saving.");
-    if (!warnings.isEmpty()) {
-        auto btn = QMessageBox::warning(this, tr("Clock offset changed"),
-            warnings.join("\n\n") + "\n\n" + tr("Save this offset anyway?"),
-            QMessageBox::Save | QMessageBox::Cancel, QMessageBox::Cancel);
-        if (btn != QMessageBox::Save) {
-            ui->statusLabel->setText(tr("Save cancelled — offset not changed."));
-            return;
+    QString message = tr("Save a constant correction of %1 seconds, added to CPAP timestamps "
+                         "from %2 onward? Earlier corrections will be preserved.\n\n"
+                         "This estimate uses recording windows, which can include differences "
+                         "in when you start and stop each device. The reported spread is not "
+                         "proof of clock accuracy. Verify alignment independently.")
+                         .arg(m_fit.offsetMs / 1000.0, 0, 'f', 1)
+                         .arg(from.toString(Qt::ISODate));
+    if (m_fit.unstable)
+        message += "\n\n" + tr("Warning: the selected range is unstable.");
+    for (const auto& n : checked) {
+        if (n.validated && !n.validatorAgrees) {
+            message += "\n\n" + tr("Warning: event cross-check disagrees on selected nights.");
+            break;
         }
     }
+    if (QMessageBox::question(this, tr("Save constant clock correction"), message,
+                             QMessageBox::Save | QMessageBox::Cancel,
+                             QMessageBox::Cancel) != QMessageBox::Save) return;
 
-    // Supersede ALL existing active corrections on the CPAP (every type feeds
-    // Machine::correctionMs — non-drift rows add offset_ms, drift rows add a model),
-    // including the legacy migrated clockDrift row. The measured constant is the full
-    // offset, so any surviving row would double-correct.
-    int superseded = 0;
-    for (const auto& r : active) {
-        if (repo.markUndone(r.id)) ++superseded;
+    DeviceTimeCorrectionRepository repo;
+    if (!repo.replaceWithConstant(cpap->getDatabaseId(), from.toString(Qt::ISODate), m_fit.offsetMs)) {
+        ui->statusLabel->setText(tr("Save failed. Previous corrections were preserved."));
+        return;
     }
-
-    QDate fromDate;
-    for (const NightStartDiff& n : checked)
-        if (n.used && (!fromDate.isValid() || n.date < fromDate)) fromDate = n.date;
-    if (!fromDate.isValid()) fromDate = ui->startDate->date();
-
-    QString savedDesc;
-    if (useDrift) {
-        DriftModel model = ClockSyncAnalyzer::driftToModel(drift.slopeMsPerDay,
-                                                           drift.offsetAtRefMs, drift.refDate);
-        repo.upsertDrift(cpap->getDatabaseId(), fromDate.toString(Qt::ISODate),
-                         QString(), model.c0Ms, model.c1);
-        savedDesc = tr("drift %1 s/day").arg(drift.slopeMsPerDay / 1000.0, 0, 'f', 1);
-    } else {
-        repo.upsertTyped(cpap->getDatabaseId(), fromDate.toString(Qt::ISODate),
-                         QString(), "offset", fit.offsetMs);
-        savedDesc = tr("constant offset %1 s").arg(fit.offsetMs / 1000.0, 0, 'f', 1);
-    }
-
     Machine::reloadCorrectionsFromDb(cpap);
-    ui->statusLabel->setText(tr("Saved %1 to %2 (from %3 onward). "
-                                "%4 prior correction(s) superseded.")
-                                 .arg(savedDesc)
-                                 .arg(ui->cpapCombo->currentText())
-                                 .arg(fromDate.toString(Qt::ISODate))
-                                 .arg(superseded));
+    ui->statusLabel->setText(tr("Saved constant offset %1 s to %2, from %3 onward.")
+        .arg(m_fit.offsetMs / 1000.0, 0, 'f', 1)
+        .arg(ui->cpapCombo->currentText()).arg(from.toString(Qt::ISODate)));
     ui->btnApply->setEnabled(false);
+    m_hasAnalysis = false;
     emit correctionsChanged();
 }
 

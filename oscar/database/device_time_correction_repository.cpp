@@ -12,6 +12,7 @@
 #include <QSqlError>
 #include <QVariant>
 #include <QDebug>
+#include <QDate>
 
 QSqlDatabase DeviceTimeCorrectionRepository::database()
 {
@@ -190,6 +191,44 @@ bool DeviceTimeCorrectionRepository::updateDateTo(qint64 id, const QString& date
 qint64 DeviceTimeCorrectionRepository::upsertOffset(qint64 machineId, const QString& date, qint64 offsetMs)
 {
     return upsertTyped(machineId, date, date, "offset", offsetMs);
+}
+
+bool DeviceTimeCorrectionRepository::replaceWithConstant(qint64 machineId,
+                                                          const QString& dateFrom,
+                                                          qint64 offsetMs)
+{
+    const QDate from = QDate::fromString(dateFrom, Qt::ISODate);
+    if (machineId <= 0 || !from.isValid()) return false;
+    QSqlDatabase db = database();
+    if (!db.transaction()) return false;
+
+    QSqlQuery q(db);
+    // Retain history, shortening corrections that cross the new start date.
+    q.prepare("UPDATE device_time_corrections SET date_to = :until "
+              "WHERE machine_id = :machine AND undone_at IS NULL "
+              "AND date_from < :from AND (date_to IS NULL OR date_to >= :from)");
+    q.bindValue(":until", from.addDays(-1).toString(Qt::ISODate));
+    q.bindValue(":machine", machineId);
+    q.bindValue(":from", dateFrom);
+    if (!q.exec()) { db.rollback(); return false; }
+
+    q.prepare("UPDATE device_time_corrections SET undone_at = datetime('now') "
+              "WHERE machine_id = :machine AND undone_at IS NULL AND date_from >= :from");
+    q.bindValue(":machine", machineId);
+    q.bindValue(":from", dateFrom);
+    if (!q.exec()) { db.rollback(); return false; }
+
+    // A zero correction intentionally clears this date range.
+    if (offsetMs != 0) {
+        DeviceTimeCorrectionData row;
+        row.machineId = machineId;
+        row.dateFrom = dateFrom;
+        row.type = "offset";
+        row.offsetMs = offsetMs;
+        if (create(row) <= 0) { db.rollback(); return false; }
+    }
+    if (!db.commit()) { db.rollback(); return false; }
+    return true;
 }
 
 bool DeviceTimeCorrectionRepository::markUndone(qint64 id)

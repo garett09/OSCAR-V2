@@ -18,6 +18,11 @@ class ClockDriftHistoryTests : public QObject
 private slots:
     void initTestCase();
     void cleanupTestCase();
+    void testClockDialogInvalidatesInputs();
+    void testClockDialogSelectionUpdatesPreview();
+    void testConstantReplacementRollbackAndHistory();
+    void testClockDialogSavesDisplayedConstant();
+    void testClockDialogRecheckedOutlierIsIncluded();
     void testSetCorrectionDatesStoresDates();
     void testClearCorrectionDatesEmptiesList();
     void testCorrectionDateCountMatchesInput();

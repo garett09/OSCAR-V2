@@ -499,3 +499,44 @@ void ClockSyncTests::testDriftToModelRoundTrip()
         QCOMPARE(mach.correctionMs(ref.addDays(-1)), qint64(0));
     }
 }
+
+void ClockSyncTests::testExplicitSelectionIsNotFilteredAgain()
+{
+    QVector<NightStartDiff> nights;
+    const qint64 starts[] = {1515000,1554000,1564000,1575000,1514000,1597000,1634000};
+    const qint64 ends[] = {1639000,7244000,1617000,1633000,8414000,2430000,2364000};
+    for (int i = 0; i < 7; ++i) {
+        NightStartDiff n;
+        n.date = QDate(2026,10,1).addDays(i);
+        n.startDiffMs = starts[i]; n.endDiffMs = ends[i];
+        nights.append(n);
+    }
+    auto initial = ClockSyncAnalyzer::fitConstantOffset(nights);
+    QVERIFY(initial.valid);
+    QCOMPARE(initial.nUsed, 5);
+    QVector<NightStartDiff> checked;
+    for (const auto& n : nights) if (n.used) checked.append(n);
+    auto preview = ClockSyncAnalyzer::fitConstantOffset(checked, false);
+    QVERIFY(preview.valid);
+    QCOMPARE(preview.nUsed, 5);
+    QCOMPARE(preview.offsetMs, initial.offsetMs);
+    QCOMPARE(preview.nOutliers, 0);
+}
+
+void ClockSyncTests::testConsistentRecordingBiasIsNotAccuracy()
+{
+    QVector<NightStartDiff> nights;
+    for (int i = 0; i < 10; ++i) {
+        NightStartDiff n;
+        n.date = QDate(2026,9,1).addDays(i);
+        // A true 1440 s clock offset plus 118 s of recording-window delay.
+        n.startDiffMs = n.endDiffMs = 1558000;
+        nights.append(n);
+    }
+    auto fit = ClockSyncAnalyzer::fitConstantOffset(nights);
+    QVERIFY(fit.valid);
+    QCOMPARE(fit.offsetMs, qint64(1558000));
+    QCOMPARE(fit.madMs, qint64(0));
+    // Document the identifiability limit: zero scatter does not remove bias.
+    QVERIFY(fit.offsetMs != 1440000);
+}

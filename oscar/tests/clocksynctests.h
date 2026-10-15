@@ -26,6 +26,8 @@ private slots:
     void testCombineDisagreement();
     void testFitDriftRecoversSlope();
     void testFitDriftFlagsOutliers();
+    void testExplicitSelectionIsNotFilteredAgain();
+    void testConsistentRecordingBiasIsNotAccuracy();
     void testFitConstantOffsetClean();
     void testFitConstantOffsetRejectsArtifacts();
     void testFitConstantOffsetTooFew();

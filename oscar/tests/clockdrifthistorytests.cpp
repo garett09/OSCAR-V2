@@ -13,6 +13,15 @@
 #include "database/database_manager.h"
 #include "database/night_clock_offsets_repository.h"
 #include "clocksyncanalyzer.h"
+#include "clocksyncdialog.h"
+#include <QDateEdit>
+#include <QComboBox>
+#include <QCheckBox>
+#include <QLabel>
+#include <QPushButton>
+#include <QTableWidget>
+#include <QMessageBox>
+#include <QTimer>
 #include <QDate>
 #include <QSqlDatabase>
 #include <QSqlQuery>
@@ -289,4 +298,151 @@ void ClockDriftHistoryTests::testUpsertNightsValidatorAgreesRoundTrip()
     QCOMPARE(rows[0].validatorAgrees, 0);  // 0 = disagrees
 
     QSqlDatabase::removeDatabase("test_nco_validator");
+}
+
+void ClockDriftHistoryTests::testClockDialogInvalidatesInputs()
+{
+    ClockSyncDialog dialog;
+    auto apply = dialog.findChild<QPushButton*>("btnApply");
+    auto table = dialog.findChild<QTableWidget*>("resultsTable");
+    QVERIFY(!apply->isEnabled());
+    auto seed = [&] { dialog.m_hasAnalysis = true; table->setRowCount(1); apply->setEnabled(true); };
+    auto verify = [&] { return !dialog.m_hasAnalysis && !apply->isEnabled() && table->rowCount() == 0; };
+    for (const char* name : {"startDate", "endDate"}) {
+        seed();
+        auto date = dialog.findChild<QDateEdit*>(name);
+        date->setDate(date->date().addDays(1));
+        QVERIFY(verify());
+    }
+    for (const char* name : {"cpapCombo", "oxiCombo"}) {
+        auto combo = dialog.findChild<QComboBox*>(name);
+        combo->addItem("A"); combo->addItem("B");
+        seed(); combo->setCurrentIndex(1);
+        QVERIFY(verify());
+    }
+    seed(); dialog.findChild<QCheckBox*>("chkValidate")->toggle();
+    QVERIFY(verify());
+    seed(); dialog.setDate(QDate(2026,10,15));
+    QVERIFY(verify());
+}
+
+void ClockDriftHistoryTests::testClockDialogSelectionUpdatesPreview()
+{
+    ClockSyncDialog dialog;
+    for (int i=0; i<6; ++i) {
+        NightStartDiff n;
+        n.date = QDate(2026,10,1).addDays(i);
+        n.startDiffMs = n.endDiffMs = 1500000 + i*100000;
+        dialog.m_nights.append(n);
+    }
+    dialog.populateTable();
+    dialog.m_hasAnalysis = true;
+    dialog.refreshSelection();
+    auto label = dialog.findChild<QLabel*>("statusLabel");
+    auto apply = dialog.findChild<QPushButton*>("btnApply");
+    auto table = dialog.findChild<QTableWidget*>("resultsTable");
+    QVERIFY(apply->isEnabled());
+    QCOMPARE(dialog.m_fit.offsetMs, qint64(1750000));
+    QVERIFY(label->text().contains("not an accuracy bound"));
+    QVERIFY(!label->text().contains("Offset today"));
+    table->cellWidget(5,0)->findChild<QCheckBox*>()->setChecked(false);
+    QCOMPARE(dialog.m_fit.nUsed, 5);
+    QCOMPARE(dialog.m_fit.offsetMs, qint64(1700000));
+    QVERIFY(apply->isEnabled());
+    table->cellWidget(4,0)->findChild<QCheckBox*>()->setChecked(false);
+    QVERIFY(!apply->isEnabled());
+    QVERIFY(label->text().contains("currently 4"));
+}
+
+void ClockDriftHistoryTests::testConstantReplacementRollbackAndHistory()
+{
+    auto db = makeTestDb("constant_replace");
+    QSqlQuery q(db);
+    QVERIFY(q.exec("DELETE FROM device_time_corrections"));
+    DeviceTimeCorrectionRepository repo;
+    DeviceTimeCorrectionData old;
+    old.machineId=1; old.dateFrom="2026-01-01"; old.type="offset"; old.offsetMs=1440000;
+    const qint64 oldId = repo.create(old);
+    QVERIFY(oldId > 0);
+    DeviceTimeCorrectionData other=old; other.machineId=2;
+    QVERIFY(repo.create(other) > 0);
+    // Fail only the insert, after the transaction has shortened old corrections.
+    QVERIFY(q.exec("CREATE TEMP TRIGGER reject_clock_insert BEFORE INSERT ON device_time_corrections "
+                   "BEGIN SELECT RAISE(ABORT, 'injected clock write failure'); END"));
+    QVERIFY(!repo.replaceWithConstant(1, "2026-09-01", 1557800));
+    QVERIFY(q.exec("DROP TRIGGER reject_clock_insert"));
+    auto rows=repo.findActive(1);
+    QCOMPARE(rows.size(), 1);
+    QCOMPARE(rows[0].id, oldId);
+    QVERIFY(rows[0].dateTo.isEmpty());
+    QCOMPARE(rows[0].offsetMs, qint64(1440000));
+    QVERIFY(repo.replaceWithConstant(1, "2026-09-01", 1557800));
+    rows=repo.findActive(1);
+    QCOMPARE(rows.size(), 2);
+    QCOMPARE(rows[0].dateTo, QString("2026-08-31"));
+    QCOMPARE(rows[1].type, QString("offset"));
+    QCOMPARE(rows[1].offsetMs, qint64(1557800));
+    QVERIFY(rows[1].dateTo.isEmpty());
+    QCOMPARE(repo.findActive(2).size(), 1);
+    QVERIFY(repo.replaceWithConstant(1, "2026-09-01", 0));
+    rows=repo.findActive(1);
+    QCOMPARE(rows.size(), 1);
+    QCOMPARE(rows[0].dateTo, QString("2026-08-31"));
+}
+
+void ClockDriftHistoryTests::testClockDialogSavesDisplayedConstant()
+{
+    auto db = makeTestDb("dialog_constant_save");
+    QSqlQuery q(db);
+    QVERIFY(q.exec("DELETE FROM device_time_corrections"));
+    Machine cpap(nullptr, 1);
+    cpap.setDatabaseId(1);
+    ClockSyncDialog dialog;
+    auto combo = dialog.findChild<QComboBox*>("cpapCombo");
+    combo->addItem("Test CPAP", QVariant::fromValue(reinterpret_cast<quintptr>(&cpap)));
+    // Strongly trending windows used to silently select a drift model.
+    for (int i=0; i<6; ++i) {
+        NightStartDiff n;
+        n.date=QDate(2026,10,1).addDays(i);
+        n.startDiffMs=n.endDiffMs=1500000+i*100000;
+        dialog.m_nights.append(n);
+    }
+    dialog.populateTable();
+    dialog.m_hasAnalysis=true;
+    dialog.refreshSelection();
+    const qint64 displayed=dialog.m_fit.offsetMs;
+    QTimer::singleShot(0, [] {
+        auto box=qobject_cast<QMessageBox*>(QApplication::activeModalWidget());
+        if (box) box->button(QMessageBox::Save)->click();
+    });
+    dialog.onApply();
+    DeviceTimeCorrectionRepository repo;
+    auto rows=repo.findActive(1);
+    QCOMPARE(rows.size(),1);
+    QCOMPARE(rows[0].type,QString("offset"));
+    QCOMPARE(rows[0].offsetMs,displayed);
+    QCOMPARE(rows[0].c1,0.0);
+    QVERIFY(!dialog.findChild<QPushButton*>("btnApply")->isEnabled());
+    QCOMPARE(cpap.correctionMs(QDate(2026,10,10)),displayed);
+}
+
+void ClockDriftHistoryTests::testClockDialogRecheckedOutlierIsIncluded()
+{
+    ClockSyncDialog dialog;
+    for (int i=0; i<6; ++i) {
+        NightStartDiff n;
+        n.date=QDate(2026,10,1).addDays(i);
+        n.startDiffMs=n.endDiffMs=1500000;
+        n.used=(i!=5);
+        dialog.m_nights.append(n);
+    }
+    dialog.populateTable();
+    dialog.m_hasAnalysis=true;
+    dialog.refreshSelection();
+    auto table=dialog.findChild<QTableWidget*>("resultsTable");
+    QCOMPARE(dialog.m_fit.nUsed,5);
+    table->cellWidget(5,0)->findChild<QCheckBox*>()->setChecked(true);
+    QCOMPARE(dialog.m_fit.nUsed,6);
+    QVERIFY(table->item(5,6)->text().contains("included (initial pairing outlier)"));
+    QCOMPARE(table->item(5,1)->foreground(),QBrush());
 }

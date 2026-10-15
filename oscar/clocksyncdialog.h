@@ -22,6 +22,9 @@ class ClockSyncDialog;
 class ClockSyncDialog : public QDialog
 {
     Q_OBJECT
+#ifdef UNITTEST_MODE
+    friend class ClockDriftHistoryTests;
+#endif
 public:
     explicit ClockSyncDialog(QWidget *parent = nullptr);
     ~ClockSyncDialog();
@@ -37,12 +40,14 @@ private slots:
     void onHistory();
     void onFirstData();
     void onLastData();
+    void invalidateAnalysis();
+    void refreshSelection();
 
 private:
     Ui::ClockSyncDialog *ui;
     QVector<NightStartDiff> m_nights;   // primary: per-night window offsets
     ConstantOffsetFit       m_fit;      // robust constant fitted across nights
-    DriftLineFit            m_drift;    // linear drift overlay over the same kept nights
+    bool m_hasAnalysis = false;
     NightClockOffsetsRepository m_nightRepo;
 
     void populateCpapCombo();
@@ -50,6 +55,7 @@ private:
     Machine* currentCpap() const;
     Machine* currentOxi() const;
     void populateTable();
+    QVector<NightStartDiff> selectedNights() const;
 };
 
 #endif // CLOCKSYNCDIALOG_H
