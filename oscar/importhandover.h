@@ -33,8 +33,10 @@ class QLocalSocket;
     process prints the result and exits with it.
 
     On Unix the socket is a file inside the data folder, so both sides find it without
-    relying on the environment and nobody but the folder's owner can put one there. On
-    Windows it is a named pipe whose name is derived from the data folder.
+    relying on the environment and nobody but the folder's owner can put one there. A
+    folder that cannot hold a socket (FAT/exFAT, a network share, some FUSE mounts) or
+    whose path is too long for a socket address falls back to a name derived from the
+    folder. On Windows it is a named pipe whose name is derived from the data folder.
 
     A request is carried out only when the running instance's main event loop is idle:
     no other part of OSCAR is then in the middle of something. Much of OSCAR processes
@@ -72,11 +74,12 @@ struct Reply
     QString message;
 };
 
-/*! \brief Where the instance that has \a dataDir open listens.
+/*! \brief Where the instance that has \a dataDir open listens, in the order tried.
 
-    On Unix the socket file in the data folder; if that path is too long for a socket
-    address, a name in the system's place for local sockets. On Windows a pipe name. */
-QString endpoint(const QString &dataDir);
+    On Unix the socket file in the data folder, then a name in the system's folder for
+    temporary files for a data folder that cannot hold a socket. Only the name if the path
+    of the socket file would be too long for a socket address. On Windows a pipe name. */
+QStringList endpoints(const QString &dataDir);
 
 QByteArray encodeRequest(const Request &request);
 //! \return false (and a reason in \a error) if \a line is not a request this version understands.
@@ -109,7 +112,8 @@ SendResult send(const QString &dataDir, const Request &request, Reply &reply,
     that thread's outermost event loop has nothing else to do (see the namespace
     description). A request that arrives while OSCAR is working waits; one that arrives
     while a nested event loop is waiting for the user - a dialog or a menu is open - is
-    answered ExitBusy without reaching the handler. */
+    answered ExitBusy without reaching the handler, and so are the requests still waiting
+    when the server is closed. */
 class Server : public QObject
 {
     Q_OBJECT
@@ -119,7 +123,7 @@ class Server : public QObject
     explicit Server(QObject *parent = nullptr);
     ~Server() override;
 
-    /*! \brief Start accepting requests for \a dataDir.
+    /*! \brief Start accepting requests for \a dataDir, at the first of endpoints() that works.
 
         Call only while holding the data folder's lock: a socket left behind by a crashed
         instance is removed first, which is safe only because no other instance can be

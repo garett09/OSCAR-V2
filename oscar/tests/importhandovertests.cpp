@@ -23,10 +23,20 @@
 #include <QTemporaryDir>
 #include <QTimer>
 
+#ifndef Q_OS_WIN
+#include <unistd.h>
+#endif
+
 using namespace ImportHandover;
 
 namespace
 {
+
+// The place a server for \a dataDir tries first.
+QString endpoint(const QString &dataDir)
+{
+    return endpoints(dataDir).first();
+}
 
 // send() blocks, as it does in a second OSCAR process; run it beside the test's event loop.
 struct Requester
@@ -216,6 +226,7 @@ void ImportHandoverTests::testLongFolderPathFallsBackToAName()
     QTemporaryDir dir;
     const QString deep = dir.path() + "/" + QString(40, 'a') + "/" + QString(40, 'b') + "/" + QString(40, 'c');
     QVERIFY(QDir().mkpath(deep));
+    QCOMPARE(endpoints(deep).size(), 1);
     QVERIFY(endpoint(deep).startsWith("OSCAR-import-"));
     QVERIFY(endpoint(deep) != endpoint(dir.path() + "/" + QString(40, 'a')));
 
@@ -225,6 +236,37 @@ void ImportHandoverTests::testLongFolderPathFallsBackToAName()
     QVERIFY(requester.wait());
     QCOMPARE(requester.result, SendResult::Replied);
     QCOMPARE(requester.reply.message, QString("deep"));
+}
+
+void ImportHandoverTests::testFolderWithoutSocketsFallsBackToAName()
+{
+#ifdef Q_OS_WIN
+    QSKIP("Named pipes do not live in the data folder.");
+#else
+    if (::getuid() == 0) {
+        QSKIP("root can create a socket in a read-only folder.");
+    }
+    // A data folder that cannot hold a socket file (FAT/exFAT, a network share; a read-only
+    // folder here): the server takes the name instead, and the requester finds it there.
+    QTemporaryDir dir;
+    const QFile::Permissions writable = QFile(dir.path()).permissions();
+    QVERIFY(QFile::setPermissions(dir.path(), QFile::ReadOwner | QFile::ExeOwner));
+
+    Server server;
+    const bool listening = server.listen(dir.path(), [](const Request &) { return ok("by name"); });
+    Requester requester(dir.path(), oneImport("CPAP", "/x"));
+    const bool answered = requester.wait();
+    const QString place = server.listeningOn();
+    server.close();
+    QFile::setPermissions(dir.path(), writable);
+
+    QVERIFY2(listening, qPrintable(server.errorString()));
+    QCOMPARE(endpoints(dir.path()).size(), 2);
+    QCOMPARE(place, QDir::tempPath() + "/" + endpoints(dir.path()).at(1));   // where send() checks the owner
+    QVERIFY(answered);
+    QCOMPARE(requester.result, SendResult::Replied);
+    QCOMPARE(requester.reply.message, QString("by name"));
+#endif
 }
 
 void ImportHandoverTests::testNobodyListening()
@@ -434,6 +476,7 @@ void ImportHandoverTests::testStaleSocketIsReplaced()
 void ImportHandoverTests::testCloseWithRequestsWaiting()
 {
     // OSCAR is closed while an import is running for one requester and two more are queued.
+    // Those two were not started: they are told to try again.
     QTemporaryDir dir;
     std::unique_ptr<Requester> second, third;
     Server server;
@@ -453,8 +496,10 @@ void ImportHandoverTests::testCloseWithRequestsWaiting()
     QCOMPARE(first.result, SendResult::Replied);         // the one being served still gets its answer
     QVERIFY(second->wait());
     QVERIFY(third->wait());
-    QCOMPARE(second->result, SendResult::ConnectionLost);
-    QCOMPARE(third->result, SendResult::ConnectionLost);
+    QCOMPARE(second->result, SendResult::Replied);
+    QCOMPARE(second->reply.exitCode, int(ExitBusy));
+    QCOMPARE(third->result, SendResult::Replied);
+    QCOMPARE(third->reply.exitCode, int(ExitBusy));
 }
 
 void ImportHandoverTests::testWaitsUntilTheEventLoopIsIdle()

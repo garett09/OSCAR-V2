@@ -764,9 +764,11 @@ void optionExit(int exitCode, QString error) {
                              If OSCAR is already running on the same data folder, the
                              import is handed to that instance: it imports, refreshes
                              its views and reports back. Exit code 0 = imported,
-                             1 = failed, 75 = the running OSCAR is busy (an import or
-                             a dialog is open, no profile is open, or it does not
-                             respond) - try again later.
+                             1 = failed, 75 = the running OSCAR cannot import now (a
+                             dialog or menu is open, no profile is open, it was closed
+                             before it got to the import, or it does not respond) -
+                             try again later. A request that arrives while the running
+                             OSCAR is importing waits until that import is done.
                              If another batch import has the folder, OSCAR waits up to
                              60 seconds for it to finish.
     --upgrade-database       Automatically back up and upgrade database schema (batch mode only).

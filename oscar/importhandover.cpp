@@ -14,6 +14,7 @@
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -21,6 +22,10 @@
 #include <QLocalSocket>
 #include <QThread>
 #include <QTimer>
+
+#ifndef Q_OS_WIN
+#include <unistd.h>
+#endif
 
 namespace ImportHandover
 {
@@ -43,7 +48,7 @@ static const char *const SocketFileName = "oscar-import.sock";
 static const int MaxSocketPathLength = 90;
 #endif
 
-QString endpoint(const QString &dataDir)
+QStringList endpoints(const QString &dataDir)
 {
     // Both sides must arrive at the same place for the same folder, whichever way it was
     // spelled on the command line.
@@ -52,19 +57,39 @@ QString endpoint(const QString &dataDir)
         path = QDir::cleanPath(QDir(dataDir).absolutePath());
     }
 
+    QStringList places;
 #ifdef Q_OS_WIN
     path = path.toLower();
 #else
     const QString socketFile = path + QLatin1Char('/') + QLatin1String(SocketFileName);
     if (QFile::encodeName(socketFile).size() <= MaxSocketPathLength) {
-        return socketFile;
+        places << socketFile;
     }
 #endif
     // A name in the system's place for local sockets: a named pipe on Windows, and on Unix
-    // the way out for a data folder whose path is too long for a socket address. Unlike the
-    // socket in the data folder, such a name could be taken by another user of the machine.
+    // the way out for a data folder that cannot hold a socket or whose path is too long for
+    // a socket address. Unlike the socket in the data folder, such a name could be taken by
+    // another user of the machine (see ownedByThisUser()).
     const QByteArray hash = QCryptographicHash::hash(path.toUtf8(), QCryptographicHash::Sha1).toHex();
-    return QStringLiteral("OSCAR-import-") + QString::fromLatin1(hash.left(16));
+    places << QStringLiteral("OSCAR-import-") + QString::fromLatin1(hash.left(16));
+    return places;
+}
+
+/* False if a socket of another user is waiting at \a place. On Unix a name (not a path)
+   is a socket file in the folder for temporary files, which every user of the machine
+   can write to: the request must not go to whoever got there first. */
+static bool ownedByThisUser(const QString &place)
+{
+#ifdef Q_OS_WIN
+    Q_UNUSED(place)
+    return true;    // pipe names: the server's UserAccessOption keeps others out
+#else
+    if (QDir::isAbsolutePath(place)) {
+        return true;    // in the data folder
+    }
+    const QFileInfo socketFile(QDir::tempPath() + QLatin1Char('/') + place);
+    return !socketFile.exists() || socketFile.ownerId() == ::getuid();
+#endif
 }
 
 QByteArray encodeRequest(const Request &request)
@@ -186,8 +211,21 @@ static bool readLine(QLocalSocket &socket, QByteArray &line, int timeoutMs, bool
 SendResult send(const QString &dataDir, const Request &request, Reply &reply, int connectTimeoutMs, int acceptTimeoutMs)
 {
     QLocalSocket socket;
-    socket.connectToServer(endpoint(dataDir));
-    if (!socket.waitForConnected(connectTimeoutMs)) {
+    bool connected = false;
+    for (const QString &place : endpoints(dataDir)) {
+        if (!ownedByThisUser(place)) {
+            qWarning().noquote() << QString("ImportHandover: %1 belongs to another user; not sending the request there")
+                .arg(QDir::tempPath() + QLatin1Char('/') + place);
+            continue;
+        }
+        socket.connectToServer(place);
+        if (socket.waitForConnected(connectTimeoutMs)) {
+            connected = true;
+            break;
+        }
+        socket.abort();
+    }
+    if (!connected) {
         return SendResult::NoInstanceListening;
     }
 
@@ -230,10 +268,22 @@ Server::~Server()
 bool Server::listen(const QString &dataDir, Handler handler)
 {
     m_handler = handler;
-    const QString place = endpoint(dataDir);
-    // On Unix a crashed instance leaves its socket file behind and listen() would fail.
-    QLocalServer::removeServer(place);
-    if (!m_server->listen(place)) {
+    bool listening = false;
+    QString failedPlace;
+    for (const QString &place : endpoints(dataDir)) {
+        if (!failedPlace.isEmpty()) {
+            qWarning().noquote() << QString("ImportHandover: cannot listen at %1 (%2); using %3 instead")
+                .arg(failedPlace, m_server->errorString(), place);
+        }
+        // On Unix a crashed instance leaves its socket file behind and listen() would fail.
+        QLocalServer::removeServer(place);
+        if (m_server->listen(place)) {
+            listening = true;
+            break;
+        }
+        failedPlace = place;
+    }
+    if (!listening) {
         return false;
     }
     if (QAbstractEventDispatcher *dispatcher = QAbstractEventDispatcher::instance()) {
@@ -245,10 +295,22 @@ bool Server::listen(const QString &dataDir, Handler handler)
 void Server::close()
 {
     m_server->close();
-    // abort() makes onDisconnected() take the entry out of m_queue: work on a copy.
+    // The requests still waiting were never started: tell their requesters to try again,
+    // which a failed import (ExitFailed) would not. answer()'s timer does not run any more,
+    // and closing a named pipe drops a reply that was not read yet, so give each requester
+    // a moment to read its answer and close the connection itself.
+    // Disconnecting makes onDisconnected() take the entry out of m_queue: work on a copy.
     const QList<Queued> waiting = m_queue;
     m_queue.clear();
+    Reply closing;
+    closing.exitCode = ExitBusy;
+    closing.message = QStringLiteral("The running OSCAR was closed before it got to this import. Nothing was imported; try again.");
     for (const Queued &queued : waiting) {
+        if (queued.socket && queued.socket->state() == QLocalSocket::ConnectedState) {
+            queued.socket->write(encodeReply(closing));
+            queued.socket->waitForBytesWritten(1000);
+            queued.socket->waitForDisconnected(1000);
+        }
         if (queued.socket) {
             queued.socket->abort();
         }

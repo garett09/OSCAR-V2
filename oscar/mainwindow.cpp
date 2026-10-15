@@ -3869,9 +3869,15 @@ ImportHandover::Reply MainWindow::importOnRequest(const ImportHandover::Request 
         .arg(request.tasks.size()).arg(openProfile);
 
     // Save what the user typed in the journal of the day on screen before its data changes.
+    // Then let go of that day: a loader can remove sessions of a day that is loaded (BMC
+    // re-imports the last day, ResMed drops summary-only sessions), and Daily repaints while
+    // the import runs. A menu import gets this from ReloadGraphs(); LoadDate() below shows
+    // the day again.
     const QDate viewDate = daily ? daily->getDate() : QDate();
     if (daily) {
         daily->Unload(viewDate);
+        daily->graphView()->setDay(nullptr);
+        daily->clearLastDay();
     }
 
     // While the dialog is up the application cannot be used, so nothing else can start
@@ -3916,7 +3922,6 @@ ImportHandover::Reply MainWindow::importOnRequest(const ImportHandover::Request 
         overview->ReloadGraphs();
     }
     if (daily) {
-        daily->clearLastDay();
         if (viewDate.isValid()) {
             // Mark the days that now have data, in the month on screen and in the month new
             // data usually lands in, then show the day the user was looking at again.

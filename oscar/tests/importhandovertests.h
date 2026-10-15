@@ -24,6 +24,7 @@ class ImportHandoverTests : public QObject
     void testMalformedRequestsAreRejected();
     void testEndpointFollowsTheFolder();
     void testLongFolderPathFallsBackToAName();
+    void testFolderWithoutSocketsFallsBackToAName();
     void testNobodyListening();
     void testRequestIsServedAndAnswered();
     void testRequestsAreServedOneAtATime();
