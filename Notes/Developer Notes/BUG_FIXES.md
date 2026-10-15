@@ -4,6 +4,25 @@ Notable bugs found and fixed during development/investigation.
 
 ---
 
+## 2026-10-15 - BMC G3X Insp/Exp Time graphs showed "Plots Disabled" after import (#324)
+
+**Files:** `oscar/SleepLib/loader_plugins/bmc_loader.cpp`
+
+**Symptom:** Right after a G3X import, the Daily view showed Insp Time and Exp Time graphs
+reading "Plots Disabled". After the profile was closed and reopened, the graphs were gone.
+
+**Root cause:** `setSessionWaveforms()` always creates CPAP_Ti/CPAP_Te lists so that
+`calcRespRate()` won't derive them from the flow waveform. G3X never fills them
+(`ExportTimingChannels()` is false). The empty lists stayed on the in-memory session and
+drew as graphs with no points, but zero-count channels aren't persisted, so a reload
+dropped them.
+
+**Fix:** `BmcLoaderTask::run()` destroys CPAP_Ti/CPAP_Te lists that are still empty after
+`UpdateSummaries()`. They have already blocked the flow-based calculation by then. Legacy
+BMC fills these lists, so it is unaffected.
+
+---
+
 ## 2026-10-15 - BMC G3X night with no graphs once the waveform ring wrapped (#323)
 
 **Files:** `oscar/SleepLib/loader_plugins/bmcG3xDataParsing.cpp/.h`
