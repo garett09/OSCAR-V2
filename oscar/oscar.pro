@@ -331,6 +331,7 @@ SOURCES += \
     datafolderdialog.cpp \
     importprofile.cpp \
     profileimporter.cpp \
+    importhandover.cpp \
     logger.cpp \
     main.cpp \
     mainwindow.cpp \
@@ -610,6 +611,7 @@ HEADERS  += \
     SleepLib/xmlreplay.h \
     SleepLib/serialoximeter.h \
     SleepLib/loader_plugins/md300w1_loader.h \
+    importhandover.h \
     logger.h \
     SleepLib/loader_plugins/weinmann_loader.h \
     Graphs/gdailysummary.h \
@@ -833,6 +835,7 @@ test {
         tests/rawdatatests.cpp \
         tests/resmedtests.cpp \
         tests/sessiontests.cpp \
+        tests/importhandovertests.cpp \
         tests/versiontests.cpp \
         tests/viatomtests.cpp \
         tests/deviceconnectiontests.cpp \
@@ -851,6 +854,7 @@ test {
         tests/rawdatatests.h \
         tests/resmedtests.h \
         tests/sessiontests.h \
+        tests/importhandovertests.h \
         tests/versiontests.h \
         tests/viatomtests.h \
         tests/deviceconnectiontests.h \

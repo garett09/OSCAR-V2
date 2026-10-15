@@ -85,6 +85,11 @@ class Report;
 class Overview;
 
 
+namespace ImportHandover {
+struct Request;
+struct Reply;
+}
+
 /*! \class MainWindow
     \author Mark Watkins
     \brief The Main Application window for OSCAR
@@ -195,6 +200,16 @@ class MainWindow : public QMainWindow
     //! \param silent If true, suppresses progress dialogs, notifications, and interactive modals.
     //! \return true if all files were imported successfully, false if any file failed or was aborted.
     bool importNonCPAPFiles(MachineLoader &loader, const QStringList &files, bool silent = false, bool requireComplete = false);
+
+    /*! \brief Run the imports another OSCAR process asked for ("OSCAR --import" started while
+        this instance has the data folder open, see importhandover.h).
+
+        The imports run like a batch import - nothing is asked, problems are logged - behind
+        the usual progress dialog, and the views are refreshed afterwards. The tab, the day
+        shown in Daily and the folder suggested for the next manual import stay as they are.
+        \return The exit code and message for the requesting process. ExitBusy if this
+        instance cannot import right now (no profile open, an import running, a dialog open). */
+    ImportHandover::Reply importOnRequest(const ImportHandover::Request &request);
 
     void startImportDialog() { on_action_Import_Data_triggered(); }
 
@@ -512,6 +527,7 @@ private:
     bool m_clinicalMode = false;
     bool m_geometryCorrected = false;
     bool m_batchMode = false;
+    int m_importsRunning = 0;   //!< imports in progress (they process events, so more can be asked for)
 
     void PopulatePurgeMenu();
 
