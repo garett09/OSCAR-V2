@@ -1222,9 +1222,10 @@ bool YuwellFormatD::Detect() {
      * YH-690, YH-680
      *
      * This is the BreathCare III format as confirmed with all units in the range (YH-680/YH-690)
+     *
+     * Either the SD card root or the MODEL-SERIAL folder itself can be selected; the
+     * latter is what you get when the card is shared as a zip of that folder.
      */
-    QDir cardDir(m_filePath);
-
     QStringList model_serials = GetModelSerials();
 
     if (model_serials.size() == 0) {
@@ -1240,73 +1241,76 @@ QStringList YuwellFormatD::GetModelSerials() {
      * Find a model/serial number from the inside of a file
      * instead of a directory name. Much more source-of-truth
      */
-    QDir cardDir(m_filePath);
 
+    // Machine folders to search: the selected folder itself (MODEL-SERIAL folder selected
+    // directly) and its MODEL-SERIAL subfolders (SD card root selected).
+    QStringList machineDirs;
+    machineDirs << m_filePath;
+
+    QDir cardDir(m_filePath);
     cardDir.setFilter(QDir::NoDotAndDotDot | QDir::Dirs | QDir::NoSymLinks);
     cardDir.setSorting(QDir::Name);
 
-    QFileInfoList dlist = cardDir.entryInfoList();
+    for (const QFileInfo & fi : cardDir.entryInfoList()) {
+        if (fi.fileName().toUpper().startsWith("YH")) {
+            machineDirs << fi.absoluteFilePath();
+        }
+    }
 
     QStringList model_serials;
+    m_machineDirs.clear();
 
-    for (int i = 0; i < dlist.size(); i++) {
-        // Iterate until we find our first file with a model/serial number
-        QFileInfo fi = dlist.at(i);
-        QString filename = fi.fileName();
+    for (const QString & machinePath : machineDirs) {
+        // From here there are sub-directories with individual sessions
+        QDir sessionsDir(machinePath);
 
-        if (filename.toUpper().startsWith("YH")) {
-            // From here there are sub-directories with individual sessions
-            QDir sessionsDir (m_filePath + "/" + filename);
+        // There should be an empty RunLog.bys file in this directory
+        if (!sessionsDir.exists("RunLog.bys")) {
+            continue;
+        }
+        sessionsDir.setFilter(QDir::NoDotAndDotDot | QDir::Dirs | QDir::NoSymLinks);
+        sessionsDir.setSorting(QDir::Name);
 
-            // There should be an empty RunLog.bys file in this directory
-            if (!sessionsDir.exists("RunLog.bys")) {
+        QFileInfoList slist = sessionsDir.entryInfoList();
+
+        for (int j = 0; j < slist.size(); j++) {
+            // Each session directory should contain *s.bys containing the serial
+            QString sessionPath = slist.at(j).absoluteFilePath();
+
+            QDir sessionDir(sessionPath);
+            sessionDir.setFilter(QDir::NoDotAndDotDot | QDir::Files | QDir::NoSymLinks);
+            sessionDir.setSorting(QDir::Name);
+
+            QStringList filters;
+            filters << "*s.bys" << "*s.BYS";
+            sessionDir.setNameFilters(filters);
+
+            QFileInfoList flist = sessionDir.entryInfoList();
+            if (flist.size() == 0) {
                 continue;
             }
-            sessionsDir.setFilter(QDir::NoDotAndDotDot | QDir::Dirs | QDir::NoSymLinks);
-            sessionsDir.setSorting(QDir::Name);
 
-            QFileInfoList slist = sessionsDir.entryInfoList();
+            QFile bysFile(flist.at(0).absoluteFilePath());
 
-            for (int j = 0; j < slist.size(); j++) {
-                // Each session directory should contain *s.bys containing the serial
-                QFileInfo sfi = slist.at(j);
-                QString sessionname = sfi.fileName();
+            if (bysFile.open(QFile::ReadOnly)) {
+                QByteArray header = bysFile.read(0x30);
 
-                QDir sessionDir (m_filePath + "/" + filename + "/" + sessionname);
-                sessionDir.setFilter(QDir::NoDotAndDotDot | QDir::Files | QDir::NoSymLinks);
-                sessionDir.setSorting(QDir::Name);
+                if (header.size() == 0x30) {
+                    QDataStream in(header);
+                    in.setVersion(QDataStream::Qt_4_8);
 
-                QStringList filters;
-                filters << "*s.bys" << "*s.BYS";
-                sessionDir.setNameFilters(filters);
+                    QByteArray raw_model_serial(16, Qt::Uninitialized);
 
-                QFileInfoList flist = sessionDir.entryInfoList();
-                if (flist.size() == 0) {
-                    continue;
-                }
+                    in.skipRawData(0x20);
+                    in.readRawData(raw_model_serial.data(), 16);
 
-                QFileInfo summary = flist.at(0);
-                QFile bysFile(m_filePath + "/" + filename + "/" + sessionname + "/" + summary.fileName());
-
-                if (bysFile.open(QFile::ReadOnly)) {
-                    QByteArray header = bysFile.read(0x30);
-
-                    if (header.size() == 0x30) {
-                        QDataStream in(header);
-                        in.setVersion(QDataStream::Qt_4_8);
-
-                        QByteArray raw_model_serial(16, Qt::Uninitialized);
-
-                        in.skipRawData(0x20);
-                        in.readRawData(raw_model_serial.data(), 16);
-
-                        QString model_serial(raw_model_serial);
-                        if (model_serial.startsWith("YH") && !model_serials.contains(model_serial)) {
-                            model_serials << model_serial;
-                        }
+                    QString model_serial(raw_model_serial);
+                    if (model_serial.startsWith("YH") && !model_serials.contains(model_serial)) {
+                        model_serials << model_serial;
+                        m_machineDirs[model_serial] = machinePath;
                     }
-                    bysFile.close();
                 }
+                bysFile.close();
             }
         }
     }
@@ -1319,10 +1323,12 @@ int YuwellFormatD::OpenMachine(Machine *mach, const QString & serial)
     emit m_loader->setProgressValue(0);
     QCoreApplication::processEvents();
 
-    QString machinePath = m_filePath + "/" + serial;
+    // The folder GetModelSerials() found this serial in - not m_filePath + serial, which
+    // fails when the MODEL-SERIAL folder itself was selected.
+    QString machinePath = m_machineDirs.value(serial);
     QDir dir(machinePath);
 
-    if (!dir.exists() || (!dir.isReadable())) {
+    if (machinePath.isEmpty() || !dir.exists() || (!dir.isReadable())) {
         return -1;
     }
 
