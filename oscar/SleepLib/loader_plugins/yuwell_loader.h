@@ -123,6 +123,7 @@ class YuwellFormatD : public YuwellFormat
   private:
     int OpenMachine(Machine *mach, const QString & serial);
     bool OpenSession(Machine *mach, const QString & filename);
+    QMap<QString, QString> m_machineDirs;  // serial -> MODEL-SERIAL folder, filled by GetModelSerials()
 };
 
 class YuwellFormatE : public YuwellFormat

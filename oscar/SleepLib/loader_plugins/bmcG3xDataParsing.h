@@ -27,8 +27,12 @@ private:
         QDate Date;
         QDateTime StartTimestamp;
         QDateTime EndTimestamp;
-        quint32 WaveStartOffset = 0;
-        quint32 WaveEndOffset = 0;
+        /// Waveform range as offsets into the virtual .00x address space.  The ring
+        /// wraps, so a night recorded across the wrap point has an end below its start
+        /// in the IDX; ParseIdxRecords unwraps it by adding the ring size, so here
+        /// WaveEndOffset can exceed the ring.  Map to a file with WaveformFileFor().
+        quint64 WaveStartOffset = 0;
+        quint64 WaveEndOffset = 0;
         quint32 WaveLength = 0;
         quint32 EventStartOffset = 0;
         quint32 EventEndOffset = 0;
@@ -81,6 +85,9 @@ private:
     /// -1 means "not yet resolved".
     int leakFieldOffsetCache = -1;
 
+    /// Number of .00x files in the waveform ring, from the IDX header.
+    int waveFileCount = 63;
+
     int ResolveLeakFieldOffset();
 
     static bool DecodeTsBlock(const QByteArray& ts, BmcMachineSettings& settings);
@@ -88,11 +95,14 @@ private:
 
     bool ResolveIdxFile();
     void ParseMachineInfo(const QByteArray& idxBytes);
+    void ParseWaveformRingGeometry(const QByteArray& idxBytes);
     void ParseIdxRecords(const QByteArray& idxBytes);
 
-    QDateTime ReadWaveformPacketTimestamp(quint32 virtualByteOffset) const;
+    QString WaveformFileFor(quint64 virtualByteOffset, qint64* localOffset) const;
+    quint64 FindFirstPacketInDayWindow(quint64 startOffset, quint64 endOffset, const QDate& date) const;
+    QDateTime ReadWaveformPacketTimestamp(quint64 virtualByteOffset) const;
     QList<QDateTime> ReadWaveformPacketTimestamps(quint32 startOffset, quint32 endOffset) const;
-    QByteArray ReadVirtualWaveformBytes(quint32 virtualByteOffset, int byteCount) const;
+    QByteArray ReadVirtualWaveformBytes(quint64 virtualByteOffset, int byteCount) const;
 
     static bool IsG3xIdxHeader(const QByteArray& headerBytes);
     static QString ReadAscii(const QByteArray& bytes, int offset, int length);

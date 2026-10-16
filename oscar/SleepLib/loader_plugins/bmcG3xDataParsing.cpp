@@ -53,6 +53,14 @@ constexpr int kG3xEvtRecordSize = 0x20;
 constexpr quint32 kG3xWaveformPacketSize = 0x800;
 constexpr qint64  kG3xWaveformFileSpan   = 64 * 1024 * 1024; // 64 MiB per .00x file
 
+/// The .00x files form one ring buffer: after the last file the device wraps back to
+/// .000 and overwrites the oldest data.  The IDX header records the ring geometry as
+/// two u32 LE fields — file size at 0xD4 and file count at 0xD8 — and every card seen
+/// so far carries 64 MiB × 63 files.  The count is the default if the header is unusable.
+constexpr int kG3xIdxWaveFileSpanOffset  = 0xD4;
+constexpr int kG3xIdxWaveFileCountOffset = 0xD8;
+constexpr int kG3xDefaultWaveFileCount   = 63;
+
 /// Size of the legacy 0x100-byte buffer used to build a BmcWaveformPacket
 /// via the inherited constructor.
 constexpr int kLegacyWaveformPacketSize = 0x100;
@@ -211,6 +219,20 @@ constexpr int kG3xPbMinApneasPerEpisode = 3;
 /// Clamping limits for respiratory event duration.
 constexpr int kG3xRespEventMinDurationSec = 10;
 constexpr int kG3xRespEventMaxDurationSec = 180;
+
+/// @brief True if a waveform packet stamped @p ts can belong to the IDX record dated @p d.
+///
+/// An IDX record dated D covers the OSCAR day noon D → noon D+1 (measured across every
+/// reference card).  The window allows 12 h of slack on each side.  Its purpose is to
+/// recognise packets that have been overwritten since the IDX record was written: the
+/// waveform ring holds roughly 24 days of continuous recording, so a packet from a later
+/// pass round the ring is weeks outside the window, never hours.
+bool IsInG3xDayWindow(const QDateTime& ts, const QDate& d)
+{
+    return ts.isValid() &&
+           ts >= QDateTime(d, QTime(0, 0)) &&
+           ts <  QDateTime(d.addDays(2), QTime(0, 0));
+}
 
 
 // ============================================================
@@ -419,8 +441,8 @@ void ComputePacketMinMax(const qint16* values, int count, int* minOut, int* maxO
 bool WriteG3xDiagnosticsCsv(const QString& outputPath,
                              const QVector<G3xDiagRow>& rows,
                              const QDate& day,
-                             quint32 waveStartOffset,
-                             quint32 waveEndOffset,
+                             quint64 waveStartOffset,
+                             quint64 waveEndOffset,
                              quint32 eventStartOffset,
                              quint32 eventEndOffset)
 {
@@ -769,6 +791,7 @@ void BmcG3xData::ReadData()
     idxFile.close();
 
     ParseMachineInfo(idxBytes);
+    ParseWaveformRingGeometry(idxBytes);
     ParseIdxRecords(idxBytes);
 }
 
@@ -1413,14 +1436,21 @@ BmcDateSession BmcG3xData::ReadDateSession(QDate aDate)
     int    outOfOrderPacketCount = 0;
     qint64 lastTimestampKey      = std::numeric_limits<qint64>::min();
     int    timedUpdateIndex      = 0;
+    int    staleWindowPacketCount = 0;
 
-    const int startFileIndex = static_cast<int>(dayEntry->WaveStartOffset / kG3xWaveformFileSpan);
-    const int endFileIndex   = static_cast<int>((dayEntry->WaveEndOffset - 1) / kG3xWaveformFileSpan);
+    // fileIndex counts 64 MiB segments of the unwrapped virtual range, so a night that
+    // crosses the ring's wrap point runs from the last file on into .000;
+    // WaveformFileFor() maps each segment to its physical file.
+    const quint64 waveStart      = dayEntry->WaveStartOffset;
+    const quint64 waveEnd        = dayEntry->WaveEndOffset;
+    const int     startFileIndex = static_cast<int>(waveStart / kG3xWaveformFileSpan);
+    const int     endFileIndex   = (waveEnd > waveStart)
+                                       ? static_cast<int>((waveEnd - 1) / kG3xWaveformFileSpan)
+                                       : startFileIndex - 1;
 
     for (int fileIndex = startFileIndex; fileIndex <= endFileIndex; ++fileIndex) {
-        const QString filepath = QString("%1.%2")
-                                     .arg(fileBasePath)
-                                     .arg(fileIndex, 3, 10, QLatin1Char('0'));
+        const quint64 segmentBase = static_cast<quint64>(fileIndex) * kG3xWaveformFileSpan;
+        const QString filepath    = WaveformFileFor(segmentBase, nullptr);
 
         QFile waveformFile(filepath);
         if (!waveformFile.open(QIODevice::ReadOnly)) {
@@ -1428,13 +1458,9 @@ BmcDateSession BmcG3xData::ReadDateSession(QDate aDate)
         }
 
         qint64 localStart = (fileIndex == startFileIndex)
-                                ? (dayEntry->WaveStartOffset % kG3xWaveformFileSpan) : 0;
-        qint64 localEnd   = (fileIndex == endFileIndex)
-                                ? (dayEntry->WaveEndOffset % kG3xWaveformFileSpan)   : waveformFile.size();
-        // If the day boundary falls exactly on a file boundary, treat the whole file.
-        if (fileIndex == endFileIndex && localEnd == 0) {
-            localEnd = waveformFile.size();
-        }
+                                ? static_cast<qint64>(waveStart - segmentBase) : 0;
+        qint64 localEnd   = static_cast<qint64>(std::min<quint64>(waveEnd - segmentBase,
+                                                                  kG3xWaveformFileSpan));
 
         localStart = std::max<qint64>(0, std::min(localStart, waveformFile.size()));
         localEnd   = std::max<qint64>(0, std::min(localEnd,   waveformFile.size()));
@@ -1461,6 +1487,14 @@ BmcDateSession BmcG3xData::ReadDateSession(QDate aDate)
             // Validate and decode the packet timestamp (bytes 0x04–0x09).
             QDateTime packetTimestamp;
             if (!DecodeG3xTimestamp(waveformPacket.constData(), 0x04, &packetTimestamp)) {
+                cursor += kG3xWaveformPacketSize;
+                continue;
+            }
+
+            // A packet far outside this record's day was overwritten by a later pass
+            // round the ring; it belongs to another night.
+            if (!IsInG3xDayWindow(packetTimestamp, dayEntry->Date)) {
+                ++staleWindowPacketCount;
                 cursor += kG3xWaveformPacketSize;
                 continue;
             }
@@ -1634,6 +1668,11 @@ BmcDateSession BmcG3xData::ReadDateSession(QDate aDate)
         waveformFile.close();
     }
 
+    if (staleWindowPacketCount > 0) {
+        qDebug() << "BmcG3xData:" << aDate.toString(Qt::ISODate) << "skipped"
+                 << staleWindowPacketCount << "waveform packets overwritten by a later night";
+    }
+
     // If no packets were found, emit a single synthetic packet so the session
     // is not empty.
     if (dateSession.Waveforms.isEmpty() && dayEntry->StartTimestamp.isValid()) {
@@ -1726,6 +1765,7 @@ BmcDateSession BmcG3xData::ReadDateSession(QDate aDate)
         qDebug() << "BmcG3xData waveform summary day" << aDate.toString(Qt::ISODate)
                  << "wave_packets"         << dateSession.Waveforms.size()
                  << "out_of_order_packets" << outOfOrderPacketCount
+                 << "stale_window_packets" << staleWindowPacketCount
                  << "evt42_updates"        << evtPressureUpdateCount
                  << "leak_scale"           << leakScaleTenthsPerRaw
                  << "raw_ipap_min_halfcm"  << waveformRawIpapMin
@@ -1956,10 +1996,26 @@ void BmcG3xData::ParseIdxRecords(const QByteArray& idxBytes)
         const quint32 logEnd     = ReadUInt32LE(idxBytes, offset + 0x2C);
         const quint32 logLen     = ReadUInt32LE(idxBytes, offset + 0x30);
 
+        // A night recorded across the ring's wrap point ends at a lower offset than it
+        // starts (e.g. start in .062, end in .000).  Unwrap the end so the range is
+        // contiguous; without this the night was taken to have no waveform at all.
+        const quint64 ringBytes = static_cast<quint64>(waveFileCount) * kG3xWaveformFileSpan;
+        quint64 waveStartV = waveStart;
+        quint64 waveEndV   = waveEnd;
+        if (waveLen > 0 && waveEnd < waveStart) {
+            waveEndV += ringBytes;
+            if (waveEndV - waveStartV != waveLen) {
+                qWarning() << "BmcG3xData IDX:" << QDate(year, month, day).toString(Qt::ISODate)
+                           << "wrapped waveform range does not match its length - start"
+                           << Qt::hex << waveStart << "end" << waveEnd << "length" << waveLen
+                           << "ring" << ringBytes;
+            }
+        }
+
         G3xDayEntry dayEntry;
         dayEntry.Date             = QDate(year, month, day);
-        dayEntry.WaveStartOffset  = waveStart;
-        dayEntry.WaveEndOffset    = waveEnd;
+        dayEntry.WaveStartOffset  = waveStartV;
+        dayEntry.WaveEndOffset    = waveEndV;
         dayEntry.WaveLength       = waveLen;
         dayEntry.EventStartOffset = eventStart;
         dayEntry.EventEndOffset   = eventEnd;
@@ -1968,25 +2024,48 @@ void BmcG3xData::ParseIdxRecords(const QByteArray& idxBytes)
         dayEntry.LogEndOffset     = logEnd;
         dayEntry.LogLength        = logLen;
 
-        if (waveLen > 0 && waveEnd > waveStart) {
+        bool hasWaveform = (waveLen > 0 && waveEndV > waveStartV);
+        if (hasWaveform) {
+            const QDateTime startTs = ReadWaveformPacketTimestamp(waveStartV);
+
+            // Once the ring has wrapped, the oldest records point at space that a later
+            // night has since overwritten.  Overwriting runs forward from the record's
+            // start, so the surviving part (if any) is a tail: find where it begins.
+            if (startTs.isValid() && !IsInG3xDayWindow(startTs, dayEntry.Date)) {
+                const quint64 survivingStart = FindFirstPacketInDayWindow(waveStartV, waveEndV, dayEntry.Date);
+                qDebug() << "BmcG3xData IDX:" << dayEntry.Date.toString(Qt::ISODate)
+                         << "waveform overwritten by a later night -"
+                         << (survivingStart < waveEndV ? "keeping the surviving tail"
+                                                       : "none survives, using event data only");
+                if (survivingStart < waveEndV) {
+                    dayEntry.WaveStartOffset = survivingStart;
+                    dayEntry.WaveLength      = static_cast<quint32>(waveEndV - survivingStart);
+                } else {
+                    dayEntry.WaveStartOffset = dayEntry.WaveEndOffset;
+                    dayEntry.WaveLength      = 0;   // selects the EVT-only path in ReadDateSession
+                    hasWaveform = false;
+                }
+            }
+        }
+        if (hasWaveform) {
             // Normal path: derive session timestamps from waveform packets.
-            const QDateTime startTs = ReadWaveformPacketTimestamp(waveStart);
-            const quint32 endPacketOffset = (waveEnd >= kG3xWaveformPacketSize)
-                                                ? (waveEnd - kG3xWaveformPacketSize)
-                                                : waveStart;
+            const QDateTime startTs = ReadWaveformPacketTimestamp(dayEntry.WaveStartOffset);
+            const quint64 endPacketOffset = (waveEndV - dayEntry.WaveStartOffset >= kG3xWaveformPacketSize)
+                                                ? (waveEndV - kG3xWaveformPacketSize)
+                                                : dayEntry.WaveStartOffset;
             QDateTime endTs = ReadWaveformPacketTimestamp(endPacketOffset);
 
             if (!startTs.isValid()) {
                 ++idxBadTs;
 #ifdef BMCDEBUG
                 qDebug() << "BmcG3xData IDX: skipping" << QDate(year, month, day).toString(Qt::ISODate)
-                         << "invalid waveform timestamp at waveStart" << Qt::hex << waveStart;
+                         << "invalid waveform timestamp at waveStart" << Qt::hex << dayEntry.WaveStartOffset;
 #endif // BMCDEBUG
                 continue;
             }
-            if (!endTs.isValid() || endTs < startTs) {
+            if (!endTs.isValid() || endTs < startTs || !IsInG3xDayWindow(endTs, dayEntry.Date)) {
                 // Fall back to estimating end time from packet count.
-                const quint32 packetCount = std::max<quint32>(1, waveLen / kG3xWaveformPacketSize);
+                const quint32 packetCount = std::max<quint32>(1, dayEntry.WaveLength / kG3xWaveformPacketSize);
                 endTs = startTs.addSecs(static_cast<int>(packetCount));
             }
             dayEntry.StartTimestamp = startTs;
@@ -2371,12 +2450,11 @@ int BmcG3xData::ResolveLeakFieldOffset()
         if (entry.WaveLength == 0) {
             continue;
         }
-        const int fileIndex = static_cast<int>(entry.WaveStartOffset / kG3xWaveformFileSpan);
-        QFile probeFile(QString("%1.%2").arg(fileBasePath).arg(fileIndex, 3, 10, QLatin1Char('0')));
+        qint64 startRaw = 0;
+        QFile probeFile(WaveformFileFor(entry.WaveStartOffset, &startRaw));
         if (!probeFile.open(QIODevice::ReadOnly)) {
             continue;
         }
-        const qint64 startRaw   = entry.WaveStartOffset % kG3xWaveformFileSpan;
         const qint64 startLocal = (startRaw / kG3xWaveformPacketSize) * kG3xWaveformPacketSize;
         probeFile.seek(std::max<qint64>(0, startLocal));
 
@@ -2415,7 +2493,72 @@ int BmcG3xData::ResolveLeakFieldOffset()
     return leakFieldOffsetCache;
 }
 
-QDateTime BmcG3xData::ReadWaveformPacketTimestamp(quint32 virtualByteOffset) const
+/// @brief Reads the waveform ring geometry (file size × file count) from the IDX header.
+///
+/// Only the file count is taken from the header: every reader in this file assumes the
+/// 64 MiB file size, so a header reporting another size is logged and the default count
+/// kept rather than half-trusted.
+void BmcG3xData::ParseWaveformRingGeometry(const QByteArray& idxBytes)
+{
+    waveFileCount = kG3xDefaultWaveFileCount;
+    if (idxBytes.size() < kG3xIdxWaveFileCountOffset + 4) {
+        return;
+    }
+    const quint32 span  = ReadUInt32LE(idxBytes, kG3xIdxWaveFileSpanOffset);
+    const quint32 count = ReadUInt32LE(idxBytes, kG3xIdxWaveFileCountOffset);
+    // 64 files of 64 MiB would already overflow the IDX's u32 offsets.
+    if (span == kG3xWaveformFileSpan && count >= 1 && count <= 64) {
+        waveFileCount = static_cast<int>(count);
+    } else {
+        qWarning() << "BmcG3xData: unexpected waveform ring geometry in IDX header - file size"
+                   << span << "count" << count << "- assuming" << kG3xDefaultWaveFileCount
+                   << "files of" << kG3xWaveformFileSpan << "bytes";
+    }
+}
+
+/// @brief Maps an offset in the (unwrapped) virtual waveform address space to its file.
+/// @param virtualByteOffset Offset as stored in G3xDayEntry; may exceed the ring size.
+/// @param localOffset       If non-null, receives the byte offset within that file.
+/// @return Path of the .00x file holding that byte.
+QString BmcG3xData::WaveformFileFor(quint64 virtualByteOffset, qint64* localOffset) const
+{
+    const quint64 fileIndex = (virtualByteOffset / kG3xWaveformFileSpan) %
+                              static_cast<quint64>(std::max(1, waveFileCount));
+    if (localOffset) {
+        *localOffset = static_cast<qint64>(virtualByteOffset % kG3xWaveformFileSpan);
+    }
+    return QString("%1.%2").arg(fileBasePath).arg(fileIndex, 3, 10, QLatin1Char('0'));
+}
+
+/// @brief Finds the first packet in [@p startOffset, @p endOffset) stamped within the day
+///        window of @p date (see IsInG3xDayWindow).
+///
+/// For a record whose space has been partly overwritten, the overwritten packets form a
+/// prefix of its range and the surviving ones the suffix, so a binary search over packet
+/// positions finds the boundary in a few dozen reads.
+/// @return Offset of that packet, or @p endOffset if no packet is in the window.
+quint64 BmcG3xData::FindFirstPacketInDayWindow(quint64 startOffset, quint64 endOffset,
+                                               const QDate& date) const
+{
+    if (endOffset <= startOffset) {
+        return endOffset;
+    }
+    quint64 lo = 0;
+    quint64 hi = (endOffset - startOffset) / kG3xWaveformPacketSize;   // packet count
+    while (lo < hi) {
+        const quint64 mid = lo + (hi - lo) / 2;
+        const QDateTime ts = ReadWaveformPacketTimestamp(startOffset + mid * kG3xWaveformPacketSize);
+        if (IsInG3xDayWindow(ts, date)) {
+            hi = mid;
+        } else {
+            lo = mid + 1;
+        }
+    }
+    const quint64 found = startOffset + lo * kG3xWaveformPacketSize;
+    return (found < endOffset) ? found : endOffset;
+}
+
+QDateTime BmcG3xData::ReadWaveformPacketTimestamp(quint64 virtualByteOffset) const
 {
     const QByteArray header = ReadVirtualWaveformBytes(virtualByteOffset, 10);
     if (header.size() < 10) {
@@ -2495,23 +2638,19 @@ QList<QDateTime> BmcG3xData::ReadWaveformPacketTimestamps(quint32 startOffset, q
 }
 
 /// @brief Reads @p byteCount bytes from the virtual waveform address space
-///        starting at @p virtualByteOffset, spanning .00x files as needed.
-QByteArray BmcG3xData::ReadVirtualWaveformBytes(quint32 virtualByteOffset, int byteCount) const
+///        starting at @p virtualByteOffset, spanning .00x files (and the ring's
+///        wrap point) as needed.
+QByteArray BmcG3xData::ReadVirtualWaveformBytes(quint64 virtualByteOffset, int byteCount) const
 {
     QByteArray output;
     output.reserve(byteCount);
 
-    qint64 currentOffset = virtualByteOffset;
-    int    remaining     = byteCount;
+    quint64 currentOffset = virtualByteOffset;
+    int     remaining     = byteCount;
 
     while (remaining > 0) {
-        const int    fileIndex  = static_cast<int>(currentOffset / kG3xWaveformFileSpan);
-        const qint64 fileOffset = currentOffset % kG3xWaveformFileSpan;
-
-        const QString filepath = QString("%1.%2")
-                                     .arg(fileBasePath)
-                                     .arg(fileIndex, 3, 10, QLatin1Char('0'));
-        QFile waveformFile(filepath);
+        qint64 fileOffset = 0;
+        QFile waveformFile(WaveformFileFor(currentOffset, &fileOffset));
         if (!waveformFile.open(QIODevice::ReadOnly)) {
             break;
         }

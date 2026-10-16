@@ -15,7 +15,7 @@
 - No global file header; file is a flat stream of fixed-size packets.
 - Valid packet marker at packet offset `0x000`: bytes `AD AA` (little-endian `0xAAAD`).
 - Packets not starting with `AD AA` are skipped.
-- **Ring-buffer layout:** Each `.00x` file is a circular ring buffer of 32 768 packets (= 32 768 s ≈ 9.1 h at 1 Hz). The device records continuously and overwrites the oldest packet first; consecutive `.00x` files are sequential (last packet of `.NNN` is immediately followed by first packet of `.NNN+1`). The physical wrap point within a file can be found by scanning for the largest forward timestamp jump between consecutive packets.
+- **Ring-buffer layout:** Each `.00x` file holds 32 768 packets (64 MiB = 32 768 s ≈ 9.1 h at 1 Hz). Consecutive files are sequential (last packet of `.NNN` is immediately followed by first packet of `.NNN+1`), and the file series as a whole is one ring buffer: after `.062` the device wraps to `.000` and overwrites the oldest data. The ring geometry is in the IDX header: u32 LE file size at `0xD4` (64 MiB) and file count at `0xD8` (63 on every card seen). IDX offsets are virtual offsets in that 63 × 64 MiB space, so a night that crosses the wrap point has an end offset below its start (confirmed 2026-10-15, GitLab #323). Once the ring has wrapped, the oldest IDX records still point at space a newer night has overwritten. Their packets carry the newer night's timestamps.
 
 ---
 

@@ -203,6 +203,20 @@ void BmcLoaderTask::run()
             session->setNoSettings(false);
             session->UpdateSummaries();
 
+            // setSessionWaveforms() always creates Ti/Te lists, only so that the summary
+            // pass above does not derive them from the flow waveform.  Where nothing filled
+            // them (G3X: ExportTimingChannels() is false) drop them now that the summaries
+            // are done: empty channels are not persisted, so keeping them would only show
+            // "Plots Disabled" graphs until the profile is reloaded (GitLab #324).
+            for (ChannelID code : {CPAP_Ti, CPAP_Te}) {
+                const auto it = session->eventlist.constFind(code);
+                if (it != session->eventlist.constEnd() &&
+                    std::all_of(it->cbegin(), it->cend(),
+                                [](const EventList* el) { return el->count() == 0; })) {
+                    session->destroyEvent(code);
+                }
+            }
+
             QMutexLocker locker(&bmcLoader->sessionMutex);
 
             // We always re-import the final day since a session might still be in progress.

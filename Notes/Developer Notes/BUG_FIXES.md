@@ -4,6 +4,54 @@ Notable bugs found and fixed during development/investigation.
 
 ---
 
+## 2026-10-15 - BMC G3X Insp/Exp Time graphs showed "Plots Disabled" after import (#324)
+
+**Files:** `oscar/SleepLib/loader_plugins/bmc_loader.cpp`
+
+**Symptom:** Right after a G3X import, the Daily view showed Insp Time and Exp Time graphs
+reading "Plots Disabled". After the profile was closed and reopened, the graphs were gone.
+
+**Root cause:** `setSessionWaveforms()` always creates CPAP_Ti/CPAP_Te lists so that
+`calcRespRate()` won't derive them from the flow waveform. G3X never fills them
+(`ExportTimingChannels()` is false). The empty lists stayed on the in-memory session and
+drew as graphs with no points, but zero-count channels aren't persisted, so a reload
+dropped them.
+
+**Fix:** `BmcLoaderTask::run()` destroys CPAP_Ti/CPAP_Te lists that are still empty after
+`UpdateSummaries()`. They have already blocked the flow-based calculation by then. Legacy
+BMC fills these lists, so it is unaffected.
+
+---
+
+## 2026-10-15 - BMC G3X night with no graphs once the waveform ring wrapped (#323)
+
+**Files:** `oscar/SleepLib/loader_plugins/bmcG3xDataParsing.cpp/.h`
+
+**Symptom:** A G3 A20 night imported as an empty session at noon with no graphs or events.
+On a fresh import the same OSCAR day also got sessions labelled AutoCPAP, though the
+device was in CPAP mode.
+
+**Root cause:** The `.000`–`.062` waveform files are one ring buffer (63 × 64 MiB,
+recorded in the IDX header at 0xD4/0xD8). This card filled the ring for the first time
+that night, so the night's IDX record ends at a lower offset than it starts. There were
+two problems:
+1. `ParseIdxRecords()` and `ReadDateSession()` required end > start. The wrapped night
+   was treated as having no waveform, and the read loop never ran, so the only thing
+   stored was the synthetic fallback packet.
+2. The oldest IDX records still pointed at space the new nights had overwritten. Their
+   packet ranges were read as-is, so July records (AutoCPAP at the time) produced
+   sessions stamped October.
+
+**Fix:** The ring's file count is now read from the IDX header. A wrapped end offset is
+unwrapped by adding the ring size, and every virtual offset is mapped to a file modulo
+the file count. Packets stamped outside the record's day window (IDX date 00:00 to +2
+days; records span noon to noon) are treated as overwritten. A record whose start is
+overwritten keeps its surviving tail, found by binary search. If nothing survives, the
+record falls back to the existing EVT-only path. Existing imports need the device's
+data purged and re-imported (or Rebuild) to drop the stale sessions.
+
+---
+
 ## 2026-10-10 - Rebuild CPAP Data failed for Prisma and deleted the data first (#321)
 
 **Files:** `oscar/SleepLib/loader_plugins/prisma_loader.cpp/.h`, `oscar/mainwindow.cpp`
